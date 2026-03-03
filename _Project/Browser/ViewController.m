@@ -51,6 +51,9 @@ static CGFloat const kTabCardWidth = 260.0;
 static CGFloat const kTabCardHeight = 240.0;
 static CGFloat const kTabCardSpacing = 20.0;
 static CGFloat const kTabCardGlowInset = 12.0;
+static NSString * const kDisableInlineMediaPlaybackDefaultsKey = @"DisableInlineMediaPlayback";
+static NSString * const kInteractiveElementSelector = @"a, button, input, textarea, select, option, label, summary, [role='button'], [onclick], [tabindex]";
+static NSString * const kEditableElementSelector = @"input, textarea, select, [contenteditable='true'], [contenteditable=''], [contenteditable]";
 
 @interface ViewController () <BrowserMenuPresenterHost>
 
@@ -211,6 +214,14 @@ static CGFloat const kTabCardGlowInset = 12.0;
     [webView setClipsToBounds:false];
     [webView setDelegate:self];
     [webView setLayoutMargins:UIEdgeInsetsZero];
+    [webView setOpaque:NO];
+    [webView setBackgroundColor:UIColor.blackColor];
+    BOOL disablesInlineMediaPlayback = [[NSUserDefaults standardUserDefaults] boolForKey:kDisableInlineMediaPlaybackDefaultsKey];
+    SEL inlineMediaPlaybackSelector = NSSelectorFromString(@"setAllowsInlineMediaPlayback:");
+    if ([webView respondsToSelector:inlineMediaPlaybackSelector]) {
+        void (*setter)(id, SEL, BOOL) = (void (*)(id, SEL, BOOL))[webView methodForSelector:inlineMediaPlaybackSelector];
+        setter(webView, inlineMediaPlaybackSelector, !disablesInlineMediaPlayback);
+    }
     
     UIScrollView *scrollView = [webView scrollView];
     [scrollView setLayoutMargins:UIEdgeInsetsZero];
@@ -218,8 +229,10 @@ static CGFloat const kTabCardGlowInset = 12.0;
     scrollView.contentOffset = CGPointZero;
     scrollView.contentInset = UIEdgeInsetsZero;
     scrollView.clipsToBounds = NO;
+    scrollView.backgroundColor = UIColor.blackColor;
     scrollView.bounces = self.scrollViewAllowBounces;
     scrollView.panGestureRecognizer.allowedTouchTypes = @[ @(UITouchTypeIndirect) ];
+    [scrollView.panGestureRecognizer addTarget:self action:@selector(handleWebViewPanGesture:)];
     scrollView.scrollEnabled = NO;
     
     NSNumber *scalePagesToFit = [[NSUserDefaults standardUserDefaults] objectForKey:@"ScalePagesToFit"];
@@ -233,17 +246,135 @@ static CGFloat const kTabCardGlowInset = 12.0;
 - (void)refreshActiveTabUI {
     BrowserTabViewModel *tab = [self activeTab];
     if (tab == nil) {
-        self.lblUrlBar.text = @"";
+        self.topMenuView.URLLabel.text = @"";
         return;
     }
     
     NSURLRequest *request = [self.webview request];
     NSString *currentURL = tab.URLString.length > 0 ? tab.URLString : request.URL.absoluteString;
-    self.lblUrlBar.text = currentURL.length > 0 ? currentURL : @"New Tab";
+    self.topMenuView.URLLabel.text = currentURL.length > 0 ? currentURL : @"New Tab";
     
     if (request != nil) {
         [self updateTextFontSize];
     }
+}
+
+- (CGPoint)browserDOMPointForCursor {
+    CGPoint point = [self.view convertPoint:self.cursorView.frame.origin toView:self.webview];
+    if (point.y < 0.0) {
+        return point;
+    }
+
+    NSInteger displayWidth = [[self.webview stringByEvaluatingJavaScriptFromString:@"window.innerWidth"] integerValue];
+    if (displayWidth <= 0) {
+        return point;
+    }
+
+    CGFloat scale = CGRectGetWidth([self.webview frame]) / (CGFloat)displayWidth;
+    if (scale <= 0.0) {
+        return point;
+    }
+
+    point.x /= scale;
+    point.y /= scale;
+    return point;
+}
+
+- (NSString *)evaluateResolvedElementJavaScriptAtPoint:(CGPoint)point body:(NSString *)body {
+    NSInteger pointX = (NSInteger)llround(point.x);
+    NSInteger pointY = (NSInteger)llround(point.y);
+    NSString *script = [NSString stringWithFormat:
+                        @"(function(){"
+                        "var x=%ld;"
+                        "var y=%ld;"
+                        "var interactiveSelector=\"%@\";"
+                        "var editableSelector=\"%@\";"
+                        "function resolveElement(root, px, py) {"
+                            "if (!root || typeof root.elementFromPoint !== 'function') { return null; }"
+                            "var element = root.elementFromPoint(px, py);"
+                            "while (element) {"
+                                "if (element.shadowRoot && typeof element.shadowRoot.elementFromPoint === 'function') {"
+                                    "var shadowRect = element.getBoundingClientRect();"
+                                    "var shadowElement = resolveElement(element.shadowRoot, px - shadowRect.left, py - shadowRect.top);"
+                                    "if (shadowElement && shadowElement !== element) {"
+                                        "element = shadowElement;"
+                                        "continue;"
+                                    "}"
+                                "}"
+                                "if (element.tagName === 'IFRAME') {"
+                                    "try {"
+                                        "var frameRect = element.getBoundingClientRect();"
+                                        "var frameDocument = element.contentDocument;"
+                                        "var frameElement = resolveElement(frameDocument, px - frameRect.left, py - frameRect.top);"
+                                        "if (frameElement) {"
+                                            "element = frameElement;"
+                                            "continue;"
+                                        "}"
+                                    "} catch (error) {}"
+                                "}"
+                                "return element;"
+                            "}"
+                            "return null;"
+                        "}"
+                        "function closestMatch(element, selector) {"
+                            "while (element) {"
+                                "if (element.matches && element.matches(selector)) { return element; }"
+                                "element = element.parentElement;"
+                            "}"
+                            "return null;"
+                        "}"
+                        "var resolvedElement = resolveElement(document, x, y);"
+                        "var interactiveElement = closestMatch(resolvedElement, interactiveSelector);"
+                        "var editableElement = closestMatch(resolvedElement, editableSelector);"
+                        "%@"
+                        "})()",
+                        (long)pointX,
+                        (long)pointY,
+                        kInteractiveElementSelector,
+                        kEditableElementSelector,
+                        body];
+    return [self.webview stringByEvaluatingJavaScriptFromString:script];
+}
+
+- (NSString *)evaluateHoverStateJavaScriptAtPoint:(CGPoint)point {
+    NSInteger pointX = (NSInteger)llround(point.x);
+    NSInteger pointY = (NSInteger)llround(point.y);
+    NSString *script = [NSString stringWithFormat:
+                        @"(function(){"
+                        "var element = document.elementFromPoint(%ld, %ld);"
+                        "while (element) {"
+                            "if (element.matches && element.matches(\"%@\")) { return 'true'; }"
+                            "element = element.parentElement;"
+                        "}"
+                        "return 'false';"
+                        "})()",
+                        (long)pointX,
+                        (long)pointY,
+                        kInteractiveElementSelector];
+    return [self.webview stringByEvaluatingJavaScriptFromString:script];
+}
+
+- (NSString *)javaScriptEscapedString:(NSString *)string {
+    NSString *escapedString = string ?: @"";
+    escapedString = [escapedString stringByReplacingOccurrencesOfString:@"\\" withString:@"\\\\"];
+    escapedString = [escapedString stringByReplacingOccurrencesOfString:@"'" withString:@"\\'"];
+    escapedString = [escapedString stringByReplacingOccurrencesOfString:@"\n" withString:@"\\n"];
+    escapedString = [escapedString stringByReplacingOccurrencesOfString:@"\r" withString:@"\\r"];
+    escapedString = [escapedString stringByReplacingOccurrencesOfString:@"\u2028" withString:@"\\u2028"];
+    escapedString = [escapedString stringByReplacingOccurrencesOfString:@"\u2029" withString:@"\\u2029"];
+    return escapedString;
+}
+
+- (BOOL)isPrimaryDocumentRequest:(NSURLRequest *)request {
+    NSURL *requestURL = request.URL;
+    NSURL *mainDocumentURL = request.mainDocumentURL;
+    if (requestURL == nil) {
+        return NO;
+    }
+    if (mainDocumentURL == nil) {
+        return YES;
+    }
+    return [requestURL isEqual:mainDocumentURL];
 }
 
 - (void)updateStoredScrollOffsetForTab:(BrowserTabViewModel *)tab {
@@ -325,7 +456,7 @@ static CGFloat const kTabCardGlowInset = 12.0;
     }
     
     self.webview = activeWebView;
-    [self.loadingSpinner stopAnimating];
+    [self.topMenuView.loadingSpinner stopAnimating];
     [self.browserContainerView addSubview:self.webview];
     [self updateTopNavAndWebView];
     
@@ -343,12 +474,17 @@ static CGFloat const kTabCardGlowInset = 12.0;
 }
 
 - (void)setCursorModeEnabled:(BOOL)cursorMode {
+    BOOL wasCursorMode = self.cursorMode;
     self.cursorMode = cursorMode;
     UIScrollView *scrollView = [self.webview scrollView];
     BOOL shouldAllowWebInteraction = !cursorMode && !self.tabOverviewVisible;
     scrollView.scrollEnabled = shouldAllowWebInteraction;
     [self.webview setUserInteractionEnabled:shouldAllowWebInteraction];
     self.cursorView.hidden = self.tabOverviewVisible ? NO : !cursorMode;
+
+    if (!wasCursorMode && cursorMode) {
+        [self persistBrowserSession];
+    }
 }
 
 - (void)captureSnapshotForTab:(BrowserTabViewModel *)tab {
@@ -556,7 +692,7 @@ static CGFloat const kTabCardGlowInset = 12.0;
     loadingSpinner.center = CGPointMake(CGRectGetMidX([UIScreen mainScreen].bounds), CGRectGetMidY([UIScreen mainScreen].bounds));
     loadingSpinner.tintColor = [UIColor blackColor];*/
     
-    self.loadingSpinner.hidesWhenStopped = true;
+    self.topMenuView.loadingSpinner.hidesWhenStopped = YES;
     
     //[loadingSpinner startAnimating];
     //[self.view addSubview:loadingSpinner];
@@ -799,6 +935,26 @@ static CGFloat const kTabCardGlowInset = 12.0;
     
     CGPoint overlayPoint = [self.view convertPoint:viewPoint toView:self.tabOverviewOverlayView.contentView];
     return CGRectContainsPoint(self.tabOverviewPanelView.frame, overlayPoint);
+}
+
+- (void)handleWebViewPanGesture:(UIPanGestureRecognizer *)gestureRecognizer {
+    if (gestureRecognizer.state != UIGestureRecognizerStateEnded &&
+        gestureRecognizer.state != UIGestureRecognizerStateCancelled &&
+        gestureRecognizer.state != UIGestureRecognizerStateFailed) {
+        return;
+    }
+
+    UIView *gestureView = gestureRecognizer.view;
+    if (![gestureView isKindOfClass:[UIScrollView class]]) {
+        return;
+    }
+
+    UIScrollView *scrollView = (UIScrollView *)gestureView;
+    if (scrollView != [self.webview scrollView]) {
+        return;
+    }
+
+    [self persistBrowserSession];
 }
 
 - (BOOL)handleTabOverviewSelectionAtPoint:(CGPoint)viewPoint {
@@ -1046,7 +1202,7 @@ static CGFloat const kTabCardGlowInset = 12.0;
     }
     
     if (tab == [self activeTab] && ![tab.previousURL isEqualToString:tab.requestURL]) {
-        [self.loadingSpinner startAnimating];
+        [self.topMenuView.loadingSpinner startAnimating];
     }
     tab.previousURL = tab.requestURL;
 }
@@ -1057,7 +1213,7 @@ static CGFloat const kTabCardGlowInset = 12.0;
     }
     
     if (tab == [self activeTab]) {
-        [self.loadingSpinner stopAnimating];
+        [self.topMenuView.loadingSpinner stopAnimating];
     }
     
     NSString *theTitle=[webView stringByEvaluatingJavaScriptFromString:@"document.title"];
@@ -1084,6 +1240,9 @@ static CGFloat const kTabCardGlowInset = 12.0;
     if (tab == nil) {
         return YES;
     }
+    if (![self isPrimaryDocumentRequest:request]) {
+        return YES;
+    }
     NSString *requestURL = request.URL.absoluteString ?: @"";
     if (tab.URLString.length > 0 && ![tab.URLString isEqualToString:requestURL]) {
         tab.savedScrollOffset = CGPointZero;
@@ -1099,9 +1258,16 @@ static CGFloat const kTabCardGlowInset = 12.0;
     if (tab == nil) {
         return;
     }
+
+    NSURL *failingURL = error.userInfo[NSURLErrorFailingURLErrorKey];
+    NSURLRequest *currentRequest = [webView request];
+    NSString *currentRequestURLString = currentRequest.URL.absoluteString ?: @"";
+    if (failingURL != nil && currentRequestURLString.length > 0 && ![failingURL.absoluteString isEqualToString:currentRequestURLString]) {
+        return;
+    }
     
     if (tab == [self activeTab]) {
-        [self.loadingSpinner stopAnimating];
+        [self.topMenuView.loadingSpinner stopAnimating];
     }
     
     if (tab != [self activeTab]) {
@@ -1328,38 +1494,38 @@ static CGFloat const kTabCardGlowInset = 12.0;
             {
                 // Handle menu buttons press
                 point = [self.view convertPoint:self.cursorView.frame.origin toView:self.topMenuView];
-                CGRect backBtnFrameExtra = self.btnImageBack.frame;
-                backBtnFrameExtra.origin.y = 0; // Enable cursor in upper right corner
-                backBtnFrameExtra.size.height = backBtnFrameExtra.size.height+ 8;// Enable cursor in upper right corner
+                CGRect backBtnFrameExtra = [self.topMenuView interactiveFrameForView:self.topMenuView.backImageView];
+                backBtnFrameExtra.origin.y = 0;
+                backBtnFrameExtra.size.height = backBtnFrameExtra.size.height + 8.0;
 
                 
                 if(CGRectContainsPoint(backBtnFrameExtra, point))
                 {
                     [self.webview goBack];
                 }
-                else if(CGRectContainsPoint(self.btnImageRefresh.frame, point))
+                else if(CGRectContainsPoint([self.topMenuView interactiveFrameForView:self.topMenuView.refreshImageView], point))
                 {
                     [self.webview reload];
                 }
-                else if(CGRectContainsPoint(self.btnImageForward.frame, point))
+                else if(CGRectContainsPoint([self.topMenuView interactiveFrameForView:self.topMenuView.forwardImageView], point))
                 {
                     [self.webview goForward];
                 }
-                else if(CGRectContainsPoint(self.btnImageHome.frame, point))
+                else if(CGRectContainsPoint([self.topMenuView interactiveFrameForView:self.topMenuView.homeImageView], point))
                 {
                     [self loadHomePage];
                 }
-                else if(CGRectContainsPoint(self.btnImageTabs.frame, point))
+                else if(CGRectContainsPoint([self.topMenuView interactiveFrameForView:self.topMenuView.tabsImageView], point))
                 {
                     [self showTabOverview];
                 }
-                else if(CGRectContainsPoint(self.lblUrlBar.frame, point))
+                else if(CGRectContainsPoint([self.topMenuView interactiveFrameForView:self.topMenuView.URLLabel], point))
                 {
                     [self showInputURLorSearchGoogle];
                 }
 
                 
-                else if(CGRectContainsPoint(self.btnImageFullScreen.frame, point))
+                else if(CGRectContainsPoint([self.topMenuView interactiveFrameForView:self.topMenuView.fullscreenImageView], point))
                 {
                     // Hide/show top bar:
                     
@@ -1369,10 +1535,10 @@ static CGFloat const kTabCardGlowInset = 12.0;
                         [self showTopNav];
                 }
                 
-                CGRect menuBtnFrameExtra = self.btnImgMenu.frame;
-                menuBtnFrameExtra.origin.y = 0; // Enable cursor in upper right corner
-                menuBtnFrameExtra.size.width = menuBtnFrameExtra.size.width + 100; // Enable cursor in upper right corner
-                menuBtnFrameExtra.size.height = menuBtnFrameExtra.size.height+ 100;// Enable cursor in upper right corner
+                CGRect menuBtnFrameExtra = [self.topMenuView interactiveFrameForView:self.topMenuView.menuImageView];
+                menuBtnFrameExtra.origin.y = 0;
+                menuBtnFrameExtra.size.width = menuBtnFrameExtra.size.width + 100.0;
+                menuBtnFrameExtra.size.height = menuBtnFrameExtra.size.height + 100.0;
 
                 if(CGRectContainsPoint(menuBtnFrameExtra, point))
                 {
@@ -1386,16 +1552,34 @@ static CGFloat const kTabCardGlowInset = 12.0;
             }
             else // Handle Press in the Browser view
             {
-            
-            int displayWidth = [[self.webview stringByEvaluatingJavaScriptFromString:@"window.innerWidth"] intValue];
-            CGFloat scale = [self.webview frame].size.width / displayWidth;
-            
-            point.x /= scale;
-            point.y /= scale;
-
-            [self.webview stringByEvaluatingJavaScriptFromString:[NSString stringWithFormat:@"document.elementFromPoint(%i, %i).click()", (int)point.x, (int)point.y]];
+            point = [self browserDOMPointForCursor];
+            [self evaluateResolvedElementJavaScriptAtPoint:point
+                                                      body:@"var target = interactiveElement || resolvedElement;"
+                                                           "if (!target) { return 'false'; }"
+                                                           "try { if (target.focus) { target.focus(); } } catch (error) {}"
+                                                           "function dispatchPointerLikeEvent(type, constructorName) {"
+                                                               "try {"
+                                                                   "var Constructor = window[constructorName];"
+                                                                   "if (Constructor) {"
+                                                                       "var event = new Constructor(type, { bubbles: true, cancelable: true, composed: true, view: window, clientX: x, clientY: y, screenX: x, screenY: y, button: 0, buttons: 1, pointerType: 'mouse' });"
+                                                                       "return target.dispatchEvent(event);"
+                                                                   "}"
+                                                               "} catch (error) {}"
+                                                               "var mouseEvent = document.createEvent('MouseEvents');"
+                                                               "mouseEvent.initMouseEvent(type, true, true, window, 1, x, y, x, y, false, false, false, false, 0, null);"
+                                                               "return target.dispatchEvent(mouseEvent);"
+                                                           "}"
+                                                           "dispatchPointerLikeEvent('pointerdown', 'PointerEvent');"
+                                                           "dispatchPointerLikeEvent('mousedown', 'MouseEvent');"
+                                                           "dispatchPointerLikeEvent('pointerup', 'PointerEvent');"
+                                                           "dispatchPointerLikeEvent('mouseup', 'MouseEvent');"
+                                                           "if (typeof target.click === 'function') { target.click(); }"
+                                                           "else { dispatchPointerLikeEvent('click', 'MouseEvent'); }"
+                                                           "return 'true';"];
             // Make the UIWebView method call
-            NSString *fieldType = [self.webview stringByEvaluatingJavaScriptFromString:[NSString stringWithFormat:@"document.elementFromPoint(%i, %i).type;", (int)point.x, (int)point.y]];
+            NSString *fieldType = [self evaluateResolvedElementJavaScriptAtPoint:point
+                                                                            body:@"var target = editableElement || interactiveElement || resolvedElement;"
+                                                                                 "return (target && target.type) ? target.type : '';"];
             /*
              if (fieldType == nil) {
              NSString *contentEditible = [self.webview stringByEvaluatingJavaScriptFromString:[NSString stringWithFormat:@"document.elementFromPoint(%i, %i).getAttribute('contenteditable');", (int)point.x, (int)point.y]];
@@ -1412,14 +1596,18 @@ static CGFloat const kTabCardGlowInset = 12.0;
              }
              }
              NSLog(fieldType);
-             */
+            */
             fieldType = fieldType.lowercaseString;
             if ([fieldType isEqualToString:@"date"] || [fieldType isEqualToString:@"datetime"] || [fieldType isEqualToString:@"datetime-local"] || [fieldType isEqualToString:@"email"] || [fieldType isEqualToString:@"month"] || [fieldType isEqualToString:@"number"] || [fieldType isEqualToString:@"password"] || [fieldType isEqualToString:@"search"] || [fieldType isEqualToString:@"tel"] || [fieldType isEqualToString:@"text"] || [fieldType isEqualToString:@"time"] || [fieldType isEqualToString:@"url"] || [fieldType isEqualToString:@"week"]) {
-                NSString *fieldTitle = [self.webview stringByEvaluatingJavaScriptFromString:[NSString stringWithFormat:@"document.elementFromPoint(%i, %i).title;", (int)point.x, (int)point.y]];
+                NSString *fieldTitle = [self evaluateResolvedElementJavaScriptAtPoint:point
+                                                                                 body:@"var target = editableElement || interactiveElement || resolvedElement;"
+                                                                                      "return (target && target.title) ? target.title : '';"];
                 if ([fieldTitle isEqualToString:@""]) {
                     fieldTitle = fieldType;
                 }
-                NSString *placeholder = [self.webview stringByEvaluatingJavaScriptFromString:[NSString stringWithFormat:@"document.elementFromPoint(%i, %i).placeholder;", (int)point.x, (int)point.y]];
+                NSString *placeholder = [self evaluateResolvedElementJavaScriptAtPoint:point
+                                                                                  body:@"var target = editableElement || interactiveElement || resolvedElement;"
+                                                                                       "return (target && target.placeholder) ? target.placeholder : '';"];
                 if ([placeholder isEqualToString:@""]) {
                     if (![fieldTitle isEqualToString:fieldType]) {
                         placeholder = [NSString stringWithFormat:@"%@ Input", fieldTitle];
@@ -1428,7 +1616,9 @@ static CGFloat const kTabCardGlowInset = 12.0;
                         placeholder = @"Text Input";
                     }
                 }
-                NSString *testedFormResponse = [self.webview stringByEvaluatingJavaScriptFromString:[NSString stringWithFormat:@"document.elementFromPoint(%i, %i).form.hasAttribute('onsubmit');", (int)point.x, (int)point.y]];
+                NSString *testedFormResponse = [self evaluateResolvedElementJavaScriptAtPoint:point
+                                                                                        body:@"var target = editableElement || interactiveElement || resolvedElement;"
+                                                                                             "return (target && target.form && target.form.hasAttribute('onsubmit')) ? 'true' : 'false';"];
                 UIAlertController *alertController = [UIAlertController
                                                       alertControllerWithTitle:@"Input Text"
                                                       message: [fieldTitle capitalizedString]
@@ -1452,7 +1642,9 @@ static CGFloat const kTabCardGlowInset = 12.0;
                      if ([fieldType isEqualToString:@"password"]) {
                          textField.secureTextEntry = YES;
                      }
-                     textField.text = [self.webview stringByEvaluatingJavaScriptFromString:[NSString stringWithFormat:@"document.elementFromPoint(%i, %i).value;", (int)point.x, (int)point.y]];
+                     textField.text = [self evaluateResolvedElementJavaScriptAtPoint:point
+                                                                                body:@"var target = editableElement || interactiveElement || resolvedElement;"
+                                                                                     "return (target && typeof target.value !== 'undefined') ? target.value : '';"];
                      textField.textColor = kTextColor();
                      [textField setReturnKeyType:UIReturnKeyDone];
                      [textField addTarget:self
@@ -1466,14 +1658,17 @@ static CGFloat const kTabCardGlowInset = 12.0;
                                                        handler:^(UIAlertAction *action)
                                                        {
                                                            UITextField *inputViewTextField = alertController.textFields[0];
-                                                           NSString *javaScript = [NSString stringWithFormat:@"var textField = document.elementFromPoint(%i, %i);"
-                                                                                   "textField.value = '%@';"
-                                                                                   "textField.form.submit();"
-                                                                                   //"var ev = document.createEvent('KeyboardEvent');"
-                                                                                   //"ev.initKeyEvent('keydown', true, true, window, false, false, false, false, 13, 0);"
-                                                                                   //"document.body.dispatchEvent(ev);"
-                                                                                   , (int)point.x, (int)point.y, inputViewTextField.text];
-                                                           [self.webview stringByEvaluatingJavaScriptFromString:javaScript];
+                                                           NSString *escapedText = [self javaScriptEscapedString:inputViewTextField.text];
+                                                           [self evaluateResolvedElementJavaScriptAtPoint:point
+                                                                                                    body:[NSString stringWithFormat:@"var target = editableElement || interactiveElement || resolvedElement;"
+                                                                                                          "if (!target) { return 'false'; }"
+                                                                                                          "target.value = '%@';"
+                                                                                                          "if (target.dispatchEvent) {"
+                                                                                                              "target.dispatchEvent(new Event('input', { bubbles: true }));"
+                                                                                                              "target.dispatchEvent(new Event('change', { bubbles: true }));"
+                                                                                                          "}"
+                                                                                                          "if (target.form) { target.form.submit(); }"
+                                                                                                          "return 'true';", escapedText]];
                                                        }];
                 UIAlertAction *inputAction = [UIAlertAction
                                               actionWithTitle:@"Done"
@@ -1481,9 +1676,16 @@ static CGFloat const kTabCardGlowInset = 12.0;
                                               handler:^(UIAlertAction *action)
                                               {
                                                   UITextField *inputViewTextField = alertController.textFields[0];
-                                                  NSString *javaScript = [NSString stringWithFormat:@"var textField = document.elementFromPoint(%i, %i);"
-                                                                          "textField.value = '%@';", (int)point.x, (int)point.y, inputViewTextField.text];
-                                                  [self.webview stringByEvaluatingJavaScriptFromString:javaScript];
+                                                  NSString *escapedText = [self javaScriptEscapedString:inputViewTextField.text];
+                                                  [self evaluateResolvedElementJavaScriptAtPoint:point
+                                                                                           body:[NSString stringWithFormat:@"var target = editableElement || interactiveElement || resolvedElement;"
+                                                                                                 "if (!target) { return 'false'; }"
+                                                                                                 "target.value = '%@';"
+                                                                                                 "if (target.dispatchEvent) {"
+                                                                                                     "target.dispatchEvent(new Event('input', { bubbles: true }));"
+                                                                                                     "target.dispatchEvent(new Event('change', { bubbles: true }));"
+                                                                                                 "}"
+                                                                                                 "return 'true';", escapedText]];
                                               }];
                 UIAlertAction *cancelAction = [UIAlertAction
                                                actionWithTitle:nil
@@ -1570,19 +1772,12 @@ static CGFloat const kTabCardGlowInset = 12.0;
             return;
         }
         if (self.cursorMode) {
-            CGPoint point = [self.view convertPoint:self.cursorView.frame.origin toView:self.webview];
+            CGPoint point = [self browserDOMPointForCursor];
             if(point.y < 0) {
                 return;
             }
-            
-            int displayWidth = [[self.webview stringByEvaluatingJavaScriptFromString:@"window.innerWidth"] intValue];
-            CGFloat scale = [self.webview frame].size.width / displayWidth;
-            
-            point.x /= scale;
-            point.y /= scale;
-            
-            // Seems not so low, check everytime when touchesMoved
-            NSString *containsLink = [self.webview stringByEvaluatingJavaScriptFromString:[NSString stringWithFormat:@"document.elementFromPoint(%i, %i).closest('a, input') !== null", (int)point.x, (int)point.y]];
+
+            NSString *containsLink = [self evaluateHoverStateJavaScriptAtPoint:point];
             if ([containsLink isEqualToString:@"true"]) {
                 self.cursorView.image = kPointerCursor();
             }

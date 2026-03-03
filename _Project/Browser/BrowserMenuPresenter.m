@@ -8,6 +8,8 @@ static UIColor *MenuTextColor(void) {
     }
 }
 
+static NSString * const kDisableInlineMediaPlaybackDefaultsKey = @"DisableInlineMediaPlayback";
+
 @interface BrowserMenuPresenter ()
 
 @property (nonatomic, weak) id<BrowserMenuPresenterHost> host;
@@ -360,6 +362,19 @@ static UIColor *MenuTextColor(void) {
     }];
 }
 
+- (UIAlertAction *)inlineMediaPlaybackAction {
+    BOOL disablesInlineMediaPlayback = [[NSUserDefaults standardUserDefaults] boolForKey:kDisableInlineMediaPlaybackDefaultsKey];
+    NSString *title = disablesInlineMediaPlayback ? @"Allow Inline Video Playback" : @"Disable Inline Video Playback";
+    return [self browserActionWithTitle:title
+                                  style:UIAlertActionStyleDefault
+                                handler:^(__unused UIAlertAction *action) {
+        [[NSUserDefaults standardUserDefaults] setBool:!disablesInlineMediaPlayback forKey:kDisableInlineMediaPlaybackDefaultsKey];
+        [[NSUserDefaults standardUserDefaults] synchronize];
+        [self.host browserRecreateActiveWebViewPreservingCurrentURL];
+        [self.host browserBringCursorToFront];
+    }];
+}
+
 - (NSArray<UIAlertAction *> *)advancedMenuActions {
     return @[
         [self favoritesMenuAction],
@@ -371,6 +386,7 @@ static UIColor *MenuTextColor(void) {
         [self userAgentModeAction],
         [self topNavigationVisibilityAction],
         [self pageScalingAction],
+        [self inlineMediaPlaybackAction],
         [self browserActionWithTitle:@"Increase Font Size"
                                style:UIAlertActionStyleDefault
                              handler:^(__unused UIAlertAction *action) {

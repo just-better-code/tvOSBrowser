@@ -21,9 +21,9 @@
                         <subviews>
                             <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="YrF-k3-Nha" userLabel="BrowserContainerView">
                                 <rect key="frame" x="0.0" y="0.0" width="1920" height="1080"/>
-                                <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+                                <color key="backgroundColor" red="0.0" green="0.0" blue="0.0" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                             </view>
-                            <visualEffectView opaque="NO" contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="LDW-dE-x05">
+                            <visualEffectView opaque="NO" contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="LDW-dE-x05" customClass="BrowserTopBarView">
                                 <rect key="frame" x="0.0" y="0.0" width="1920" height="80"/>
                                 <view key="contentView" opaque="NO" clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="center" insetsLayoutMarginsFromSafeArea="NO" id="vWz-fJ-GDT">
                                     <rect key="frame" x="0.0" y="0.0" width="1920" height="80"/>
@@ -139,15 +139,6 @@
                     <nil key="simulatedTopBarMetrics"/>
                     <connections>
                         <outlet property="browserContainerView" destination="YrF-k3-Nha" id="VN8-6j-qwt"/>
-                        <outlet property="btnImageBack" destination="yS3-uH-0RA" id="2PL-49-TG1"/>
-                        <outlet property="btnImageForward" destination="1BL-ob-AO6" id="LGw-U9-1jU"/>
-                        <outlet property="btnImageFullScreen" destination="Cxn-R0-Z5t" id="Kkk-pG-X3w"/>
-                        <outlet property="btnImageHome" destination="JCb-KB-JVN" id="WDS-rx-NGR"/>
-                        <outlet property="btnImageRefresh" destination="scy-YG-AC5" id="0BI-Zr-JtN"/>
-                        <outlet property="btnImageTabs" destination="fRm-v6-CqZ" id="rn2-Z2-n4m"/>
-                        <outlet property="btnImgMenu" destination="T1I-Df-T6Z" id="EmH-Uk-RDQ"/>
-                        <outlet property="lblUrlBar" destination="M3M-jp-jrQ" id="hhk-xq-hNc"/>
-                        <outlet property="loadingSpinner" destination="0G8-YF-nRC" id="Pnl-7v-jdQ"/>
                         <outlet property="topMenuView" destination="LDW-dE-x05" id="IjY-pt-G3z"/>
                     </connections>
                 </viewController>
