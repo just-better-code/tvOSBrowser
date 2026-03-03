@@ -24,9 +24,9 @@
                                 <color key="backgroundColor" red="0.0" green="0.0" blue="0.0" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                             </view>
                             <visualEffectView opaque="NO" contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="LDW-dE-x05" customClass="BrowserTopBarView">
-                                <rect key="frame" x="0.0" y="0.0" width="1920" height="80"/>
+                                <rect key="frame" x="0.0" y="0.0" width="1920" height="94"/>
                                 <view key="contentView" opaque="NO" clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="center" insetsLayoutMarginsFromSafeArea="NO" id="vWz-fJ-GDT">
-                                    <rect key="frame" x="0.0" y="0.0" width="1920" height="80"/>
+                                    <rect key="frame" x="0.0" y="0.0" width="1920" height="94"/>
                                     <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                                     <subviews>
                                         <imageView userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="go-back-left-arrow" translatesAutoresizingMaskIntoConstraints="NO" id="yS3-uH-0RA">
@@ -125,7 +125,7 @@
                         <color key="backgroundColor" red="0.0" green="0.0" blue="0.0" alpha="0.0" colorSpace="custom" customColorSpace="sRGB"/>
                         <color key="tintColor" red="0.3161621094" green="0.54801559710000003" blue="1" alpha="1" colorSpace="custom" customColorSpace="displayP3"/>
                         <constraints>
-                            <constraint firstItem="wfy-db-euE" firstAttribute="top" secondItem="LDW-dE-x05" secondAttribute="bottom" constant="940" id="2Kz-a1-hea"/>
+                            <constraint firstItem="wfy-db-euE" firstAttribute="top" secondItem="LDW-dE-x05" secondAttribute="bottom" constant="926" id="2Kz-a1-hea"/>
                             <constraint firstAttribute="bottom" secondItem="YrF-k3-Nha" secondAttribute="bottom" id="5Dj-hl-Kyg"/>
                             <constraint firstItem="LDW-dE-x05" firstAttribute="leading" secondItem="8bC-Xf-vdC" secondAttribute="leading" id="5fY-aP-JQ1"/>
                             <constraint firstItem="LDW-dE-x05" firstAttribute="top" secondItem="8bC-Xf-vdC" secondAttribute="top" id="8Wg-us-D8U"/>

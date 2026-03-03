@@ -6,12 +6,12 @@
 
 static CGFloat const kTopBarHorizontalInset = 40.0;
 static CGFloat const kTopBarVerticalInset = 8.0;
-static CGFloat const kTopBarHeight = 64.0;
+static CGFloat const kTopBarHeight = 86.0;
 static CGFloat const kTopBarMaxWidth = 1760.0;
-static CGFloat const kTopBarIconSize = 40.0;
-static CGFloat const kTopBarLeadingPadding = 26.0;
-static CGFloat const kTopBarTrailingPadding = 24.0;
-static CGFloat const kTopBarIconSpacing = 26.0;
+static CGFloat const kTopBarIconSize = 52.0;
+static CGFloat const kTopBarLeadingPadding = 28.0;
+static CGFloat const kTopBarTrailingPadding = 26.0;
+static CGFloat const kTopBarIconSpacing = 24.0;
 static CGFloat const kTopBarLabelSpacing = 28.0;
 static CGFloat const kTopBarSpinnerSpacing = 22.0;
 
@@ -126,21 +126,17 @@ static CGFloat const kTopBarSpinnerSpacing = 22.0;
 - (void)applyVisualStyle {
 #if __has_include(<UIKit/UIGlassEffect.h>)
     if (@available(tvOS 26.0, *)) {
-        UIGlassContainerEffect *containerEffect = [UIGlassContainerEffect new];
-        containerEffect.spacing = 24.0;
-        self.effect = containerEffect;
+        self.effect = nil;
 
         UIGlassEffect *glassEffect = [UIGlassEffect effectWithStyle:UIGlassEffectStyleRegular];
         glassEffect.interactive = YES;
         glassEffect.tintColor = [UIColor colorWithWhite:1.0 alpha:0.10];
         self.chromeEffectView.effect = glassEffect;
         self.chromeEffectView.alpha = 1.0;
-        self.chromeContainerView.layer.shadowColor = UIColor.blackColor.CGColor;
-        self.chromeContainerView.layer.shadowOpacity = 0.14;
-        self.chromeContainerView.layer.shadowOffset = CGSizeMake(0.0, 10.0);
-        self.chromeContainerView.layer.shadowRadius = 28.0;
-        self.chromeContainerView.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.20].CGColor;
-        self.chromeContainerView.layer.borderWidth = 0.6;
+        self.chromeContainerView.layer.shadowOpacity = 0.0;
+        self.chromeContainerView.layer.shadowOffset = CGSizeZero;
+        self.chromeContainerView.layer.shadowRadius = 0.0;
+        self.chromeContainerView.layer.borderWidth = 0.0;
         return;
     }
 #endif
@@ -194,7 +190,7 @@ static CGFloat const kTopBarSpinnerSpacing = 22.0;
     rightX = CGRectGetMinX(self.menuImageView.frame) - kTopBarIconSpacing - kTopBarIconSize;
     self.fullscreenImageView.frame = CGRectMake(rightX, iconY, kTopBarIconSize, kTopBarIconSize);
 
-    CGFloat spinnerSide = 28.0;
+    CGFloat spinnerSide = 34.0;
     rightX = CGRectGetMinX(self.fullscreenImageView.frame) - kTopBarSpinnerSpacing - spinnerSide;
     self.loadingSpinner.frame = CGRectMake(rightX,
                                            floor((CGRectGetHeight(chromeFrame) - spinnerSide) / 2.0),
