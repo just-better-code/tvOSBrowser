@@ -3,7 +3,7 @@
 #import "BrowserTabViewModel.h"
 #import "BrowserViewModel.h"
 
-static NSString * const kBrowserSessionFilename = @"BrowserSession.plist";
+static NSString * const kBrowserSessionDefaultsKey = @"BrowserSession";
 static NSString * const kBrowserSessionTabsKey = @"tabs";
 static NSString * const kBrowserSessionActiveTabIndexKey = @"activeTabIndex";
 static NSString * const kBrowserSessionVersionKey = @"version";
@@ -14,7 +14,7 @@ static NSNumber *BrowserSessionVersion(void) {
 @implementation BrowserSessionStore
 
 - (BOOL)restoreSessionIntoViewModel:(BrowserViewModel *)viewModel {
-    NSDictionary *sessionRepresentation = [NSDictionary dictionaryWithContentsOfURL:[self sessionFileURL]];
+    NSDictionary *sessionRepresentation = [self restoredSessionRepresentation];
     if (![sessionRepresentation isKindOfClass:[NSDictionary class]]) {
         return NO;
     }
@@ -46,7 +46,8 @@ static NSNumber *BrowserSessionVersion(void) {
 
 - (void)saveSessionForViewModel:(BrowserViewModel *)viewModel {
     if (viewModel.tabs.count == 0) {
-        [[NSFileManager defaultManager] removeItemAtURL:[self sessionFileURL] error:nil];
+        [[NSUserDefaults standardUserDefaults] removeObjectForKey:kBrowserSessionDefaultsKey];
+        [[NSUserDefaults standardUserDefaults] synchronize];
         return;
     }
     
@@ -60,25 +61,18 @@ static NSNumber *BrowserSessionVersion(void) {
         kBrowserSessionActiveTabIndexKey: @(viewModel.activeTabIndex),
         kBrowserSessionTabsKey: tabRepresentations
     };
-    
-    NSURL *sessionFileURL = [self sessionFileURL];
-    [self ensureSessionDirectoryExists];
-    [sessionRepresentation writeToURL:sessionFileURL atomically:YES];
+
+    [[NSUserDefaults standardUserDefaults] setObject:sessionRepresentation forKey:kBrowserSessionDefaultsKey];
+    [[NSUserDefaults standardUserDefaults] synchronize];
 }
 
-- (NSURL *)sessionFileURL {
-    NSURL *applicationSupportDirectory = [[[NSFileManager defaultManager] URLsForDirectory:NSApplicationSupportDirectory
-                                                                                inDomains:NSUserDomainMask] firstObject];
-    return [applicationSupportDirectory URLByAppendingPathComponent:kBrowserSessionFilename];
-}
+- (NSDictionary *)restoredSessionRepresentation {
+    NSDictionary *defaultsRepresentation = [[NSUserDefaults standardUserDefaults] objectForKey:kBrowserSessionDefaultsKey];
+    if ([defaultsRepresentation isKindOfClass:[NSDictionary class]]) {
+        return defaultsRepresentation;
+    }
 
-- (void)ensureSessionDirectoryExists {
-    NSURL *sessionFileURL = [self sessionFileURL];
-    NSURL *directoryURL = [sessionFileURL URLByDeletingLastPathComponent];
-    [[NSFileManager defaultManager] createDirectoryAtURL:directoryURL
-                             withIntermediateDirectories:YES
-                                              attributes:nil
-                                                   error:nil];
+    return nil;
 }
 
 @end

@@ -122,6 +122,20 @@ static CGRect BrowserFullscreenHackRectForSelectorName(id object, NSString *sele
     return ((CGRect (*)(id, SEL))objc_msgSend)(object, selector);
 }
 
+static BOOL BrowserViewIsDescendantOfView(UIView *view, UIView *ancestor) {
+    if (view == nil || ancestor == nil) {
+        return NO;
+    }
+
+    for (UIView *current = view; current != nil; current = current.superview) {
+        if (current == ancestor) {
+            return YES;
+        }
+    }
+
+    return NO;
+}
+
 static void BrowserFullscreenHackDumpRelevantClassesOnce(void) {
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
@@ -140,6 +154,7 @@ static void BrowserFullscreenHackDumpRelevantClassesOnce(void) {
 @property (nonatomic, strong) AVPlayer *currentPlayer;
 @property (nonatomic, strong) id currentPlayerControllerObject;
 @property (nonatomic, assign) CGSize sourceVideoDimensions;
+@property (nonatomic, strong) UIView *sourceWebPlayerLayerView;
 
 - (id)playerLayer;
 - (void)transferVideoViewTo:(UIView *)view;
@@ -457,6 +472,22 @@ static void BrowserFullscreenHackDumpRelevantClassesOnce(void) {
                              didRespondVideoRect ? NSStringFromCGRect(videoRect) : @"n/a");
 }
 
+- (void)browser_attemptSourceWebTransferToDestination:(UIView *)destinationView {
+    if (self.sourceWebPlayerLayerView == nil || destinationView == nil) {
+        return;
+    }
+
+    SEL transferSelector = @selector(transferVideoViewTo:);
+    if (![self.sourceWebPlayerLayerView respondsToSelector:transferSelector]) {
+        return;
+    }
+
+    BrowserFullscreenHackLog(@"attempting source WebAVPlayerLayerView transfer %@ -> %@",
+                             self.sourceWebPlayerLayerView,
+                             destinationView);
+    ((void (*)(id, SEL, id))objc_msgSend)(self.sourceWebPlayerLayerView, transferSelector, destinationView);
+}
+
 - (BOOL)browser_embeddedVideoReadyForDisplay {
     SEL selector = NSSelectorFromString(@"isReadyForDisplay");
     if (self.embeddedVideoView != nil && [self.embeddedVideoView respondsToSelector:selector]) {
@@ -648,6 +679,8 @@ static void BrowserFullscreenHackDumpRelevantClassesOnce(void) {
         ((void (*)(id, SEL, id))objc_msgSend)(self.embeddedVideoView, transferSelector, view);
     }
 
+    [self browser_attemptSourceWebTransferToDestination:view];
+
     CGRect targetBounds = view.bounds;
     if (targetBounds.size.width <= 0.0 || targetBounds.size.height <= 0.0) {
         targetBounds = view.window.bounds;
@@ -684,13 +717,22 @@ static void BrowserFullscreenHackDumpRelevantClassesOnce(void) {
                                  NSStringFromClass([view class]));
     }
 
+    id destinationVideoViewAfterSourceTransfer = BrowserFullscreenHackObjectForSelectorName(view, @"videoView");
+    id destinationVideoSublayerAfterSourceTransfer = BrowserFullscreenHackObjectForSelectorName(view.layer, @"videoSublayer");
+    BOOL destinationAlreadyHasTransferredVideo = (destinationVideoViewAfterSourceTransfer != nil ||
+                                                  destinationVideoSublayerAfterSourceTransfer != nil);
+
     [self browser_applyPlayer:self.currentPlayer toLayerObject:view];
     [self browser_applyPlayer:self.currentPlayer toLayerObject:view.layer];
     [self browser_applyPlayerControllerObject:self.currentPlayerControllerObject toObject:view];
     [self browser_applyPlayerControllerObject:self.currentPlayerControllerObject toObject:view.layer];
     [self browser_applyPlayerControllerObject:self.currentPlayerControllerObject toObject:self.embeddedVideoView];
-    [self browser_applyVideoView:self.embeddedVideoView toObject:view];
-    [self browser_applyVideoSublayer:self.embeddedVideoView.layer toObject:view.layer];
+    if (!destinationAlreadyHasTransferredVideo) {
+        [self browser_applyVideoView:self.embeddedVideoView toObject:view];
+        [self browser_applyVideoSublayer:self.embeddedVideoView.layer toObject:view.layer];
+    } else {
+        BrowserFullscreenHackLog(@"destination already has transferred WebKit video objects; skipping fallback videoView/videoSublayer setters");
+    }
     BOOL readyForDisplay = [self browser_embeddedVideoReadyForDisplay];
     CGSize videoDimensions = [self browser_embeddedVideoDimensions];
     if (!readyForDisplay && self.currentPlayer != nil && videoDimensions.width > 0.0 && videoDimensions.height > 0.0) {
@@ -739,8 +781,15 @@ static void BrowserFullscreenHackDumpRelevantClassesOnce(void) {
             [strongSelf browser_applyPlayerControllerObject:strongSelf.currentPlayerControllerObject toObject:strongDestinationView];
             [strongSelf browser_applyPlayerControllerObject:strongSelf.currentPlayerControllerObject toObject:strongDestinationView.layer];
             [strongSelf browser_applyPlayerControllerObject:strongSelf.currentPlayerControllerObject toObject:strongSelf.embeddedVideoView];
-            [strongSelf browser_applyVideoView:strongSelf.embeddedVideoView toObject:strongDestinationView];
-            [strongSelf browser_applyVideoSublayer:strongSelf.embeddedVideoView.layer toObject:strongDestinationView.layer];
+            [strongSelf browser_attemptSourceWebTransferToDestination:strongDestinationView];
+            id retryDestinationVideoView = BrowserFullscreenHackObjectForSelectorName(strongDestinationView, @"videoView");
+            id retryDestinationVideoSublayer = BrowserFullscreenHackObjectForSelectorName(strongDestinationView.layer, @"videoSublayer");
+            if (retryDestinationVideoView == nil && retryDestinationVideoSublayer == nil) {
+                [strongSelf browser_applyVideoView:strongSelf.embeddedVideoView toObject:strongDestinationView];
+                [strongSelf browser_applyVideoSublayer:strongSelf.embeddedVideoView.layer toObject:strongDestinationView.layer];
+            } else {
+                BrowserFullscreenHackLog(@"retry found transferred WebKit video objects already present on destination");
+            }
             [strongSelf browser_applyReadyForDisplay:retryReady toObject:strongDestinationView.layer];
             [strongSelf browser_applyVideoDimensions:retryDimensions toObject:strongDestinationView.layer];
             [strongSelf browser_applyVideoGravity:strongSelf.videoGravity toLayerObject:strongDestinationView];
@@ -846,6 +895,45 @@ static UIView *BrowserFindPlayerLayerViewInHierarchy(UIView *view) {
         UIView *match = BrowserFindPlayerLayerViewInHierarchy(subview);
         if (match != nil) {
             return match;
+        }
+    }
+
+    return nil;
+}
+
+static UIView *BrowserFindVisibleInlineWebPlayerLayerViewInHierarchy(UIView *rootView, UIView *excludedRoot) {
+    for (UIView *subview in rootView.subviews) {
+        NSString *className = NSStringFromClass([subview class]);
+        BOOL isInlineWebPlayerLayerView = [className isEqualToString:@"WebAVPlayerLayerView"];
+        BOOL isVisible = !subview.hidden && subview.alpha > 0.0;
+        BOOL hasGeometry = (subview.bounds.size.width > 0.0 && subview.bounds.size.height > 0.0) ||
+                           (subview.frame.size.width > 0.0 && subview.frame.size.height > 0.0);
+        BOOL excluded = BrowserViewIsDescendantOfView(subview, excludedRoot);
+        if (isInlineWebPlayerLayerView && isVisible && hasGeometry && !excluded) {
+            return subview;
+        }
+
+        UIView *match = BrowserFindVisibleInlineWebPlayerLayerViewInHierarchy(subview, excludedRoot);
+        if (match != nil) {
+            return match;
+        }
+    }
+
+    return nil;
+}
+
+static UIView *BrowserFindVisibleInlineWebPlayerLayerView(UIView *excludedRoot) {
+    for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
+        if (![scene isKindOfClass:[UIWindowScene class]]) {
+            continue;
+        }
+
+        UIWindowScene *windowScene = (UIWindowScene *)scene;
+        for (UIWindow *window in windowScene.windows) {
+            UIView *match = BrowserFindVisibleInlineWebPlayerLayerViewInHierarchy(window, excludedRoot);
+            if (match != nil) {
+                return match;
+            }
         }
     }
 
@@ -977,6 +1065,7 @@ static void BrowserEnsurePlayerLayerView(void *fullscreenInterface, id fullscree
 
     UIView *existingPlayerLayerView = BrowserCurrentPlayerLayerViewFromHost(playerControllerHost);
     UIView *playerControllerView = BrowserViewForObject(playerControllerHost);
+    UIView *inlineWebPlayerLayerView = BrowserFindVisibleInlineWebPlayerLayerView(playerControllerView);
     UIView *discoveredPlayerLayerView = BrowserFindPlayerLayerViewInHierarchy(playerControllerView);
 
     CGRect frame = playerControllerView != nil ? playerControllerView.bounds : CGRectZero;
@@ -984,13 +1073,28 @@ static void BrowserEnsurePlayerLayerView(void *fullscreenInterface, id fullscree
     playerLayerView.backgroundColor = UIColor.clearColor;
     playerLayerView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
 
-    UIView *sourcePlayerLayerView = existingPlayerLayerView ?: discoveredPlayerLayerView;
+    if (inlineWebPlayerLayerView != nil) {
+        playerLayerView.sourceWebPlayerLayerView = inlineWebPlayerLayerView;
+        BrowserFullscreenHackLog(@"using inline WebKit player layer view %@ (%@) as preferred source",
+                                 inlineWebPlayerLayerView,
+                                 NSStringFromClass([inlineWebPlayerLayerView class]));
+    }
+
+    UIView *preferredEmbeddedVideoView = nil;
+    if (inlineWebPlayerLayerView != nil) {
+        id inlineVideoView = BrowserFullscreenHackObjectForSelectorName(inlineWebPlayerLayerView, @"videoView");
+        if ([inlineVideoView isKindOfClass:[UIView class]]) {
+            preferredEmbeddedVideoView = inlineVideoView;
+        }
+    }
+
+    UIView *sourcePlayerLayerView = preferredEmbeddedVideoView ?: existingPlayerLayerView ?: discoveredPlayerLayerView;
     AVPlayerLayer *sourcePlayerLayer = BrowserExtractPlayerLayerFromView(sourcePlayerLayerView);
     if (sourcePlayerLayer != nil) {
         [playerLayerView browser_configureFromExistingPlayerLayer:sourcePlayerLayer];
         [playerLayerView browser_embedVideoView:sourcePlayerLayerView];
         BrowserFullscreenHackLog(@"using %@ playerLayerView %@ (%@) as source for synthetic layer",
-                                 existingPlayerLayerView != nil ? @"existing host" : @"discovered host",
+                                 preferredEmbeddedVideoView != nil ? @"inline WebKit source" : (existingPlayerLayerView != nil ? @"existing host" : @"discovered host"),
                                  sourcePlayerLayerView,
                                  NSStringFromClass([sourcePlayerLayerView class]));
     }
