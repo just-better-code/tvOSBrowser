@@ -54,6 +54,7 @@ static CGFloat const kTabCardGlowInset = 12.0;
 static NSString * const kDisableInlineMediaPlaybackDefaultsKey = @"DisableInlineMediaPlayback";
 static NSString * const kInteractiveElementSelector = @"a, button, input, textarea, select, option, label, summary, [role='button'], [onclick], [tabindex]";
 static NSString * const kEditableElementSelector = @"input, textarea, select, [contenteditable='true'], [contenteditable=''], [contenteditable]";
+static NSString * const kUserAgentDefaultsKey = @"UserAgent";
 
 @interface ViewController () <BrowserMenuPresenterHost>
 
@@ -216,6 +217,12 @@ static NSString * const kEditableElementSelector = @"input, textarea, select, [c
     [webView setLayoutMargins:UIEdgeInsetsZero];
     [webView setOpaque:NO];
     [webView setBackgroundColor:UIColor.blackColor];
+    NSString *userAgent = [[NSUserDefaults standardUserDefaults] stringForKey:kUserAgentDefaultsKey];
+    SEL setUserAgentSelector = NSSelectorFromString(@"setUserAgent:");
+    if (userAgent.length > 0 && [webView respondsToSelector:setUserAgentSelector]) {
+        void (*setter)(id, SEL, id) = (void (*)(id, SEL, id))[webView methodForSelector:setUserAgentSelector];
+        setter(webView, setUserAgentSelector, userAgent);
+    }
     BOOL disablesInlineMediaPlayback = [[NSUserDefaults standardUserDefaults] boolForKey:kDisableInlineMediaPlaybackDefaultsKey];
     SEL inlineMediaPlaybackSelector = NSSelectorFromString(@"setAllowsInlineMediaPlayback:");
     if ([webView respondsToSelector:inlineMediaPlaybackSelector]) {
@@ -403,6 +410,20 @@ static NSString * const kEditableElementSelector = @"input, textarea, select, [c
     return [self.sessionStore restoreSessionIntoViewModel:self.viewModel];
 }
 
+- (NSURLRequest *)requestWithURLString:(NSString *)URLString {
+    NSURL *URL = [NSURL URLWithString:URLString];
+    if (URL == nil) {
+        return nil;
+    }
+
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:URL];
+    NSString *userAgent = [[NSUserDefaults standardUserDefaults] stringForKey:kUserAgentDefaultsKey];
+    if (userAgent.length > 0) {
+        [request setValue:userAgent forHTTPHeaderField:@"User-Agent"];
+    }
+    return request;
+}
+
 - (void)loadStoredContentForTab:(BrowserTabViewModel *)tab {
     if (tab == nil) {
         [self loadHomePage];
@@ -414,8 +435,11 @@ static NSString * const kEditableElementSelector = @"input, textarea, select, [c
         [self loadHomePage];
         return;
     }
-    
-    [self.webview loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:URLString]]];
+
+    NSURLRequest *request = [self requestWithURLString:URLString];
+    if (request != nil) {
+        [self.webview loadRequest:request];
+    }
 }
 
 - (void)restoreSavedScrollOffsetForTab:(BrowserTabViewModel *)tab webView:(id)webView {
@@ -597,7 +621,10 @@ static NSString * const kEditableElementSelector = @"input, textarea, select, [c
     [self initWebView];
     
     if (currentURL.length > 0) {
-        [self.webview loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:currentURL]]];
+        NSURLRequest *request = [self requestWithURLString:currentURL];
+        if (request != nil) {
+            [self.webview loadRequest:request];
+        }
     } else {
         [self loadHomePage];
     }
@@ -612,7 +639,10 @@ static NSString * const kEditableElementSelector = @"input, textarea, select, [c
 }
 -(void)webViewDidAppear {
     if ([[NSUserDefaults standardUserDefaults] stringForKey:@"savedURLtoReopen"] != nil) {
-        [self.webview loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:[[NSUserDefaults standardUserDefaults] stringForKey:@"savedURLtoReopen"]]]];
+        NSURLRequest *request = [self requestWithURLString:[[NSUserDefaults standardUserDefaults] stringForKey:@"savedURLtoReopen"]];
+        if (request != nil) {
+            [self.webview loadRequest:request];
+        }
         [[NSUserDefaults standardUserDefaults] removeObjectForKey:@"savedURLtoReopen"];
         [[NSUserDefaults standardUserDefaults] synchronize];
     }

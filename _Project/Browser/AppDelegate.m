@@ -14,6 +14,9 @@
 
 @implementation AppDelegate
 
+static NSString * const kDesktopUserAgent = @"Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15";
+static NSString * const kMobileUserAgent = @"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
+
 - (void)restoreCookiesFromDefaults {
     NSData *cookieData = [[NSUserDefaults standardUserDefaults] objectForKey:@"ApplicationCookie"];
     if (cookieData.length == 0) {
@@ -51,14 +54,12 @@
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
 	// Override point for customization after application launch.
     if ([[NSUserDefaults standardUserDefaults] boolForKey:@"MobileMode"]) {
-        NSDictionary *dictionary = [NSDictionary dictionaryWithObjectsAndKeys:@"Mozilla/5.0 (iPad; CPU OS 12_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0 Mobile/15E148 Safari/604.1", @"UserAgent", nil];
-        [[NSUserDefaults standardUserDefaults] registerDefaults:dictionary];
+        [[NSUserDefaults standardUserDefaults] setObject:kMobileUserAgent forKey:@"UserAgent"];
         [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"MobileMode"];
         [[NSUserDefaults standardUserDefaults] synchronize];
     }
     else {
-        NSDictionary *dictionary = [NSDictionary dictionaryWithObjectsAndKeys:@"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0 Safari/605.1.15", @"UserAgent", nil];
-        [[NSUserDefaults standardUserDefaults] registerDefaults:dictionary];
+        [[NSUserDefaults standardUserDefaults] setObject:kDesktopUserAgent forKey:@"UserAgent"];
         [[NSUserDefaults standardUserDefaults] setBool:NO forKey:@"MobileMode"];
         [[NSUserDefaults standardUserDefaults] synchronize];
     }

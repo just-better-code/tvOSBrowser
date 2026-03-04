@@ -4,6 +4,7 @@
 
 static NSString * const kHistoryDefaultsKey = @"HISTORY";
 static NSString * const kHomepageDefaultsKey = @"homepage";
+static NSString * const kUserAgentDefaultsKey = @"UserAgent";
 static NSUInteger const kMaximumHistoryCount = 100;
 
 @implementation BrowserNavigationService
@@ -79,7 +80,13 @@ static NSUInteger const kMaximumHistoryCount = 100;
     if (URL == nil) {
         return nil;
     }
-    return [NSURLRequest requestWithURL:URL];
+
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:URL];
+    NSString *userAgent = [[NSUserDefaults standardUserDefaults] stringForKey:kUserAgentDefaultsKey];
+    if (userAgent.length > 0) {
+        [request setValue:userAgent forHTTPHeaderField:@"User-Agent"];
+    }
+    return request;
 }
 
 - (NSString *)trimmedString:(NSString *)string {

@@ -9,6 +9,9 @@ static UIColor *MenuTextColor(void) {
 }
 
 static NSString * const kDisableInlineMediaPlaybackDefaultsKey = @"DisableInlineMediaPlayback";
+static NSString * const kDesktopUserAgent = @"Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15";
+static NSString * const kMobileUserAgent = @"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
+static NSString * const kUserAgentDefaultsKey = @"UserAgent";
 
 @interface BrowserMenuPresenter ()
 
@@ -69,7 +72,17 @@ static NSString * const kDisableInlineMediaPlaybackDefaultsKey = @"DisableInline
     if (![self stringHasVisibleContent:URLString]) {
         return;
     }
-    [[self.host browserWebView] loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:URLString]]];
+    NSURL *URL = [NSURL URLWithString:URLString];
+    if (URL == nil) {
+        return;
+    }
+
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:URL];
+    NSString *userAgent = [[NSUserDefaults standardUserDefaults] stringForKey:kUserAgentDefaultsKey];
+    if (userAgent.length > 0) {
+        [request setValue:userAgent forHTTPHeaderField:@"User-Agent"];
+    }
+    [[self.host browserWebView] loadRequest:request];
 }
 
 - (void)saveFavoritesArray:(NSArray *)favorites {
@@ -212,8 +225,7 @@ static NSString * const kDisableInlineMediaPlaybackDefaultsKey = @"DisableInline
 }
 
 - (void)applyUserAgent:(NSString *)userAgent mobileMode:(BOOL)mobileMode {
-    NSDictionary *userAgentDefaults = @{ @"UserAgent": userAgent };
-    [[NSUserDefaults standardUserDefaults] registerDefaults:userAgentDefaults];
+    [[NSUserDefaults standardUserDefaults] setObject:userAgent forKey:@"UserAgent"];
     [[NSUserDefaults standardUserDefaults] setBool:mobileMode forKey:@"MobileMode"];
     [[NSUserDefaults standardUserDefaults] synchronize];
     
@@ -340,9 +352,7 @@ static NSString * const kDisableInlineMediaPlaybackDefaultsKey = @"DisableInline
 - (UIAlertAction *)userAgentModeAction {
     BOOL mobileModeEnabled = [[NSUserDefaults standardUserDefaults] boolForKey:@"MobileMode"];
     NSString *title = mobileModeEnabled ? @"Switch To Desktop Mode" : @"Switch To Mobile Mode";
-    NSString *userAgent = mobileModeEnabled
-        ? @"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0 Safari/605.1.15"
-        : @"Mozilla/5.0 (iPad; CPU OS 12_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0 Mobile/15E148 Safari/604.1";
+    NSString *userAgent = mobileModeEnabled ? kDesktopUserAgent : kMobileUserAgent;
     BOOL mobileMode = !mobileModeEnabled;
     
     return [self browserActionWithTitle:title
