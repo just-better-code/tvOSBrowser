@@ -1,8 +1,9 @@
 #import <UIKit/UIKit.h>
+#import "BrowserWebView.h"
 
 @protocol BrowserMenuPresenterHost <NSObject>
 
-@property (nonatomic, readonly) id browserWebView;
+@property (nonatomic, readonly) BrowserWebView *browserWebView;
 @property (nonatomic, copy) NSString *browserPreviousURL;
 @property (nonatomic) NSUInteger browserTextFontSize;
 @property (nonatomic, readonly) BOOL browserTopMenuShowing;

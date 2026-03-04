@@ -7,6 +7,7 @@
 //
 
 #import "AppDelegate.h"
+#import "BrowserWebView.h"
 
 @interface AppDelegate ()
 
@@ -22,26 +23,12 @@ static NSString * const kMobileUserAgent = @"Mozilla/5.0 (iPhone; CPU iPhone OS 
     if (cookieData.length == 0) {
         return;
     }
-    
-    NSError *error = nil;
-    NSSet *allowedClasses = [NSSet setWithObjects:[NSArray class], [NSHTTPCookie class], nil];
-    NSArray *cookies = [NSKeyedUnarchiver unarchivedObjectOfClasses:allowedClasses
-                                                           fromData:cookieData
-                                                              error:&error];
-    if (![cookies isKindOfClass:[NSArray class]]) {
-        return;
-    }
-    
-    for (NSHTTPCookie *cookie in cookies) {
-        [[NSHTTPCookieStorage sharedHTTPCookieStorage] setCookie:cookie];
-    }
+
+    [BrowserWebView restoreCookiesFromData:cookieData];
 }
 
 - (void)saveCookiesToDefaults {
-    NSError *error = nil;
-    NSData *cookieData = [NSKeyedArchiver archivedDataWithRootObject:[[NSHTTPCookieStorage sharedHTTPCookieStorage] cookies]
-                                              requiringSecureCoding:NO
-                                                              error:&error];
+    NSData *cookieData = [BrowserWebView cookieDataRepresentation];
     if (cookieData == nil) {
         return;
     }

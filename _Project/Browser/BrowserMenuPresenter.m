@@ -1,4 +1,5 @@
 #import "BrowserMenuPresenter.h"
+#import "BrowserWebView.h"
 
 static UIColor *MenuTextColor(void) {
     if (@available(tvOS 13, *)) {
@@ -118,7 +119,7 @@ static NSString * const kUserAgentDefaultsKey = @"UserAgent";
 }
 
 - (void)presentAddFavoritePrompt {
-    NSString *pageTitle = [[self.host browserWebView] stringByEvaluatingJavaScriptFromString:@"document.title"];
+    NSString *pageTitle = [[self.host browserWebView] title];
     NSURLRequest *request = [[self.host browserWebView] request];
     NSString *currentURL = request.URL.absoluteString ?: @"";
     UIAlertController *alertController = [self browserAlertControllerWithTitle:@"Name New Favorite"
@@ -234,19 +235,10 @@ static NSString * const kUserAgentDefaultsKey = @"UserAgent";
         [self.host browserCaptureSnapshotForCurrentTab];
     }
     
-    NSHTTPCookieStorage *storage = [NSHTTPCookieStorage sharedHTTPCookieStorage];
-    for (NSHTTPCookie *cookie in [storage cookies]) {
-        [storage deleteCookie:cookie];
-    }
-    [[NSURLCache sharedURLCache] removeAllCachedResponses];
-    [[NSUserDefaults standardUserDefaults] synchronize];
-    
     __weak typeof(self) weakSelf = self;
-    [[NSURLSession sharedSession] resetWithCompletionHandler:^{
-        dispatch_sync(dispatch_get_main_queue(), ^{
-            [weakSelf.host browserRecreateActiveWebViewPreservingCurrentURL];
-            [weakSelf.host browserBringCursorToFront];
-        });
+    [BrowserWebView resetWebsiteDataWithCompletion:^{
+        [weakSelf.host browserRecreateActiveWebViewPreservingCurrentURL];
+        [weakSelf.host browserBringCursorToFront];
     }];
 }
 
@@ -261,20 +253,19 @@ static NSString * const kUserAgentDefaultsKey = @"UserAgent";
 }
 
 - (void)clearCacheAndReload {
-    [[NSURLCache sharedURLCache] removeAllCachedResponses];
-    [[NSUserDefaults standardUserDefaults] synchronize];
-    self.host.browserPreviousURL = @"";
-    [[self.host browserWebView] reload];
+    __weak typeof(self) weakSelf = self;
+    [BrowserWebView clearCachedDataWithCompletion:^{
+        weakSelf.host.browserPreviousURL = @"";
+        [[weakSelf.host browserWebView] reload];
+    }];
 }
 
 - (void)clearCookiesAndReload {
-    NSHTTPCookieStorage *storage = [NSHTTPCookieStorage sharedHTTPCookieStorage];
-    for (NSHTTPCookie *cookie in [storage cookies]) {
-        [storage deleteCookie:cookie];
-    }
-    [[NSUserDefaults standardUserDefaults] synchronize];
-    self.host.browserPreviousURL = @"";
-    [[self.host browserWebView] reload];
+    __weak typeof(self) weakSelf = self;
+    [BrowserWebView clearCookiesWithCompletion:^{
+        weakSelf.host.browserPreviousURL = @"";
+        [[weakSelf.host browserWebView] reload];
+    }];
 }
 
 - (UIAlertAction *)topNavigationVisibilityAction {

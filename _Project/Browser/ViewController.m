@@ -14,6 +14,7 @@
 #import "ViewController.h"
 #import "BrowserNavigationService.h"
 #import "BrowserTabViewModel.h"
+#import "BrowserWebView.h"
 #import "BrowserViewModel.h"
 #import <QuartzCore/QuartzCore.h>
 
@@ -55,10 +56,11 @@ static NSString * const kDisableInlineMediaPlaybackDefaultsKey = @"DisableInline
 static NSString * const kInteractiveElementSelector = @"a, button, input, textarea, select, option, label, summary, [role='button'], [onclick], [tabindex]";
 static NSString * const kEditableElementSelector = @"input, textarea, select, [contenteditable='true'], [contenteditable=''], [contenteditable]";
 static NSString * const kUserAgentDefaultsKey = @"UserAgent";
+static NSString * const kBrowserGlobalSelectPressEndedNotification = @"BrowserGlobalSelectPressEndedNotification";
 
 @interface ViewController () <BrowserMenuPresenterHost>
 
-@property id webview;
+@property BrowserWebView *webview;
 @property NSString *requestURL;
 @property NSString *previousURL;
 @property UIImageView *cursorView;
@@ -69,7 +71,7 @@ static NSString * const kUserAgentDefaultsKey = @"UserAgent";
 @property NSUInteger textFontSize;
 @property (readonly) BOOL topMenuShowing;
 @property (readonly) CGFloat topMenuBrowserOffset;
-@property UITapGestureRecognizer *touchSurfaceDoubleTapRecognizer;
+@property UIPanGestureRecognizer *manualScrollPanRecognizer;
 @property UITapGestureRecognizer *playPauseDoubleTapRecognizer;
 @property BrowserMenuPresenter *menuPresenter;
 @property BrowserNavigationService *navigationService;
@@ -83,10 +85,56 @@ static NSString * const kUserAgentDefaultsKey = @"UserAgent";
 @property NSMutableArray *tabOverviewCardViews;
 @property BOOL tabOverviewVisible;
 @property BOOL cursorModeBeforeShowingTabOverview;
+@property CFTimeInterval lastDirectSelectPressTimestamp;
+@property CFTimeInterval lastSelectPressTimestamp;
+@property BOOL awaitingSecondSelectPress;
 
 @end
 
 @implementation ViewController
+
+- (void)handleGlobalSelectPressEndedNotification:(NSNotification *)notification {
+    if ((CACurrentMediaTime() - self.lastDirectSelectPressTimestamp) < 0.15) {
+        return;
+    }
+
+    [self handleSelectPressEndedWithSource:@"fallback"];
+}
+
+- (void)handleDeferredSelectPressAction {
+    if (!self.awaitingSecondSelectPress) {
+        return;
+    }
+
+    self.awaitingSecondSelectPress = NO;
+    self.lastTouchLocation = CGPointMake(-1, -1);
+
+    if (self.tabOverviewVisible) {
+        [self handleTabOverviewSelectionAtPoint:self.cursorView.frame.origin];
+        return;
+    }
+
+    [self browserHandleSelectPressAction];
+}
+
+- (void)handleSelectPressEndedWithSource:(NSString *)source {
+    CFTimeInterval now = CACurrentMediaTime();
+
+    if (self.awaitingSecondSelectPress && (now - self.lastSelectPressTimestamp) < 0.35) {
+        self.awaitingSecondSelectPress = NO;
+        self.lastSelectPressTimestamp = now;
+        [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(handleDeferredSelectPressAction) object:nil];
+        if (!self.tabOverviewVisible) {
+            [self toggleMode];
+        }
+        return;
+    }
+
+    self.awaitingSecondSelectPress = YES;
+    self.lastSelectPressTimestamp = now;
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(handleDeferredSelectPressAction) object:nil];
+    [self performSelector:@selector(handleDeferredSelectPressAction) withObject:nil afterDelay:0.3];
+}
 
 - (BrowserTabViewModel *)activeTab {
     return [self.viewModel activeTab];
@@ -117,7 +165,7 @@ static NSString * const kUserAgentDefaultsKey = @"UserAgent";
     [self activeTab].previousURL = previousURL;
 }
 
-- (id)browserWebView {
+- (BrowserWebView *)browserWebView {
     return self.webview;
 }
 
@@ -205,30 +253,21 @@ static NSString * const kUserAgentDefaultsKey = @"UserAgent";
     self.viewModel.tabOverviewVisible = tabOverviewVisible;
 }
 
-- (id)createConfiguredWebView {
+- (BrowserWebView *)createConfiguredWebView {
     if (@available(tvOS 11.0, *)) {
         self.additionalSafeAreaInsets = UIEdgeInsetsZero;
     }
-    
-    id webView = [[NSClassFromString(@"UIWebView") alloc] init];
+
+    NSString *userAgent = [[NSUserDefaults standardUserDefaults] stringForKey:kUserAgentDefaultsKey];
+    BOOL disablesInlineMediaPlayback = [[NSUserDefaults standardUserDefaults] boolForKey:kDisableInlineMediaPlaybackDefaultsKey];
+    BrowserWebView *webView = [[BrowserWebView alloc] initWithUserAgent:userAgent
+                                           allowsInlineMediaPlayback:!disablesInlineMediaPlayback];
     [webView setTranslatesAutoresizingMaskIntoConstraints:false];
     [webView setClipsToBounds:false];
     [webView setDelegate:self];
     [webView setLayoutMargins:UIEdgeInsetsZero];
     [webView setOpaque:NO];
     [webView setBackgroundColor:UIColor.blackColor];
-    NSString *userAgent = [[NSUserDefaults standardUserDefaults] stringForKey:kUserAgentDefaultsKey];
-    SEL setUserAgentSelector = NSSelectorFromString(@"setUserAgent:");
-    if (userAgent.length > 0 && [webView respondsToSelector:setUserAgentSelector]) {
-        void (*setter)(id, SEL, id) = (void (*)(id, SEL, id))[webView methodForSelector:setUserAgentSelector];
-        setter(webView, setUserAgentSelector, userAgent);
-    }
-    BOOL disablesInlineMediaPlayback = [[NSUserDefaults standardUserDefaults] boolForKey:kDisableInlineMediaPlaybackDefaultsKey];
-    SEL inlineMediaPlaybackSelector = NSSelectorFromString(@"setAllowsInlineMediaPlayback:");
-    if ([webView respondsToSelector:inlineMediaPlaybackSelector]) {
-        void (*setter)(id, SEL, BOOL) = (void (*)(id, SEL, BOOL))[webView methodForSelector:inlineMediaPlaybackSelector];
-        setter(webView, inlineMediaPlaybackSelector, !disablesInlineMediaPlayback);
-    }
     
     UIScrollView *scrollView = [webView scrollView];
     [scrollView setLayoutMargins:UIEdgeInsetsZero];
@@ -238,7 +277,6 @@ static NSString * const kUserAgentDefaultsKey = @"UserAgent";
     scrollView.clipsToBounds = NO;
     scrollView.backgroundColor = UIColor.blackColor;
     scrollView.bounces = self.scrollViewAllowBounces;
-    scrollView.panGestureRecognizer.allowedTouchTypes = @[ @(UITouchTypeIndirect) ];
     [scrollView.panGestureRecognizer addTarget:self action:@selector(handleWebViewPanGesture:)];
     scrollView.scrollEnabled = NO;
     
@@ -485,7 +523,6 @@ static NSString * const kUserAgentDefaultsKey = @"UserAgent";
     [self updateTopNavAndWebView];
     
     UIScrollView *scrollView = [self.webview scrollView];
-    scrollView.frame = self.view.bounds;
     [scrollView setNeedsLayout];
     [scrollView layoutIfNeeded];
     [self.view setNeedsLayout];
@@ -493,6 +530,7 @@ static NSString * const kUserAgentDefaultsKey = @"UserAgent";
     scrollView.bounces = self.scrollViewAllowBounces;
     scrollView.scrollEnabled = !self.cursorMode && !self.tabOverviewVisible;
     [self.webview setUserInteractionEnabled:!self.cursorMode && !self.tabOverviewVisible];
+    self.manualScrollPanRecognizer.enabled = !self.cursorMode && !self.tabOverviewVisible;
     
     [self refreshActiveTabUI];
 }
@@ -500,10 +538,12 @@ static NSString * const kUserAgentDefaultsKey = @"UserAgent";
 - (void)setCursorModeEnabled:(BOOL)cursorMode {
     BOOL wasCursorMode = self.cursorMode;
     self.cursorMode = cursorMode;
+    self.lastTouchLocation = CGPointMake(-1, -1);
     UIScrollView *scrollView = [self.webview scrollView];
     BOOL shouldAllowWebInteraction = !cursorMode && !self.tabOverviewVisible;
     scrollView.scrollEnabled = shouldAllowWebInteraction;
     [self.webview setUserInteractionEnabled:shouldAllowWebInteraction];
+    self.manualScrollPanRecognizer.enabled = shouldAllowWebInteraction;
     self.cursorView.hidden = self.tabOverviewVisible ? NO : !cursorMode;
 
     if (!wasCursorMode && cursorMode) {
@@ -698,17 +738,22 @@ static NSString * const kUserAgentDefaultsKey = @"UserAgent";
                                              selector:@selector(handleApplicationWillTerminate:)
                                                  name:UIApplicationWillTerminateNotification
                                                object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(handleGlobalSelectPressEndedNotification:)
+                                                 name:kBrowserGlobalSelectPressEndedNotification
+                                               object:nil];
 
-    self.touchSurfaceDoubleTapRecognizer = [[UITapGestureRecognizer alloc]initWithTarget:self action:@selector(handleTouchSurfaceDoubleTap:)];
-    self.touchSurfaceDoubleTapRecognizer.numberOfTapsRequired = 2;
-    self.touchSurfaceDoubleTapRecognizer.allowedPressTypes = @[[NSNumber numberWithInteger:UIPressTypeSelect]];
-    [self.view addGestureRecognizer:self.touchSurfaceDoubleTapRecognizer];
-    
     self.playPauseDoubleTapRecognizer = [[UITapGestureRecognizer alloc]initWithTarget:self action:@selector(handlePlayPauseDoubleTap:)];
     self.playPauseDoubleTapRecognizer.numberOfTapsRequired = 2;
     self.playPauseDoubleTapRecognizer.allowedPressTypes = @[[NSNumber numberWithInteger:UIPressTypePlayPause]];
 
     [self.view addGestureRecognizer:self.playPauseDoubleTapRecognizer];
+
+    self.manualScrollPanRecognizer = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handleManualScrollPan:)];
+    self.manualScrollPanRecognizer.allowedTouchTypes = @[ @(UITouchTypeIndirect) ];
+    self.manualScrollPanRecognizer.cancelsTouchesInView = NO;
+    self.manualScrollPanRecognizer.enabled = NO;
+    [self.view addGestureRecognizer:self.manualScrollPanRecognizer];
     
     self.cursorView = [[UIImageView alloc] initWithFrame:CGRectMake(0, 0, 64, 64)];
     self.cursorView.center = CGPointMake(CGRectGetMidX([UIScreen mainScreen].bounds), CGRectGetMidY([UIScreen mainScreen].bounds));
@@ -744,6 +789,10 @@ static NSString * const kUserAgentDefaultsKey = @"UserAgent";
 
 - (void)dealloc {
     [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+- (void)viewDidDisappear:(BOOL)animated {
+    [super viewDidDisappear:animated];
 }
 
 #pragma mark - Font Size
@@ -985,6 +1034,34 @@ static NSString * const kUserAgentDefaultsKey = @"UserAgent";
     }
 
     [self persistBrowserSession];
+}
+
+- (void)handleManualScrollPan:(UIPanGestureRecognizer *)gestureRecognizer {
+    if (self.cursorMode || self.tabOverviewVisible) {
+        return;
+    }
+
+    UIScrollView *scrollView = [self.webview scrollView];
+    if (scrollView == nil) {
+        return;
+    }
+
+    CGPoint translation = [gestureRecognizer translationInView:self.view];
+    if (!CGPointEqualToPoint(translation, CGPointZero)) {
+        CGPoint contentOffset = scrollView.contentOffset;
+        CGFloat maxOffsetX = MAX(0.0, scrollView.contentSize.width - CGRectGetWidth(scrollView.bounds));
+        CGFloat maxOffsetY = MAX(0.0, scrollView.contentSize.height - CGRectGetHeight(scrollView.bounds));
+        CGFloat nextOffsetX = MIN(MAX(contentOffset.x - translation.x, 0.0), maxOffsetX);
+        CGFloat nextOffsetY = MIN(MAX(contentOffset.y - translation.y, 0.0), maxOffsetY);
+        [scrollView setContentOffset:CGPointMake(nextOffsetX, nextOffsetY) animated:NO];
+        [gestureRecognizer setTranslation:CGPointZero inView:self.view];
+    }
+
+    if (gestureRecognizer.state == UIGestureRecognizerStateEnded ||
+        gestureRecognizer.state == UIGestureRecognizerStateCancelled ||
+        gestureRecognizer.state == UIGestureRecognizerStateFailed) {
+        [self persistBrowserSession];
+    }
 }
 
 - (BOOL)handleTabOverviewSelectionAtPoint:(CGPoint)viewPoint {
@@ -1452,136 +1529,66 @@ static NSString * const kUserAgentDefaultsKey = @"UserAgent";
      */
 }
 #pragma mark - Remote Button
--(void)pressesEnded:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event
-{
-    UIPress *press = presses.anyObject;
-    if (press == nil) {
+- (void)browserHandleSelectPressAction {
+    if(!self.cursorMode)
+    {
         return;
     }
-    
-    if (self.tabOverviewVisible) {
-        if (press.type == UIPressTypeMenu || press.type == UIPressTypePlayPause) {
-            [self dismissTabOverview];
-            return;
-        }
-        if (press.type == UIPressTypeSelect) {
-            [self handleTabOverviewSelectionAtPoint:self.cursorView.frame.origin];
-            return;
-        }
-    }
-    
-    if (press.type == UIPressTypeMenu)
+    else
     {
-        UIAlertController *alertController = (UIAlertController *)self.presentedViewController;
-        if (alertController)
-        {
-            [self.presentedViewController dismissViewControllerAnimated:true completion:nil];
-        }
-        else if ([self.webview canGoBack]) {
-            [self.webview goBack];
-        }
-        else
-        {
-            UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Exit App?" message:nil preferredStyle:UIAlertControllerStyleAlert];
-            [alert addAction:[UIAlertAction actionWithTitle:@"Exit" style:UIAlertActionStyleDestructive handler:^(UIAlertAction * _Nonnull action) {
-                exit(EXIT_SUCCESS);
-            }]];
-            [alert addAction:[UIAlertAction actionWithTitle:@"Dismiss" style:UIAlertActionStyleCancel handler:nil]];
-            [self presentViewController:alert animated:YES completion:nil];
-        }
-        /*
-        else {
-            [self requestURLorSearchInput];
-        }*/
+        CGPoint point = [self.view convertPoint:self.cursorView.frame.origin toView:self.webview];
         
-    }
-    else if (press.type == UIPressTypeUpArrow)
-    {
-        // Zoom testing (needs work) (requires old remote for up arrow)
-        //UIScrollView * sv = self.webview.scrollView;
-        //[sv setZoomScale:30];
-    }
-    else if (press.type == UIPressTypeDownArrow)
-    {
-    }
-    
-    
-    else if (press.type == UIPressTypeSelect) // Handle the normal single Touchpad press with our virtual cursor
-    {
-        if(!self.cursorMode)
+        if(point.y < 0)
         {
-            //[self toggleMode]; // This is now done in Double-tap
+            point = [self.view convertPoint:self.cursorView.frame.origin toView:self.topMenuView];
+            CGRect backBtnFrameExtra = [self.topMenuView interactiveFrameForView:self.topMenuView.backImageView];
+            backBtnFrameExtra.origin.y = 0;
+            backBtnFrameExtra.size.height = backBtnFrameExtra.size.height + 8.0;
+
+            if(CGRectContainsPoint(backBtnFrameExtra, point))
+            {
+                [self.webview goBack];
+            }
+            else if(CGRectContainsPoint([self.topMenuView interactiveFrameForView:self.topMenuView.refreshImageView], point))
+            {
+                [self.webview reload];
+            }
+            else if(CGRectContainsPoint([self.topMenuView interactiveFrameForView:self.topMenuView.forwardImageView], point))
+            {
+                [self.webview goForward];
+            }
+            else if(CGRectContainsPoint([self.topMenuView interactiveFrameForView:self.topMenuView.homeImageView], point))
+            {
+                [self loadHomePage];
+            }
+            else if(CGRectContainsPoint([self.topMenuView interactiveFrameForView:self.topMenuView.tabsImageView], point))
+            {
+                [self showTabOverview];
+            }
+            else if(CGRectContainsPoint([self.topMenuView interactiveFrameForView:self.topMenuView.URLLabel], point))
+            {
+                [self showInputURLorSearchGoogle];
+            }
+            else if(CGRectContainsPoint([self.topMenuView interactiveFrameForView:self.topMenuView.fullscreenImageView], point))
+            {
+                if(self.topMenuShowing)
+                    [self hideTopNav];
+                else
+                    [self showTopNav];
+            }
+            
+            CGRect menuBtnFrameExtra = [self.topMenuView interactiveFrameForView:self.topMenuView.menuImageView];
+            menuBtnFrameExtra.origin.y = 0;
+            menuBtnFrameExtra.size.width = menuBtnFrameExtra.size.width + 100.0;
+            menuBtnFrameExtra.size.height = menuBtnFrameExtra.size.height + 100.0;
+
+            if(CGRectContainsPoint(menuBtnFrameExtra, point))
+            {
+                [self showAdvancedMenu];
+            }
         }
         else
         {
-            // Handle the virtual cursor
-            
-            
-
-            CGPoint point = [self.view convertPoint:self.cursorView.frame.origin toView:self.webview];
-            
-            if(point.y < 0)
-            {
-                // Handle menu buttons press
-                point = [self.view convertPoint:self.cursorView.frame.origin toView:self.topMenuView];
-                CGRect backBtnFrameExtra = [self.topMenuView interactiveFrameForView:self.topMenuView.backImageView];
-                backBtnFrameExtra.origin.y = 0;
-                backBtnFrameExtra.size.height = backBtnFrameExtra.size.height + 8.0;
-
-                
-                if(CGRectContainsPoint(backBtnFrameExtra, point))
-                {
-                    [self.webview goBack];
-                }
-                else if(CGRectContainsPoint([self.topMenuView interactiveFrameForView:self.topMenuView.refreshImageView], point))
-                {
-                    [self.webview reload];
-                }
-                else if(CGRectContainsPoint([self.topMenuView interactiveFrameForView:self.topMenuView.forwardImageView], point))
-                {
-                    [self.webview goForward];
-                }
-                else if(CGRectContainsPoint([self.topMenuView interactiveFrameForView:self.topMenuView.homeImageView], point))
-                {
-                    [self loadHomePage];
-                }
-                else if(CGRectContainsPoint([self.topMenuView interactiveFrameForView:self.topMenuView.tabsImageView], point))
-                {
-                    [self showTabOverview];
-                }
-                else if(CGRectContainsPoint([self.topMenuView interactiveFrameForView:self.topMenuView.URLLabel], point))
-                {
-                    [self showInputURLorSearchGoogle];
-                }
-
-                
-                else if(CGRectContainsPoint([self.topMenuView interactiveFrameForView:self.topMenuView.fullscreenImageView], point))
-                {
-                    // Hide/show top bar:
-                    
-                    if(self.topMenuShowing)
-                        [self hideTopNav];
-                    else
-                        [self showTopNav];
-                }
-                
-                CGRect menuBtnFrameExtra = [self.topMenuView interactiveFrameForView:self.topMenuView.menuImageView];
-                menuBtnFrameExtra.origin.y = 0;
-                menuBtnFrameExtra.size.width = menuBtnFrameExtra.size.width + 100.0;
-                menuBtnFrameExtra.size.height = menuBtnFrameExtra.size.height + 100.0;
-
-                if(CGRectContainsPoint(menuBtnFrameExtra, point))
-                {
-                    // Show advanced menu:
-                    [self showAdvancedMenu];
-                }
-                
-               
-
-                    
-            }
-            else // Handle Press in the Browser view
-            {
             point = [self browserDOMPointForCursor];
             [self evaluateResolvedElementJavaScriptAtPoint:point
                                                       body:@"var target = interactiveElement || resolvedElement;"
@@ -1606,27 +1613,9 @@ static NSString * const kUserAgentDefaultsKey = @"UserAgent";
                                                            "if (typeof target.click === 'function') { target.click(); }"
                                                            "else { dispatchPointerLikeEvent('click', 'MouseEvent'); }"
                                                            "return 'true';"];
-            // Make the UIWebView method call
             NSString *fieldType = [self evaluateResolvedElementJavaScriptAtPoint:point
                                                                             body:@"var target = editableElement || interactiveElement || resolvedElement;"
                                                                                  "return (target && target.type) ? target.type : '';"];
-            /*
-             if (fieldType == nil) {
-             NSString *contentEditible = [self.webview stringByEvaluatingJavaScriptFromString:[NSString stringWithFormat:@"document.elementFromPoint(%i, %i).getAttribute('contenteditable');", (int)point.x, (int)point.y]];
-             NSLog(contentEditible);
-             if ([contentEditible isEqualToString:@"true"]) {
-             fieldType = @"text";
-             }
-             }
-             else if ([[fieldType stringByReplacingOccurrencesOfString:@" " withString:@""] isEqualToString: @""]) {
-             NSString *contentEditible = [self.webview stringByEvaluatingJavaScriptFromString:[NSString stringWithFormat:@"document.elementFromPoint(%i, %i).getAttribute('contenteditable');", (int)point.x, (int)point.y]];
-             NSLog(contentEditible);
-             if ([contentEditible isEqualToString:@"true"]) {
-             fieldType = @"text";
-             }
-             }
-             NSLog(fieldType);
-            */
             fieldType = fieldType.lowercaseString;
             if ([fieldType isEqualToString:@"date"] || [fieldType isEqualToString:@"datetime"] || [fieldType isEqualToString:@"datetime-local"] || [fieldType isEqualToString:@"email"] || [fieldType isEqualToString:@"month"] || [fieldType isEqualToString:@"number"] || [fieldType isEqualToString:@"password"] || [fieldType isEqualToString:@"search"] || [fieldType isEqualToString:@"tel"] || [fieldType isEqualToString:@"text"] || [fieldType isEqualToString:@"time"] || [fieldType isEqualToString:@"url"] || [fieldType isEqualToString:@"week"]) {
                 NSString *fieldTitle = [self evaluateResolvedElementJavaScriptAtPoint:point
@@ -1680,7 +1669,6 @@ static NSString * const kUserAgentDefaultsKey = @"UserAgent";
                      [textField addTarget:self
                                    action:@selector(alertTextFieldShouldReturn:)
                          forControlEvents:UIControlEventEditingDidEnd];
-                     
                  }];
                 UIAlertAction *inputAndSubmitAction = [UIAlertAction
                                                        actionWithTitle:@"Submit"
@@ -1734,15 +1722,73 @@ static NSString * const kUserAgentDefaultsKey = @"UserAgent";
                     [inputViewTextField becomeFirstResponder];
                 }
             }
-            else {
-                //[self.webview stringByEvaluatingJavaScriptFromString:[NSString stringWithFormat:@"document.elementFromPoint(%i, %i).click()", (int)point.x, (int)point.y]];
-            }
-            //[self toggleMode];
-                
-            }
+        }
+    }
+}
+
+- (void)pressesBegan:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event
+{
+    [super pressesBegan:presses withEvent:event];
+}
+
+-(void)pressesEnded:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event
+{
+    UIPress *press = presses.anyObject;
+    if (press == nil) {
+        return;
+    }
+
+    if (press.type == UIPressTypeSelect) {
+        self.lastDirectSelectPressTimestamp = CACurrentMediaTime();
+        [self handleSelectPressEndedWithSource:@"direct"];
+        return;
+    }
+    
+    if (self.tabOverviewVisible) {
+        if (press.type == UIPressTypeMenu || press.type == UIPressTypePlayPause) {
+            [self dismissTabOverview];
+            return;
+        }
+        if (press.type == UIPressTypeSelect) {
+            [self handleTabOverviewSelectionAtPoint:self.cursorView.frame.origin];
+            return;
         }
     }
     
+    if (press.type == UIPressTypeMenu)
+    {
+        UIAlertController *alertController = (UIAlertController *)self.presentedViewController;
+        if (alertController)
+        {
+            [self.presentedViewController dismissViewControllerAnimated:true completion:nil];
+        }
+        else if ([self.webview canGoBack]) {
+            [self.webview goBack];
+        }
+        else
+        {
+            UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Exit App?" message:nil preferredStyle:UIAlertControllerStyleAlert];
+            [alert addAction:[UIAlertAction actionWithTitle:@"Exit" style:UIAlertActionStyleDestructive handler:^(UIAlertAction * _Nonnull action) {
+                exit(EXIT_SUCCESS);
+            }]];
+            [alert addAction:[UIAlertAction actionWithTitle:@"Dismiss" style:UIAlertActionStyleCancel handler:nil]];
+            [self presentViewController:alert animated:YES completion:nil];
+        }
+        /*
+        else {
+            [self requestURLorSearchInput];
+        }*/
+        
+    }
+    else if (press.type == UIPressTypeUpArrow)
+    {
+        // Zoom testing (needs work) (requires old remote for up arrow)
+        //UIScrollView * sv = self.webview.scrollView;
+        //[sv setZoomScale:30];
+    }
+    else if (press.type == UIPressTypeDownArrow)
+    {
+    }
     else if (press.type == UIPressTypePlayPause)
     {
         UIAlertController *alertController = (UIAlertController *)self.presentedViewController;
@@ -1760,11 +1806,21 @@ static NSString * const kUserAgentDefaultsKey = @"UserAgent";
 
 - (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event
 {
+    if (!self.cursorMode && !self.tabOverviewVisible) {
+        [super touchesBegan:touches withEvent:event];
+        return;
+    }
+
     self.lastTouchLocation = CGPointMake(-1, -1);
 }
 
 - (void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event
 {
+    if (!self.cursorMode && !self.tabOverviewVisible) {
+        [super touchesMoved:touches withEvent:event];
+        return;
+    }
+
     for (UITouch *touch in touches)
     {
         CGPoint location = [touch locationInView:self.webview];
@@ -1817,6 +1873,18 @@ static NSString * const kUserAgentDefaultsKey = @"UserAgent";
         break;
     }
     
+}
+
+- (void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event
+{
+    self.lastTouchLocation = CGPointMake(-1, -1);
+    [super touchesEnded:touches withEvent:event];
+}
+
+- (void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event
+{
+    self.lastTouchLocation = CGPointMake(-1, -1);
+    [super touchesCancelled:touches withEvent:event];
 }
 
 

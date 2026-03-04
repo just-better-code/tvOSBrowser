@@ -27,7 +27,10 @@
 		A1B49A5B2D684000001D58A1 /* BrowserTopBarView.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A5A2D684000001D58A1 /* BrowserTopBarView.m */; };
 		A1B49A5D2D69F100001D58A1 /* WebCoreNSURLSessionTaskTransactionMetrics+AddPrivacyStance.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A5C2D69F100001D58A1 /* WebCoreNSURLSessionTaskTransactionMetrics+AddPrivacyStance.m */; };
 		A1B49A5F2D69F900001D58A1 /* WebAVPlayerViewController+FullscreenSubviewHack.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A5E2D69F900001D58A1 /* WebAVPlayerViewController+FullscreenSubviewHack.m */; };
+		A1B49A632D6A3800001D58A1 /* BrowserWebView.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A622D6A3800001D58A1 /* BrowserWebView.m */; };
 		A1B49A612D6A1000001D58A1 /* BrowserWKWebViewProofOfConceptViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A602D6A1000001D58A1 /* BrowserWKWebViewProofOfConceptViewController.m */; };
+		A1B49A662D6A7500001D58A1 /* AVPlayerViewController+BrowserFullscreenBlock.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A652D6A7500001D58A1 /* AVPlayerViewController+BrowserFullscreenBlock.m */; };
+		A1B49A682D6AD500001D58A1 /* UIApplication+BrowserSelectPressForwarding.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A672D6AD500001D58A1 /* UIApplication+BrowserSelectPressForwarding.m */; };
 		B002B8671BAE420500C744AF /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = B002B8661BAE420500C744AF /* main.m */; };
 		B002B86A1BAE420500C744AF /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = B002B8691BAE420500C744AF /* AppDelegate.m */; };
 		B002B86D1BAE420500C744AF /* ViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = B002B86C1BAE420500C744AF /* ViewController.m */; };
@@ -62,7 +65,11 @@
 		A1B49A5A2D684000001D58A1 /* BrowserTopBarView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserTopBarView.m; sourceTree = "<group>"; };
 		A1B49A5C2D69F100001D58A1 /* WebCoreNSURLSessionTaskTransactionMetrics+AddPrivacyStance.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "WebCoreNSURLSessionTaskTransactionMetrics+AddPrivacyStance.m"; sourceTree = "<group>"; };
 		A1B49A5E2D69F900001D58A1 /* WebAVPlayerViewController+FullscreenSubviewHack.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "WebAVPlayerViewController+FullscreenSubviewHack.m"; sourceTree = "<group>"; };
+		A1B49A622D6A3800001D58A1 /* BrowserWebView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserWebView.m; sourceTree = "<group>"; };
+		A1B49A642D6A3900001D58A1 /* BrowserWebView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserWebView.h; sourceTree = "<group>"; };
 		A1B49A602D6A1000001D58A1 /* BrowserWKWebViewProofOfConceptViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserWKWebViewProofOfConceptViewController.m; sourceTree = "<group>"; };
+		A1B49A652D6A7500001D58A1 /* AVPlayerViewController+BrowserFullscreenBlock.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "AVPlayerViewController+BrowserFullscreenBlock.m"; sourceTree = "<group>"; };
+		A1B49A672D6AD500001D58A1 /* UIApplication+BrowserSelectPressForwarding.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "UIApplication+BrowserSelectPressForwarding.m"; sourceTree = "<group>"; };
 		B002B8621BAE420500C744AF /* Browser.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Browser.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B002B8661BAE420500C744AF /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
 		B002B8681BAE420500C744AF /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
@@ -148,6 +155,10 @@
 				A1B49A572D6828D4001D58A1 /* BrowserSessionStore.m */,
 				A1B49A592D684000001D58A1 /* BrowserTopBarView.h */,
 				A1B49A5A2D684000001D58A1 /* BrowserTopBarView.m */,
+				A1B49A652D6A7500001D58A1 /* AVPlayerViewController+BrowserFullscreenBlock.m */,
+				A1B49A672D6AD500001D58A1 /* UIApplication+BrowserSelectPressForwarding.m */,
+				A1B49A642D6A3900001D58A1 /* BrowserWebView.h */,
+				A1B49A622D6A3800001D58A1 /* BrowserWebView.m */,
 				A1B49A602D6A1000001D58A1 /* BrowserWKWebViewProofOfConceptViewController.m */,
 				A1B49A5E2D69F900001D58A1 /* WebAVPlayerViewController+FullscreenSubviewHack.m */,
 				A1B49A5C2D69F100001D58A1 /* WebCoreNSURLSessionTaskTransactionMetrics+AddPrivacyStance.m */,
@@ -274,6 +285,9 @@
 				A1B49A4E2D680900001D58A1 /* BrowserNavigationService.m in Sources */,
 				A1B49A582D6828D4001D58A1 /* BrowserSessionStore.m in Sources */,
 				A1B49A5B2D684000001D58A1 /* BrowserTopBarView.m in Sources */,
+				A1B49A662D6A7500001D58A1 /* AVPlayerViewController+BrowserFullscreenBlock.m in Sources */,
+				A1B49A682D6AD500001D58A1 /* UIApplication+BrowserSelectPressForwarding.m in Sources */,
+				A1B49A632D6A3800001D58A1 /* BrowserWebView.m in Sources */,
 				A1B49A612D6A1000001D58A1 /* BrowserWKWebViewProofOfConceptViewController.m in Sources */,
 				A1B49A5F2D69F900001D58A1 /* WebAVPlayerViewController+FullscreenSubviewHack.m in Sources */,
 				A1B49A5D2D69F100001D58A1 /* WebCoreNSURLSessionTaskTransactionMetrics+AddPrivacyStance.m in Sources */,

@@ -4,6 +4,9 @@
 #import <objc/message.h>
 #import <objc/runtime.h>
 
+static BOOL const kBrowserFullscreenHackEnabled = NO;
+
+
 static void (*BrowserOriginalConfigurePlayerViewController)(id self, SEL _cmd, void *fullscreenInterface) = NULL;
 static const ptrdiff_t kBrowserPlayerControllerHostOffset = 0x20;
 static const ptrdiff_t kBrowserFullscreenInterfacePlayerLayerViewOffset = 0x58;
@@ -1124,6 +1127,10 @@ static void BrowserConfigurePlayerViewControllerReplacement(id self, SEL _cmd, v
 + (void)load {
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
+        if (!kBrowserFullscreenHackEnabled) {
+            return;
+        }
+
         Class playerViewControllerClass = objc_getClass("WebAVPlayerViewController");
         if (playerViewControllerClass == Nil) {
             return;

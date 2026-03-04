@@ -9,9 +9,10 @@
 #import <UIKit/UIKit.h>
 #import <GameKit/GameKit.h>
 
+#import "BrowserWebView.h"
 #import "BrowserTopBarView.h"
 
-@interface ViewController : GCEventViewController <UIScrollViewDelegate>
+@interface ViewController : GCEventViewController <UIScrollViewDelegate, BrowserWebViewDelegate>
 
 @property (nonatomic, retain) IBOutlet BrowserTopBarView *topMenuView;
 @property (nonatomic, retain) IBOutlet UIView *browserContainerView;
