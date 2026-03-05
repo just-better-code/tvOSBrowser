@@ -1,8 +1,8 @@
-#import <UIKit/UIKit.h>
+#import <AVKit/AVKit.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface BrowserNativeVideoPlayerViewController : UIViewController
+@interface BrowserNativeVideoPlayerViewController : AVPlayerViewController
 
 - (instancetype)initWithURL:(NSURL *)URL title:(nullable NSString *)title;
 - (instancetype)initWithURL:(NSURL *)URL

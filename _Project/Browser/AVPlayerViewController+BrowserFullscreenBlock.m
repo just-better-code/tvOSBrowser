@@ -1,7 +1,7 @@
 #import <AVKit/AVKit.h>
 #import <objc/runtime.h>
 
-static BOOL const kBrowserAVKitFullscreenBlockEnabled = YES;
+static BOOL const kBrowserAVKitFullscreenBlockEnabled = NO;
 
 @interface AVPlayerViewController (BrowserFullscreenBlock)
 

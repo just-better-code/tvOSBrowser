@@ -22,8 +22,10 @@
 		A1B49A482D67F2B3001D58A1 /* BrowserTabViewModel.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A472D67F2B3001D58A1 /* BrowserTabViewModel.m */; };
 		A1B49A4B2D67F2C3001D58A1 /* BrowserViewModel.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A4A2D67F2C3001D58A1 /* BrowserViewModel.m */; };
 		A1B49A4E2D680900001D58A1 /* BrowserNavigationService.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A4D2D680900001D58A1 /* BrowserNavigationService.m */; };
-		A1B49A552D68143D001D58A1 /* BrowserMenuPresenter.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A542D68143D001D58A1 /* BrowserMenuPresenter.m */; };
+		A1B49A552D68143D001D58A1 /* BrowserMenuCoordinator.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A542D68143D001D58A1 /* BrowserMenuCoordinator.m */; };
+		A1B49A842D6D2000001D58A1 /* BrowserDOMInteractionService.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A832D6D2000001D58A1 /* BrowserDOMInteractionService.m */; };
 		A1B49A582D6828D4001D58A1 /* BrowserSessionStore.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A572D6828D4001D58A1 /* BrowserSessionStore.m */; };
+		A1B49A872D6D2000001D58A1 /* BrowserVideoPlaybackCoordinator.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A862D6D2000001D58A1 /* BrowserVideoPlaybackCoordinator.m */; };
 		A1B49A5B2D684000001D58A1 /* BrowserTopBarView.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A5A2D684000001D58A1 /* BrowserTopBarView.m */; };
 		A1B49A5D2D69F100001D58A1 /* WebCoreNSURLSessionTaskTransactionMetrics+AddPrivacyStance.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A5C2D69F100001D58A1 /* WebCoreNSURLSessionTaskTransactionMetrics+AddPrivacyStance.m */; };
 		A1B49A5F2D69F900001D58A1 /* WebAVPlayerViewController+FullscreenSubviewHack.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A5E2D69F900001D58A1 /* WebAVPlayerViewController+FullscreenSubviewHack.m */; };
@@ -60,10 +62,14 @@
 		A1B49A4A2D67F2C3001D58A1 /* BrowserViewModel.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserViewModel.m; sourceTree = "<group>"; };
 		A1B49A4C2D680900001D58A1 /* BrowserNavigationService.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserNavigationService.h; sourceTree = "<group>"; };
 		A1B49A4D2D680900001D58A1 /* BrowserNavigationService.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserNavigationService.m; sourceTree = "<group>"; };
-		A1B49A532D68143D001D58A1 /* BrowserMenuPresenter.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserMenuPresenter.h; sourceTree = "<group>"; };
-		A1B49A542D68143D001D58A1 /* BrowserMenuPresenter.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserMenuPresenter.m; sourceTree = "<group>"; };
+		A1B49A532D68143D001D58A1 /* BrowserMenuCoordinator.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserMenuCoordinator.h; sourceTree = "<group>"; };
+		A1B49A542D68143D001D58A1 /* BrowserMenuCoordinator.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserMenuCoordinator.m; sourceTree = "<group>"; };
+		A1B49A822D6D2000001D58A1 /* BrowserDOMInteractionService.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserDOMInteractionService.h; sourceTree = "<group>"; };
+		A1B49A832D6D2000001D58A1 /* BrowserDOMInteractionService.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserDOMInteractionService.m; sourceTree = "<group>"; };
 		A1B49A562D6828D4001D58A1 /* BrowserSessionStore.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserSessionStore.h; sourceTree = "<group>"; };
 		A1B49A572D6828D4001D58A1 /* BrowserSessionStore.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserSessionStore.m; sourceTree = "<group>"; };
+		A1B49A852D6D2000001D58A1 /* BrowserVideoPlaybackCoordinator.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserVideoPlaybackCoordinator.h; sourceTree = "<group>"; };
+		A1B49A862D6D2000001D58A1 /* BrowserVideoPlaybackCoordinator.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserVideoPlaybackCoordinator.m; sourceTree = "<group>"; };
 		A1B49A592D684000001D58A1 /* BrowserTopBarView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserTopBarView.h; sourceTree = "<group>"; };
 		A1B49A5A2D684000001D58A1 /* BrowserTopBarView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserTopBarView.m; sourceTree = "<group>"; };
 		A1B49A5C2D69F100001D58A1 /* WebCoreNSURLSessionTaskTransactionMetrics+AddPrivacyStance.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "WebCoreNSURLSessionTaskTransactionMetrics+AddPrivacyStance.m"; sourceTree = "<group>"; };
@@ -152,39 +158,123 @@
 		B002B8641BAE420500C744AF /* Browser */ = {
 			isa = PBXGroup;
 			children = (
+				A1B49A772D6D0000001D58A1 /* App */,
+				A1B49A792D6D0000001D58A1 /* Models */,
+				A1B49A7A2D6D0000001D58A1 /* ViewModels */,
+				A1B49A7B2D6D0000001D58A1 /* Coordinators */,
+				A1B49A7C2D6D0000001D58A1 /* Services */,
+				A1B49A7D2D6D0000001D58A1 /* UI */,
+				A1B49A802D6D0000001D58A1 /* Video */,
+				A1B49A812D6D0000001D58A1 /* Runtime */,
+				3A2A7C0621E77E2C0083CB13 /* MenuIcons */,
+				B002B8651BAE420500C744AF /* Supporting Files */,
+			);
+			path = Browser;
+			sourceTree = "<group>";
+		};
+		A1B49A772D6D0000001D58A1 /* App */ = {
+			isa = PBXGroup;
+			children = (
 				B002B8681BAE420500C744AF /* AppDelegate.h */,
 				B002B8691BAE420500C744AF /* AppDelegate.m */,
+			);
+			name = App;
+			sourceTree = "<group>";
+		};
+		A1B49A792D6D0000001D58A1 /* Models */ = {
+			isa = PBXGroup;
+			children = (
 				A1B49A462D67F2B3001D58A1 /* BrowserTabViewModel.h */,
 				A1B49A472D67F2B3001D58A1 /* BrowserTabViewModel.m */,
-				A1B49A532D68143D001D58A1 /* BrowserMenuPresenter.h */,
-				A1B49A542D68143D001D58A1 /* BrowserMenuPresenter.m */,
+			);
+			name = Models;
+			sourceTree = "<group>";
+		};
+		A1B49A7A2D6D0000001D58A1 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				A1B49A492D67F2C3001D58A1 /* BrowserViewModel.h */,
+				A1B49A4A2D67F2C3001D58A1 /* BrowserViewModel.m */,
+			);
+			name = ViewModels;
+			sourceTree = "<group>";
+		};
+		A1B49A7B2D6D0000001D58A1 /* Coordinators */ = {
+			isa = PBXGroup;
+			children = (
+				A1B49A532D68143D001D58A1 /* BrowserMenuCoordinator.h */,
+				A1B49A542D68143D001D58A1 /* BrowserMenuCoordinator.m */,
+				A1B49A852D6D2000001D58A1 /* BrowserVideoPlaybackCoordinator.h */,
+				A1B49A862D6D2000001D58A1 /* BrowserVideoPlaybackCoordinator.m */,
+			);
+			name = Coordinators;
+			sourceTree = "<group>";
+		};
+		A1B49A7C2D6D0000001D58A1 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				A1B49A822D6D2000001D58A1 /* BrowserDOMInteractionService.h */,
+				A1B49A832D6D2000001D58A1 /* BrowserDOMInteractionService.m */,
 				A1B49A4C2D680900001D58A1 /* BrowserNavigationService.h */,
 				A1B49A4D2D680900001D58A1 /* BrowserNavigationService.m */,
 				A1B49A562D6828D4001D58A1 /* BrowserSessionStore.h */,
 				A1B49A572D6828D4001D58A1 /* BrowserSessionStore.m */,
+			);
+			name = Services;
+			sourceTree = "<group>";
+		};
+		A1B49A7D2D6D0000001D58A1 /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				A1B49A7E2D6D0000001D58A1 /* Controllers */,
+				A1B49A7F2D6D0000001D58A1 /* Views */,
+			);
+			name = UI;
+			sourceTree = "<group>";
+		};
+		A1B49A7E2D6D0000001D58A1 /* Controllers */ = {
+			isa = PBXGroup;
+			children = (
+				B002B86B1BAE420500C744AF /* ViewController.h */,
+				B002B86C1BAE420500C744AF /* ViewController.m */,
+				A1B49A602D6A1000001D58A1 /* BrowserWKWebViewProofOfConceptViewController.m */,
+			);
+			name = Controllers;
+			sourceTree = "<group>";
+		};
+		A1B49A7F2D6D0000001D58A1 /* Views */ = {
+			isa = PBXGroup;
+			children = (
 				A1B49A592D684000001D58A1 /* BrowserTopBarView.h */,
 				A1B49A5A2D684000001D58A1 /* BrowserTopBarView.m */,
+				A1B49A642D6A3900001D58A1 /* BrowserWebView.h */,
+				A1B49A622D6A3800001D58A1 /* BrowserWebView.m */,
+			);
+			name = Views;
+			sourceTree = "<group>";
+		};
+		A1B49A802D6D0000001D58A1 /* Video */ = {
+			isa = PBXGroup;
+			children = (
 				A1B49A692D6B1000001D58A1 /* BrowserNativeVideoPlayerViewController.h */,
 				A1B49A6B2D6B1000001D58A1 /* BrowserNativeVideoPlayerViewController.m */,
 				A1B49A752D6C1000001D58A1 /* BrowserNativeVideoAssetLoader.h */,
 				A1B49A732D6C1000001D58A1 /* BrowserNativeVideoAssetLoader.m */,
 				A1B49A702D6B7000001D58A1 /* BrowserYouTubeExtractor.h */,
 				A1B49A712D6B7000001D58A1 /* BrowserYouTubeExtractor.m */,
+			);
+			name = Video;
+			sourceTree = "<group>";
+		};
+		A1B49A812D6D0000001D58A1 /* Runtime */ = {
+			isa = PBXGroup;
+			children = (
 				A1B49A652D6A7500001D58A1 /* AVPlayerViewController+BrowserFullscreenBlock.m */,
 				A1B49A672D6AD500001D58A1 /* UIApplication+BrowserSelectPressForwarding.m */,
-				A1B49A642D6A3900001D58A1 /* BrowserWebView.h */,
-				A1B49A622D6A3800001D58A1 /* BrowserWebView.m */,
-				A1B49A602D6A1000001D58A1 /* BrowserWKWebViewProofOfConceptViewController.m */,
 				A1B49A5E2D69F900001D58A1 /* WebAVPlayerViewController+FullscreenSubviewHack.m */,
 				A1B49A5C2D69F100001D58A1 /* WebCoreNSURLSessionTaskTransactionMetrics+AddPrivacyStance.m */,
-				A1B49A492D67F2C3001D58A1 /* BrowserViewModel.h */,
-				A1B49A4A2D67F2C3001D58A1 /* BrowserViewModel.m */,
-				B002B86B1BAE420500C744AF /* ViewController.h */,
-				B002B86C1BAE420500C744AF /* ViewController.m */,
-				3A2A7C0621E77E2C0083CB13 /* MenuIcons */,
-				B002B8651BAE420500C744AF /* Supporting Files */,
 			);
-			path = Browser;
+			name = Runtime;
 			sourceTree = "<group>";
 		};
 		B002B8651BAE420500C744AF /* Supporting Files */ = {
@@ -296,7 +386,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				A1B49A482D67F2B3001D58A1 /* BrowserTabViewModel.m in Sources */,
-				A1B49A552D68143D001D58A1 /* BrowserMenuPresenter.m in Sources */,
+				A1B49A552D68143D001D58A1 /* BrowserMenuCoordinator.m in Sources */,
+				A1B49A872D6D2000001D58A1 /* BrowserVideoPlaybackCoordinator.m in Sources */,
+				A1B49A842D6D2000001D58A1 /* BrowserDOMInteractionService.m in Sources */,
 				A1B49A4E2D680900001D58A1 /* BrowserNavigationService.m in Sources */,
 				A1B49A582D6828D4001D58A1 /* BrowserSessionStore.m in Sources */,
 				A1B49A5B2D684000001D58A1 /* BrowserTopBarView.m in Sources */,

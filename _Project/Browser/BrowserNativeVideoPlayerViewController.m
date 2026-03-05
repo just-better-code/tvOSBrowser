@@ -4,30 +4,31 @@
 #import <AVFoundation/AVFoundation.h>
 
 static NSString * const kBrowserNativeVideoPlayerLogPrefix = @"[NativeVideoPlayer]";
+static NSString * const kBrowserNativePlayerInputLogPrefix = @"[InputTrace][NativePlayer]";
 
-@interface BrowserNativeVideoPlayerView : UIView
-
-@property (nonatomic, strong) AVPlayer *player;
-
-@end
-
-@implementation BrowserNativeVideoPlayerView
-
-+ (Class)layerClass {
-    return [AVPlayerLayer class];
+static NSString *BrowserNativePlayerPressTypeString(UIPressType type) {
+    switch (type) {
+        case UIPressTypeMenu: return @"Menu";
+        case UIPressTypePlayPause: return @"PlayPause";
+        case UIPressTypeSelect: return @"Select";
+        case UIPressTypeUpArrow: return @"Up";
+        case UIPressTypeDownArrow: return @"Down";
+        case UIPressTypeLeftArrow: return @"Left";
+        case UIPressTypeRightArrow: return @"Right";
+        default: return [NSString stringWithFormat:@"Type-%ld", (long)type];
+    }
 }
 
-- (AVPlayerLayer *)playerLayer {
-    return (AVPlayerLayer *)self.layer;
+static NSString *BrowserNativePlayerPressPhaseString(UIPressPhase phase) {
+    switch (phase) {
+        case UIPressPhaseBegan: return @"Began";
+        case UIPressPhaseChanged: return @"Changed";
+        case UIPressPhaseStationary: return @"Stationary";
+        case UIPressPhaseEnded: return @"Ended";
+        case UIPressPhaseCancelled: return @"Cancelled";
+        default: return [NSString stringWithFormat:@"Phase-%ld", (long)phase];
+    }
 }
-
-- (void)setPlayer:(AVPlayer *)player {
-    _player = player;
-    self.playerLayer.player = player;
-    self.playerLayer.videoGravity = AVLayerVideoGravityResizeAspect;
-}
-
-@end
 
 @interface BrowserNativeVideoPlayerViewController ()
 
@@ -36,11 +37,6 @@ static NSString * const kBrowserNativeVideoPlayerLogPrefix = @"[NativeVideoPlaye
 @property (nonatomic, copy) NSDictionary<NSString *, NSString *> *requestHeaders;
 @property (nonatomic, copy) NSArray<NSHTTPCookie *> *requestCookies;
 @property (nonatomic, strong) BrowserNativeVideoAssetLoader *assetLoader;
-@property (nonatomic, strong) AVPlayer *player;
-@property (nonatomic, strong) BrowserNativeVideoPlayerView *playerView;
-@property (nonatomic, strong) UIView *chromeView;
-@property (nonatomic, strong) UILabel *titleLabel;
-@property (nonatomic, strong) UILabel *hintLabel;
 
 @end
 
@@ -73,16 +69,11 @@ static NSString * const kBrowserNativeVideoPlayerLogPrefix = @"[NativeVideoPlaye
     return self;
 }
 
-- (void)loadView {
-    self.playerView = [[BrowserNativeVideoPlayerView alloc] initWithFrame:CGRectZero];
-    self.playerView.backgroundColor = UIColor.blackColor;
-    self.view = self.playerView;
-}
-
 - (void)viewDidLoad {
     [super viewDidLoad];
 
     self.view.backgroundColor = UIColor.blackColor;
+    self.showsPlaybackControls = YES;
     AVPlayerItem *playerItem = nil;
     if (self.requestHeaders.count > 0 || self.requestCookies.count > 0) {
         NSMutableDictionary *assetOptions = [NSMutableDictionary dictionary];
@@ -106,45 +97,7 @@ static NSString * const kBrowserNativeVideoPlayerLogPrefix = @"[NativeVideoPlaye
         playerItem = [AVPlayerItem playerItemWithURL:self.videoURL];
     }
     self.player = [AVPlayer playerWithPlayerItem:playerItem];
-    self.playerView.player = self.player;
     [self log:@"created player url=%@", self.videoURL.absoluteString ?: @""];
-
-    self.chromeView = [[UIView alloc] initWithFrame:CGRectZero];
-    self.chromeView.translatesAutoresizingMaskIntoConstraints = NO;
-    self.chromeView.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.45];
-    self.chromeView.layer.cornerRadius = 18.0;
-    [self.view addSubview:self.chromeView];
-
-    self.titleLabel = [[UILabel alloc] initWithFrame:CGRectZero];
-    self.titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    self.titleLabel.textColor = UIColor.whiteColor;
-    self.titleLabel.numberOfLines = 2;
-    self.titleLabel.font = [UIFont boldSystemFontOfSize:34.0];
-    self.titleLabel.text = self.videoTitle.length > 0 ? self.videoTitle : self.videoURL.absoluteString;
-    [self.chromeView addSubview:self.titleLabel];
-
-    self.hintLabel = [[UILabel alloc] initWithFrame:CGRectZero];
-    self.hintLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    self.hintLabel.textColor = [[UIColor whiteColor] colorWithAlphaComponent:0.8];
-    self.hintLabel.numberOfLines = 2;
-    self.hintLabel.font = [UIFont systemFontOfSize:24.0];
-    self.hintLabel.text = @"Menu: Close   Play/Pause or Select: Toggle";
-    [self.chromeView addSubview:self.hintLabel];
-
-    [NSLayoutConstraint activateConstraints:@[
-        [self.chromeView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:54.0],
-        [self.chromeView.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:34.0],
-        [self.chromeView.trailingAnchor constraintLessThanOrEqualToAnchor:self.view.trailingAnchor constant:-54.0],
-
-        [self.titleLabel.leadingAnchor constraintEqualToAnchor:self.chromeView.leadingAnchor constant:24.0],
-        [self.titleLabel.topAnchor constraintEqualToAnchor:self.chromeView.topAnchor constant:18.0],
-        [self.titleLabel.trailingAnchor constraintEqualToAnchor:self.chromeView.trailingAnchor constant:-24.0],
-
-        [self.hintLabel.leadingAnchor constraintEqualToAnchor:self.chromeView.leadingAnchor constant:24.0],
-        [self.hintLabel.topAnchor constraintEqualToAnchor:self.titleLabel.bottomAnchor constant:10.0],
-        [self.hintLabel.trailingAnchor constraintEqualToAnchor:self.chromeView.trailingAnchor constant:-24.0],
-        [self.hintLabel.bottomAnchor constraintEqualToAnchor:self.chromeView.bottomAnchor constant:-18.0],
-    ]];
 
     [[NSNotificationCenter defaultCenter] addObserver:self
                                              selector:@selector(handlePlayerItemFailedToPlayToEndTime:)
@@ -166,12 +119,14 @@ static NSString * const kBrowserNativeVideoPlayerLogPrefix = @"[NativeVideoPlaye
 
 - (void)viewDidAppear:(BOOL)animated {
     [super viewDidAppear:animated];
+    NSLog(@"%@ viewDidAppear", kBrowserNativePlayerInputLogPrefix);
     [self log:@"viewDidAppear play"];
     [self.player play];
 }
 
 - (void)viewWillDisappear:(BOOL)animated {
     [super viewWillDisappear:animated];
+    NSLog(@"%@ viewWillDisappear", kBrowserNativePlayerInputLogPrefix);
     [self log:@"viewWillDisappear pause"];
     [self.player pause];
 }
@@ -194,6 +149,38 @@ static NSString * const kBrowserNativeVideoPlayerLogPrefix = @"[NativeVideoPlaye
         [self log:@"toggle play"];
         [self.player play];
     }
+}
+
+- (void)skipByInterval:(NSTimeInterval)delta {
+    if (self.player.currentItem == nil) {
+        return;
+    }
+
+    NSTimeInterval currentTime = CMTimeGetSeconds(self.player.currentTime);
+    if (!isfinite(currentTime)) {
+        currentTime = 0.0;
+    }
+
+    NSTimeInterval duration = CMTimeGetSeconds(self.player.currentItem.duration);
+    NSTimeInterval targetTime = currentTime + delta;
+    if (isfinite(duration) && duration > 0.0) {
+        targetTime = MIN(MAX(targetTime, 0.0), MAX(duration - 0.05, 0.0));
+    } else {
+        targetTime = MAX(targetTime, 0.0);
+    }
+
+    [self log:@"seek delta=%0.3f from=%0.3f to=%0.3f", delta, currentTime, targetTime];
+    CMTime seekTime = CMTimeMakeWithSeconds(targetTime, NSEC_PER_SEC);
+    [self.player seekToTime:seekTime toleranceBefore:kCMTimeZero toleranceAfter:kCMTimeZero];
+}
+
+- (void)scrubByHorizontalDelta:(CGFloat)delta {
+    // Approximate touch-surface horizontal movement to timeline seek.
+    NSTimeInterval secondsDelta = (NSTimeInterval)delta / 4.0;
+    if (fabs(secondsDelta) < 0.01) {
+        return;
+    }
+    [self skipByInterval:secondsDelta];
 }
 
 - (void)closePlayer {
@@ -258,27 +245,26 @@ static NSString * const kBrowserNativeVideoPlayerLogPrefix = @"[NativeVideoPlaye
     [super observeValueForKeyPath:keyPath ofObject:object change:change context:context];
 }
 
-- (void)pressesEnded:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
-    BOOL handled = NO;
-    for (UIPress *press in presses) {
-        switch (press.type) {
-            case UIPressTypeMenu:
-                [self closePlayer];
-                handled = YES;
-                break;
-            case UIPressTypePlayPause:
-            case UIPressTypeSelect:
-                [self togglePlayback];
-                handled = YES;
-                break;
-            default:
-                break;
-        }
+- (void)pressesBegan:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
+    UIPress *press = presses.anyObject;
+    if (press != nil && (press.type == UIPressTypeMenu || press.type == UIPressTypePlayPause || press.type == UIPressTypeSelect)) {
+        NSLog(@"%@ pressesBegan type=%@ phase=%@",
+              kBrowserNativePlayerInputLogPrefix,
+              BrowserNativePlayerPressTypeString(press.type),
+              BrowserNativePlayerPressPhaseString(press.phase));
     }
+    [super pressesBegan:presses withEvent:event];
+}
 
-    if (!handled) {
-        [super pressesEnded:presses withEvent:event];
+- (void)pressesEnded:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
+    UIPress *press = presses.anyObject;
+    if (press != nil && (press.type == UIPressTypeMenu || press.type == UIPressTypePlayPause || press.type == UIPressTypeSelect)) {
+        NSLog(@"%@ pressesEnded type=%@ phase=%@",
+              kBrowserNativePlayerInputLogPrefix,
+              BrowserNativePlayerPressTypeString(press.type),
+              BrowserNativePlayerPressPhaseString(press.phase));
     }
+    [super pressesEnded:presses withEvent:event];
 }
 
 @end

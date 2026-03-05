@@ -9,10 +9,10 @@
 // Icons made by https://www.flaticon.com/authors/daniel-bruce Daniel Bruce from https://www.flaticon.com/ Flaticon" is licensed by  http://creativecommons.org/licenses/by/3.0/  CC 3.0 BY
 
 
-#import "BrowserMenuPresenter.h"
-#import "BrowserNativeVideoPlayerViewController.h"
+#import "BrowserMenuCoordinator.h"
+#import "BrowserDOMInteractionService.h"
+#import "BrowserVideoPlaybackCoordinator.h"
 #import "BrowserSessionStore.h"
-#import "BrowserYouTubeExtractor.h"
 #import "ViewController.h"
 #import "BrowserNavigationService.h"
 #import "BrowserTabViewModel.h"
@@ -54,13 +54,35 @@ static CGFloat const kTabCardWidth = 260.0;
 static CGFloat const kTabCardHeight = 240.0;
 static CGFloat const kTabCardSpacing = 20.0;
 static CGFloat const kTabCardGlowInset = 12.0;
-static NSString * const kDisableInlineMediaPlaybackDefaultsKey = @"DisableInlineMediaPlayback";
-static NSString * const kInteractiveElementSelector = @"a, button, input, textarea, select, option, label, summary, [role='button'], [onclick], [tabindex]";
-static NSString * const kEditableElementSelector = @"input, textarea, select, [contenteditable='true'], [contenteditable=''], [contenteditable]";
+static NSString * const kEnableFullscreenVideoPlaybackDefaultsKey = @"EnableFullscreenVideoPlayback";
 static NSString * const kUserAgentDefaultsKey = @"UserAgent";
 static NSString * const kBrowserGlobalSelectPressEndedNotification = @"BrowserGlobalSelectPressEndedNotification";
 
-@interface ViewController () <BrowserMenuPresenterHost>
+static NSString *BrowserPressTypeString(UIPressType type) {
+    switch (type) {
+        case UIPressTypeMenu: return @"Menu";
+        case UIPressTypePlayPause: return @"PlayPause";
+        case UIPressTypeSelect: return @"Select";
+        case UIPressTypeUpArrow: return @"Up";
+        case UIPressTypeDownArrow: return @"Down";
+        case UIPressTypeLeftArrow: return @"Left";
+        case UIPressTypeRightArrow: return @"Right";
+        default: return [NSString stringWithFormat:@"Type-%ld", (long)type];
+    }
+}
+
+static NSString *BrowserPressPhaseString(UIPressPhase phase) {
+    switch (phase) {
+        case UIPressPhaseBegan: return @"Began";
+        case UIPressPhaseChanged: return @"Changed";
+        case UIPressPhaseStationary: return @"Stationary";
+        case UIPressPhaseEnded: return @"Ended";
+        case UIPressPhaseCancelled: return @"Cancelled";
+        default: return [NSString stringWithFormat:@"Phase-%ld", (long)phase];
+    }
+}
+
+@interface ViewController () <BrowserMenuCoordinatorHost, BrowserVideoPlaybackCoordinatorHost>
 
 @property BrowserWebView *webview;
 @property NSString *requestURL;
@@ -79,7 +101,9 @@ static NSString * const kBrowserGlobalSelectPressEndedNotification = @"BrowserGl
 @property CFTimeInterval manualScrollLastTimestamp;
 @property CFTimeInterval manualScrollLastMovementTimestamp;
 @property UITapGestureRecognizer *playPauseDoubleTapRecognizer;
-@property BrowserMenuPresenter *menuPresenter;
+@property BrowserMenuCoordinator *menuCoordinator;
+@property BrowserDOMInteractionService *domInteractionService;
+@property BrowserVideoPlaybackCoordinator *videoPlaybackCoordinator;
 @property BrowserNavigationService *navigationService;
 @property BrowserSessionStore *sessionStore;
 @property BrowserViewModel *viewModel;
@@ -94,7 +118,6 @@ static NSString * const kBrowserGlobalSelectPressEndedNotification = @"BrowserGl
 @property CFTimeInterval lastDirectSelectPressTimestamp;
 @property CFTimeInterval lastSelectPressTimestamp;
 @property BOOL awaitingSecondSelectPress;
-@property (nonatomic, strong) BrowserYouTubeExtractor *youTubeExtractor;
 
 @end
 
@@ -268,6 +291,16 @@ static NSString * const kBrowserGlobalSelectPressEndedNotification = @"BrowserGl
     return self.topMenuShowing;
 }
 
+- (BOOL)browserFullscreenVideoPlaybackEnabled {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:kEnableFullscreenVideoPlaybackDefaultsKey];
+}
+
+- (void)setBrowserFullscreenVideoPlaybackEnabled:(BOOL)browserFullscreenVideoPlaybackEnabled {
+    [[NSUserDefaults standardUserDefaults] setBool:browserFullscreenVideoPlaybackEnabled
+                                            forKey:kEnableFullscreenVideoPlaybackDefaultsKey];
+    [[NSUserDefaults standardUserDefaults] synchronize];
+}
+
 - (void)browserPresentViewController:(UIViewController *)viewController {
     [self presentViewController:viewController animated:YES completion:nil];
 }
@@ -313,14 +346,23 @@ static NSString * const kBrowserGlobalSelectPressEndedNotification = @"BrowserGl
 }
 
 - (void)browserPlayVideoUnderCursorIfAvailable {
-    [self playVideoUnderCursorIfAvailable];
+    [self.videoPlaybackCoordinator playVideoUnderCursorIfAvailable];
 }
 
-- (BrowserYouTubeExtractor *)youTubeExtractor {
-    if (_youTubeExtractor == nil) {
-        _youTubeExtractor = [BrowserYouTubeExtractor new];
-    }
-    return _youTubeExtractor;
+- (BOOL)browserIsCursorModeEnabled {
+    return self.cursorMode;
+}
+
+- (CGPoint)browserDOMCursorPoint {
+    return [self browserDOMPointForCursor];
+}
+
+- (UIViewController *)browserPresentedViewController {
+    return self.presentedViewController;
+}
+
+- (NSString *)browserCurrentPageTitle {
+    return self.webview.title;
 }
 
 - (void)handleApplicationWillResignActive:(NSNotification *)notification {
@@ -349,9 +391,8 @@ static NSString * const kBrowserGlobalSelectPressEndedNotification = @"BrowserGl
     }
 
     NSString *userAgent = [[NSUserDefaults standardUserDefaults] stringForKey:kUserAgentDefaultsKey];
-    BOOL disablesInlineMediaPlayback = [[NSUserDefaults standardUserDefaults] boolForKey:kDisableInlineMediaPlaybackDefaultsKey];
     BrowserWebView *webView = [[BrowserWebView alloc] initWithUserAgent:userAgent
-                                           allowsInlineMediaPlayback:!disablesInlineMediaPlayback];
+                                           allowsInlineMediaPlayback:YES];
     [webView setTranslatesAutoresizingMaskIntoConstraints:false];
     [webView setClipsToBounds:false];
     [webView setDelegate:self];
@@ -395,446 +436,30 @@ static NSString * const kBrowserGlobalSelectPressEndedNotification = @"BrowserGl
 }
 
 - (CGPoint)browserDOMPointForCursor {
-    CGPoint point = [self.view convertPoint:self.cursorView.frame.origin toView:self.webview];
-    if (point.y < 0.0) {
-        return point;
-    }
-
-    NSInteger displayWidth = [[self.webview stringByEvaluatingJavaScriptFromString:@"window.innerWidth"] integerValue];
-    if (displayWidth <= 0) {
-        return point;
-    }
-
-    CGFloat scale = CGRectGetWidth([self.webview frame]) / (CGFloat)displayWidth;
-    if (scale <= 0.0) {
-        return point;
-    }
-
-    point.x /= scale;
-    point.y /= scale;
-    return point;
+    return [self.domInteractionService DOMPointForCursorOrigin:self.cursorView.frame.origin
+                                                        inView:self.view
+                                                       webView:self.webview];
 }
 
 - (NSString *)evaluateResolvedElementJavaScriptAtPoint:(CGPoint)point body:(NSString *)body {
-    NSInteger pointX = (NSInteger)llround(point.x);
-    NSInteger pointY = (NSInteger)llround(point.y);
-    NSString *script = [NSString stringWithFormat:
-                        @"(function(){"
-                        "var x=%ld;"
-                        "var y=%ld;"
-                        "var interactiveSelector=\"%@\";"
-                        "var editableSelector=\"%@\";"
-                        "function resolveElement(root, px, py) {"
-                            "if (!root || typeof root.elementFromPoint !== 'function') { return null; }"
-                            "var element = root.elementFromPoint(px, py);"
-                            "while (element) {"
-                                "if (element.shadowRoot && typeof element.shadowRoot.elementFromPoint === 'function') {"
-                                    "var shadowRect = element.getBoundingClientRect();"
-                                    "var shadowElement = resolveElement(element.shadowRoot, px - shadowRect.left, py - shadowRect.top);"
-                                    "if (shadowElement && shadowElement !== element) {"
-                                        "element = shadowElement;"
-                                        "continue;"
-                                    "}"
-                                "}"
-                                "if (element.tagName === 'IFRAME') {"
-                                    "try {"
-                                        "var frameRect = element.getBoundingClientRect();"
-                                        "var frameDocument = element.contentDocument;"
-                                        "var frameElement = resolveElement(frameDocument, px - frameRect.left, py - frameRect.top);"
-                                        "if (frameElement) {"
-                                            "element = frameElement;"
-                                            "continue;"
-                                        "}"
-                                    "} catch (error) {}"
-                                "}"
-                                "return element;"
-                            "}"
-                            "return null;"
-                        "}"
-                        "function closestMatch(element, selector) {"
-                            "while (element) {"
-                                "if (element.matches && element.matches(selector)) { return element; }"
-                                "element = element.parentElement;"
-                            "}"
-                            "return null;"
-                        "}"
-                        "var resolvedElement = resolveElement(document, x, y);"
-                        "var interactiveElement = closestMatch(resolvedElement, interactiveSelector);"
-                        "var editableElement = closestMatch(resolvedElement, editableSelector);"
-                        "%@"
-                        "})()",
-                        (long)pointX,
-                        (long)pointY,
-                        kInteractiveElementSelector,
-                        kEditableElementSelector,
-                        body];
-    return [self.webview stringByEvaluatingJavaScriptFromString:script];
+    return [self.domInteractionService evaluateResolvedElementJavaScriptAtPoint:point
+                                                                         webView:self.webview
+                                                                            body:body];
 }
 
 - (NSString *)evaluateEditableElementJavaScriptAtPoint:(CGPoint)point body:(NSString *)body {
-    NSString *wrappedBody = [NSString stringWithFormat:
-                             @"function browserIsEditableCandidate(element) {"
-                                 "if (!element) { return false; }"
-                                 "var tagName = element.tagName ? element.tagName.toLowerCase() : '';"
-                                 "if (element.matches && element.matches(editableSelector)) { return true; }"
-                                 "if (tagName === 'textarea' || tagName === 'select') { return true; }"
-                                 "if (element.isContentEditable) { return true; }"
-                                 "return false;"
-                             "}"
-                             "function browserEditableTarget() {"
-                                 "var stored = window.__browserLastEditableElement;"
-                                 "if (stored && stored.isConnected && browserIsEditableCandidate(stored)) { return stored; }"
-                                 "var active = document.activeElement;"
-                                 "if (active && browserIsEditableCandidate(active)) {"
-                                     "window.__browserLastEditableElement = active;"
-                                     "return active;"
-                                 "}"
-                                 "var candidate = editableElement || interactiveElement || resolvedElement;"
-                                 "if (candidate && browserIsEditableCandidate(candidate)) {"
-                                     "window.__browserLastEditableElement = candidate;"
-                                     "return candidate;"
-                                 "}"
-                                 "if (candidate && candidate.closest) {"
-                                     "var fallback = candidate.closest(editableSelector) || candidate.closest('textarea, select');"
-                                     "if (fallback && browserIsEditableCandidate(fallback)) {"
-                                         "window.__browserLastEditableElement = fallback;"
-                                         "return fallback;"
-                                     "}"
-                                 "}"
-                                 "return null;"
-                             "}"
-                             "%@",
-                             body];
-    return [self evaluateResolvedElementJavaScriptAtPoint:point body:wrappedBody];
+    return [self.domInteractionService evaluateEditableElementJavaScriptAtPoint:point
+                                                                         webView:self.webview
+                                                                            body:body];
 }
 
 - (NSString *)evaluateHoverStateJavaScriptAtPoint:(CGPoint)point {
-    NSInteger pointX = (NSInteger)llround(point.x);
-    NSInteger pointY = (NSInteger)llround(point.y);
-    NSString *script = [NSString stringWithFormat:
-                        @"(function(){"
-                        "var element = document.elementFromPoint(%ld, %ld);"
-                        "while (element) {"
-                            "if (element.matches && element.matches(\"%@\")) { return 'true'; }"
-                            "element = element.parentElement;"
-                        "}"
-                        "return 'false';"
-                        "})()",
-                        (long)pointX,
-                        (long)pointY,
-                        kInteractiveElementSelector];
-    return [self.webview stringByEvaluatingJavaScriptFromString:script];
+    return [self.domInteractionService evaluateHoverStateJavaScriptAtPoint:point
+                                                                    webView:self.webview];
 }
 
 - (NSString *)javaScriptEscapedString:(NSString *)string {
-    NSString *escapedString = string ?: @"";
-    escapedString = [escapedString stringByReplacingOccurrencesOfString:@"\\" withString:@"\\\\"];
-    escapedString = [escapedString stringByReplacingOccurrencesOfString:@"'" withString:@"\\'"];
-    escapedString = [escapedString stringByReplacingOccurrencesOfString:@"\n" withString:@"\\n"];
-    escapedString = [escapedString stringByReplacingOccurrencesOfString:@"\r" withString:@"\\r"];
-    escapedString = [escapedString stringByReplacingOccurrencesOfString:@"\u2028" withString:@"\\u2028"];
-    escapedString = [escapedString stringByReplacingOccurrencesOfString:@"\u2029" withString:@"\\u2029"];
-    return escapedString;
-}
-
-- (NSDictionary *)JSONObjectFromJavaScriptString:(NSString *)string {
-    if (string.length == 0) {
-        return nil;
-    }
-
-    NSData *data = [string dataUsingEncoding:NSUTF8StringEncoding];
-    if (data == nil) {
-        return nil;
-    }
-
-    id object = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
-    if (![object isKindOfClass:[NSDictionary class]]) {
-        return nil;
-    }
-
-    return object;
-}
-
-- (NSDictionary *)videoInfoAtDOMPoint:(CGPoint)point {
-    NSString *result = [self evaluateResolvedElementJavaScriptAtPoint:point
-                                                                 body:@"function browserAbsoluteURL(url) {"
-                                                                      "if (!url) { return ''; }"
-                                                                      "try { return String(new URL(url, document.baseURI).toString()); } catch (error) { return String(url); }"
-                                                                      "}"
-                                                                      "function browserVideoContainsPoint(video) {"
-                                                                          "if (!video || typeof video.getBoundingClientRect !== 'function') { return false; }"
-                                                                          "var rect = video.getBoundingClientRect();"
-                                                                          "return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;"
-                                                                      "}"
-                                                                      "function browserResolveVideoElement() {"
-                                                                          "var candidate = resolvedElement;"
-                                                                          "while (candidate) {"
-                                                                              "if (candidate.tagName && candidate.tagName.toLowerCase() === 'video') { return candidate; }"
-                                                                              "candidate = candidate.parentElement;"
-                                                                          "}"
-                                                                          "var videos = document.querySelectorAll('video');"
-                                                                          "var bestVisibleVideo = null;"
-                                                                          "var bestVisibleArea = 0;"
-                                                                          "for (var i = 0; i < videos.length; i++) {"
-                                                                              "var video = videos[i];"
-                                                                              "if (browserVideoContainsPoint(video)) { return video; }"
-                                                                              "if (!video || typeof video.getBoundingClientRect !== 'function') { continue; }"
-                                                                              "var rect = video.getBoundingClientRect();"
-                                                                              "var visibleWidth = Math.max(0, Math.min(rect.right, window.innerWidth) - Math.max(rect.left, 0));"
-                                                                              "var visibleHeight = Math.max(0, Math.min(rect.bottom, window.innerHeight) - Math.max(rect.top, 0));"
-                                                                              "var visibleArea = visibleWidth * visibleHeight;"
-                                                                              "if (visibleArea <= 0) { continue; }"
-                                                                              "if (!video.paused && !video.ended && video.readyState >= 2) { return video; }"
-                                                                              "if (visibleArea > bestVisibleArea) {"
-                                                                                  "bestVisibleArea = visibleArea;"
-                                                                                  "bestVisibleVideo = video;"
-                                                                              "}"
-                                                                          "}"
-                                                                          "return bestVisibleVideo;"
-                                                                      "}"
-                                                                      "function browserResolvePrimarySource(video) {"
-                                                                          "if (!video) { return ''; }"
-                                                                          "if (video.currentSrc) { return browserAbsoluteURL(video.currentSrc); }"
-                                                                          "if (video.src) { return browserAbsoluteURL(video.src); }"
-                                                                          "var sources = video.querySelectorAll('source');"
-                                                                          "for (var i = 0; i < sources.length; i++) {"
-                                                                              "var sourceSrc = sources[i].src || sources[i].getAttribute('src') || '';"
-                                                                              "if (sourceSrc) { return browserAbsoluteURL(sourceSrc); }"
-                                                                          "}"
-                                                                          "return '';"
-                                                                      "}"
-                                                                      "function browserResolveSourceList(video) {"
-                                                                          "var values = [];"
-                                                                          "if (!video) { return values; }"
-                                                                          "if (video.currentSrc) { values.push(browserAbsoluteURL(video.currentSrc)); }"
-                                                                          "if (video.src && values.indexOf(browserAbsoluteURL(video.src)) === -1) { values.push(browserAbsoluteURL(video.src)); }"
-                                                                          "var sources = video.querySelectorAll('source');"
-                                                                          "for (var i = 0; i < sources.length; i++) {"
-                                                                              "var sourceSrc = sources[i].src || sources[i].getAttribute('src') || '';"
-                                                                              "sourceSrc = browserAbsoluteURL(sourceSrc);"
-                                                                              "if (sourceSrc && values.indexOf(sourceSrc) === -1) { values.push(sourceSrc); }"
-                                                                          "}"
-                                                                          "return values;"
-                                                                      "}"
-                                                                      "var video = browserResolveVideoElement();"
-                                                                      "if (!video) { return ''; }"
-                                                                      "return JSON.stringify({"
-                                                                          "src: browserResolvePrimarySource(video),"
-                                                                          "sources: browserResolveSourceList(video),"
-                                                                          "poster: browserAbsoluteURL(video.poster || ''),"
-                                                                          "title: video.getAttribute('title') || video.getAttribute('aria-label') || document.title || '',"
-                                                                          "tagName: video.tagName ? video.tagName.toLowerCase() : '',"
-                                                                          "paused: !!video.paused"
-                                                                      "});"];
-    return [self JSONObjectFromJavaScriptString:result];
-}
-
-- (BOOL)isNativePlayableVideoURLString:(NSString *)URLString {
-    if (URLString.length == 0) {
-        return NO;
-    }
-
-    NSString *lowercaseURLString = URLString.lowercaseString;
-    if ([lowercaseURLString hasPrefix:@"blob:"] ||
-        [lowercaseURLString hasPrefix:@"data:"] ||
-        [lowercaseURLString hasPrefix:@"mediastream:"]) {
-        return NO;
-    }
-
-    NSURL *URL = [NSURL URLWithString:URLString];
-    if (URL == nil) {
-        return NO;
-    }
-
-    NSString *scheme = URL.scheme.lowercaseString;
-    return [scheme isEqualToString:@"http"] || [scheme isEqualToString:@"https"];
-}
-
-- (void)presentNativeVideoPlayerForURL:(NSURL *)URL title:(NSString *)title {
-    [self presentNativeVideoPlayerForURL:URL title:title requestHeaders:nil cookies:nil];
-}
-
-- (void)presentNativeVideoPlayerForURL:(NSURL *)URL
-                                 title:(NSString *)title
-                        requestHeaders:(NSDictionary<NSString *, NSString *> *)requestHeaders
-                               cookies:(NSArray<NSHTTPCookie *> *)cookies {
-    if (URL == nil) {
-        return;
-    }
-
-    BrowserNativeVideoPlayerViewController *playerViewController = [[BrowserNativeVideoPlayerViewController alloc] initWithURL:URL
-                                                                                                                          title:title
-                                                                                                                  requestHeaders:requestHeaders
-                                                                                                                         cookies:cookies];
-    [self presentViewController:playerViewController animated:YES completion:nil];
-}
-
-- (NSDictionary<NSString *, NSString *> *)browserHeadersForYouTubePlaybackURL:(NSURL *)playbackURL pageURL:(NSURL *)pageURL {
-    if (playbackURL == nil || pageURL == nil) {
-        return nil;
-    }
-
-    NSMutableDictionary<NSString *, NSString *> *headers = [NSMutableDictionary dictionary];
-    NSString *userAgent = [[NSUserDefaults standardUserDefaults] stringForKey:kUserAgentDefaultsKey];
-    if (userAgent.length > 0) {
-        headers[@"User-Agent"] = userAgent;
-    }
-
-    headers[@"Referer"] = pageURL.absoluteString ?: @"https://www.youtube.com/";
-    NSString *origin = [NSString stringWithFormat:@"%@://%@", pageURL.scheme ?: @"https", pageURL.host ?: @"www.youtube.com"];
-    headers[@"Origin"] = origin;
-
-    NSArray<NSHTTPCookie *> *cookies = [[NSHTTPCookieStorage sharedHTTPCookieStorage] cookiesForURL:pageURL];
-    if (cookies.count > 0) {
-        NSDictionary<NSString *, NSString *> *cookieHeaders = [NSHTTPCookie requestHeaderFieldsWithCookies:cookies];
-        NSString *cookieHeader = cookieHeaders[@"Cookie"];
-        if (cookieHeader.length > 0) {
-            headers[@"Cookie"] = cookieHeader;
-        }
-    }
-
-    return headers.count > 0 ? headers : nil;
-}
-
-- (BOOL)cookie:(NSHTTPCookie *)cookie matchesHost:(NSString *)host {
-    if (cookie == nil || host.length == 0) {
-        return NO;
-    }
-
-    NSString *cookieDomain = cookie.domain.lowercaseString ?: @"";
-    NSString *lowercaseHost = host.lowercaseString;
-    if (cookieDomain.length == 0) {
-        return NO;
-    }
-
-    if ([cookieDomain hasPrefix:@"."]) {
-        cookieDomain = [cookieDomain substringFromIndex:1];
-    }
-
-    return [lowercaseHost isEqualToString:cookieDomain] || [lowercaseHost hasSuffix:[@"." stringByAppendingString:cookieDomain]];
-}
-
-- (NSArray<NSHTTPCookie *> *)browserCookiesForYouTubePlaybackURL:(NSURL *)playbackURL pageURL:(NSURL *)pageURL {
-    NSMutableArray<NSHTTPCookie *> *matchingCookies = [NSMutableArray array];
-    NSMutableSet<NSString *> *seenCookieKeys = [NSMutableSet set];
-    NSArray<NSHTTPCookie *> *allCookies = [BrowserWebView allCookies];
-    NSString *pageHost = pageURL.host.lowercaseString ?: @"";
-    NSString *playbackHost = playbackURL.host.lowercaseString ?: @"";
-
-    for (NSHTTPCookie *cookie in allCookies) {
-        BOOL matches = [self cookie:cookie matchesHost:pageHost] ||
-        [self cookie:cookie matchesHost:playbackHost] ||
-        [self cookie:cookie matchesHost:@"youtube.com"] ||
-        [self cookie:cookie matchesHost:@"googlevideo.com"];
-        if (!matches) {
-            continue;
-        }
-
-        NSString *cookieKey = [NSString stringWithFormat:@"%@|%@|%@", cookie.domain ?: @"", cookie.path ?: @"", cookie.name ?: @""];
-        if ([seenCookieKeys containsObject:cookieKey]) {
-            continue;
-        }
-        [seenCookieKeys addObject:cookieKey];
-        [matchingCookies addObject:cookie];
-    }
-
-    return matchingCookies;
-}
-
-- (void)presentUnsupportedNativeVideoAlertForVideoInfo:(NSDictionary *)videoInfo {
-    NSArray *sources = [videoInfo[@"sources"] isKindOfClass:[NSArray class]] ? videoInfo[@"sources"] : @[];
-    NSString *sourceSummary = nil;
-    if (sources.count > 0) {
-        sourceSummary = [sources componentsJoinedByString:@"\n"];
-    } else if (videoInfo.count > 0) {
-        sourceSummary = @"No direct media URL was exposed by the page.";
-    } else {
-        sourceSummary = @"No video element was detected under the cursor.";
-    }
-    UIAlertController *alertController = [UIAlertController alertControllerWithTitle:@"Native Video Unavailable"
-                                                                             message:[NSString stringWithFormat:@"This page is not exposing a direct video URL that AVPlayer can open.\n\nDetected sources:\n%@", sourceSummary]
-                                                                      preferredStyle:UIAlertControllerStyleAlert];
-    [alertController addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]];
-    [self presentViewController:alertController animated:YES completion:nil];
-}
-
-- (void)presentYouTubeExtractionError:(NSError *)error fallbackVideoInfo:(NSDictionary *)videoInfo {
-    NSString *message = error.localizedDescription ?: @"Could not extract a better YouTube playback URL.";
-    UIAlertController *alertController = [UIAlertController alertControllerWithTitle:@"YouTube Extraction Failed"
-                                                                             message:message
-                                                                      preferredStyle:UIAlertControllerStyleAlert];
-    __weak typeof(self) weakSelf = self;
-    NSString *fallbackURLString = [videoInfo[@"src"] isKindOfClass:[NSString class]] ? videoInfo[@"src"] : @"";
-    if ([self isNativePlayableVideoURLString:fallbackURLString]) {
-        [alertController addAction:[UIAlertAction actionWithTitle:@"Play Current URL"
-                                                            style:UIAlertActionStyleDefault
-                                                          handler:^(__unused UIAlertAction *action) {
-            NSURL *fallbackURL = [NSURL URLWithString:fallbackURLString];
-            NSString *title = [videoInfo[@"title"] isKindOfClass:[NSString class]] ? videoInfo[@"title"] : weakSelf.webview.title;
-            [weakSelf presentNativeVideoPlayerForURL:fallbackURL title:title];
-        }]];
-    }
-    [alertController addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]];
-    [self presentViewController:alertController animated:YES completion:nil];
-}
-
-- (void)playYouTubeVideoAtPageURL:(NSURL *)pageURL fallbackVideoInfo:(NSDictionary *)videoInfo {
-    __weak typeof(self) weakSelf = self;
-    [[self youTubeExtractor] extractPlaybackInfoFromPageURL:pageURL webView:self.webview completion:^(BrowserYouTubeExtractionResult *result, NSError *error) {
-        if (result.playbackURL != nil) {
-            NSString *title = result.title.length > 0 ? result.title : weakSelf.webview.title;
-            NSMutableDictionary<NSString *, NSString *> *headers = [NSMutableDictionary dictionaryWithDictionary:result.requestHeaders ?: @{}];
-            NSDictionary<NSString *, NSString *> *fallbackHeaders = [weakSelf browserHeadersForYouTubePlaybackURL:result.playbackURL pageURL:pageURL];
-            [fallbackHeaders enumerateKeysAndObjectsUsingBlock:^(NSString *key, NSString *value, __unused BOOL *stop) {
-                if (headers[key].length == 0 && value.length > 0) {
-                    headers[key] = value;
-                }
-            }];
-
-            NSArray<NSHTTPCookie *> *cookies = [weakSelf browserCookiesForYouTubePlaybackURL:result.playbackURL pageURL:pageURL];
-            if (cookies.count > 0) {
-                NSDictionary<NSString *, NSString *> *cookieHeaders = [NSHTTPCookie requestHeaderFieldsWithCookies:cookies];
-                NSString *cookieHeader = cookieHeaders[@"Cookie"];
-                if (cookieHeader.length > 0) {
-                    headers[@"Cookie"] = cookieHeader;
-                }
-            }
-
-            [weakSelf presentNativeVideoPlayerForURL:result.playbackURL
-                                               title:title
-                                      requestHeaders:headers.count > 0 ? headers : nil
-                                             cookies:cookies];
-            return;
-        }
-
-        [weakSelf presentYouTubeExtractionError:error fallbackVideoInfo:videoInfo ?: @{}];
-    }];
-}
-
-- (void)playVideoUnderCursorIfAvailable {
-    UIViewController *presentedViewController = self.presentedViewController;
-    if (!self.cursorMode ||
-        (presentedViewController != nil && ![presentedViewController isKindOfClass:[UIAlertController class]])) {
-        return;
-    }
-
-    NSURL *pageURL = self.webview.request.URL;
-    CGPoint point = [self browserDOMPointForCursor];
-    NSDictionary *videoInfo = [self videoInfoAtDOMPoint:point];
-    if ([[self youTubeExtractor] canExtractFromPageURL:pageURL]) {
-        [self playYouTubeVideoAtPageURL:pageURL fallbackVideoInfo:videoInfo];
-        return;
-    }
-
-    NSString *videoURLString = [videoInfo[@"src"] isKindOfClass:[NSString class]] ? videoInfo[@"src"] : @"";
-    if (![self isNativePlayableVideoURLString:videoURLString]) {
-        [self presentUnsupportedNativeVideoAlertForVideoInfo:videoInfo ?: @{}];
-        return;
-    }
-
-    NSURL *videoURL = [NSURL URLWithString:videoURLString];
-    NSString *title = [videoInfo[@"title"] isKindOfClass:[NSString class]] ? videoInfo[@"title"] : self.webview.title;
-    [self presentNativeVideoPlayerForURL:videoURL title:title];
+    return [self.domInteractionService javaScriptEscapedString:string];
 }
 
 - (BOOL)isPrimaryDocumentRequest:(NSURLRequest *)request {
@@ -1147,7 +772,10 @@ static NSString * const kBrowserGlobalSelectPressEndedNotification = @"BrowserGl
     [super viewDidLoad];
     self.definesPresentationContext = YES;
     self.scrollViewAllowBounces = YES;
-    self.menuPresenter = [[BrowserMenuPresenter alloc] initWithHost:self];
+    self.domInteractionService = [BrowserDOMInteractionService new];
+    self.menuCoordinator = [[BrowserMenuCoordinator alloc] initWithHost:self];
+    self.videoPlaybackCoordinator = [[BrowserVideoPlaybackCoordinator alloc] initWithHost:self
+                                                                      domInteractionService:self.domInteractionService];
     self.navigationService = [BrowserNavigationService new];
     self.sessionStore = [BrowserSessionStore new];
     self.viewModel = [BrowserViewModel new];
@@ -1809,7 +1437,7 @@ static NSString * const kBrowserGlobalSelectPressEndedNotification = @"BrowserGl
 }
 
 - (void)showAdvancedMenu {
-    [self.menuPresenter showAdvancedMenu];
+    [self.menuCoordinator showAdvancedMenu];
 }
 
 - (BOOL)webView:(id)webView shouldStartLoadWithRequest:(NSURLRequest *)request navigationType:(NSInteger)navigationType {
@@ -2060,6 +1688,10 @@ static NSString * const kBrowserGlobalSelectPressEndedNotification = @"BrowserGl
         else
         {
             point = [self browserDOMPointForCursor];
+            if ([self.videoPlaybackCoordinator handleSelectPressForVideoAtCursor]) {
+                return;
+            }
+
             NSString *fieldType = [self evaluateResolvedElementJavaScriptAtPoint:point
                                                                             body:@"function browserEditableTargetAtPoint() {"
                                                                                  "var candidate = editableElement;"
@@ -2220,6 +1852,13 @@ static NSString * const kBrowserGlobalSelectPressEndedNotification = @"BrowserGl
 
 - (void)pressesBegan:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event
 {
+    UIPress *press = presses.anyObject;
+    if (press != nil && (press.type == UIPressTypeMenu || press.type == UIPressTypePlayPause || press.type == UIPressTypeSelect)) {
+        NSLog(@"[InputTrace][Root] pressesBegan type=%@ phase=%@ presented=%@",
+              BrowserPressTypeString(press.type),
+              BrowserPressPhaseString(press.phase),
+              self.presentedViewController == nil ? @"(nil)" : NSStringFromClass([self.presentedViewController class]));
+    }
     [super pressesBegan:presses withEvent:event];
 }
 
@@ -2227,6 +1866,23 @@ static NSString * const kBrowserGlobalSelectPressEndedNotification = @"BrowserGl
 {
     UIPress *press = presses.anyObject;
     if (press == nil) {
+        return;
+    }
+
+    if (press.type == UIPressTypeMenu || press.type == UIPressTypePlayPause || press.type == UIPressTypeSelect) {
+        NSLog(@"[InputTrace][Root] pressesEnded type=%@ phase=%@ presented=%@ tabOverview=%@",
+              BrowserPressTypeString(press.type),
+              BrowserPressPhaseString(press.phase),
+              self.presentedViewController == nil ? @"(nil)" : NSStringFromClass([self.presentedViewController class]),
+              self.tabOverviewVisible ? @"YES" : @"NO");
+    }
+
+    UIViewController *presentedViewController = self.presentedViewController;
+    if (presentedViewController != nil && ![presentedViewController isKindOfClass:[UIAlertController class]]) {
+        if (press.type == UIPressTypeMenu) {
+            NSLog(@"[InputTrace][Root] dismiss presented=%@", NSStringFromClass([presentedViewController class]));
+            [presentedViewController dismissViewControllerAnimated:YES completion:nil];
+        }
         return;
     }
 
@@ -2252,13 +1908,16 @@ static NSString * const kBrowserGlobalSelectPressEndedNotification = @"BrowserGl
         UIAlertController *alertController = (UIAlertController *)self.presentedViewController;
         if (alertController)
         {
+            NSLog(@"[InputTrace][Root] dismiss existing alert");
             [self.presentedViewController dismissViewControllerAnimated:true completion:nil];
         }
         else if ([self.webview canGoBack]) {
+            NSLog(@"[InputTrace][Root] webview goBack");
             [self.webview goBack];
         }
         else
         {
+            NSLog(@"[InputTrace][Root] show exit alert");
             UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Exit App?" message:nil preferredStyle:UIAlertControllerStyleAlert];
             [alert addAction:[UIAlertAction actionWithTitle:@"Exit" style:UIAlertActionStyleDestructive handler:^(UIAlertAction * _Nonnull action) {
                 exit(EXIT_SUCCESS);

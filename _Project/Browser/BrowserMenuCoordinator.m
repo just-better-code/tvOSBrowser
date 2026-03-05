@@ -1,4 +1,4 @@
-#import "BrowserMenuPresenter.h"
+#import "BrowserMenuCoordinator.h"
 #import "BrowserWebView.h"
 
 static UIColor *MenuTextColor(void) {
@@ -9,22 +9,21 @@ static UIColor *MenuTextColor(void) {
     }
 }
 
-static NSString * const kDisableInlineMediaPlaybackDefaultsKey = @"DisableInlineMediaPlayback";
 static NSString * const kDesktopUserAgent = @"Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15";
 static NSString * const kMobileUserAgent = @"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
 static NSString * const kUserAgentDefaultsKey = @"UserAgent";
 static NSString * const kBrowserMediaDiagnosticsLogPrefix = @"[MediaDiagnostics]";
 static NSString * const kBrowserWebKitMediaPrefsLogPrefix = @"[WebKitMediaPrefs]";
 
-@interface BrowserMenuPresenter ()
+@interface BrowserMenuCoordinator ()
 
-@property (nonatomic, weak) id<BrowserMenuPresenterHost> host;
+@property (nonatomic, weak) id<BrowserMenuCoordinatorHost> host;
 
 @end
 
-@implementation BrowserMenuPresenter
+@implementation BrowserMenuCoordinator
 
-- (instancetype)initWithHost:(id<BrowserMenuPresenterHost>)host {
+- (instancetype)initWithHost:(id<BrowserMenuCoordinatorHost>)host {
     self = [super init];
     if (self) {
         _host = host;
@@ -539,7 +538,7 @@ static NSString * const kBrowserWebKitMediaPrefsLogPrefix = @"[WebKitMediaPrefs]
 
 - (UIAlertAction *)userAgentModeAction {
     BOOL mobileModeEnabled = [[NSUserDefaults standardUserDefaults] boolForKey:@"MobileMode"];
-    NSString *title = mobileModeEnabled ? @"Switch To Desktop Mode" : @"Switch To Mobile Mode";
+    NSString *title = mobileModeEnabled ? @"Switch To Desktop User Agent" : @"Switch To Mobile User Agent";
     NSString *userAgent = mobileModeEnabled ? kDesktopUserAgent : kMobileUserAgent;
     BOOL mobileMode = !mobileModeEnabled;
     
@@ -560,19 +559,6 @@ static NSString * const kBrowserWebKitMediaPrefsLogPrefix = @"[WebKitMediaPrefs]
     }];
 }
 
-- (UIAlertAction *)inlineMediaPlaybackAction {
-    BOOL disablesInlineMediaPlayback = [[NSUserDefaults standardUserDefaults] boolForKey:kDisableInlineMediaPlaybackDefaultsKey];
-    NSString *title = disablesInlineMediaPlayback ? @"Allow Inline Video Playback" : @"Disable Inline Video Playback";
-    return [self browserActionWithTitle:title
-                                  style:UIAlertActionStyleDefault
-                                handler:^(__unused UIAlertAction *action) {
-        [[NSUserDefaults standardUserDefaults] setBool:!disablesInlineMediaPlayback forKey:kDisableInlineMediaPlaybackDefaultsKey];
-        [[NSUserDefaults standardUserDefaults] synchronize];
-        [self.host browserRecreateActiveWebViewPreservingCurrentURL];
-        [self.host browserBringCursorToFront];
-    }];
-}
-
 - (UIAlertAction *)playVideoUnderCursorAction {
     return [self browserActionWithTitle:@"Play Active Video"
                                   style:UIAlertActionStyleDefault
@@ -583,20 +569,28 @@ static NSString * const kBrowserWebKitMediaPrefsLogPrefix = @"[WebKitMediaPrefs]
     }];
 }
 
+- (UIAlertAction *)fullscreenVideoPlaybackToggleAction {
+    BOOL enabled = self.host.browserFullscreenVideoPlaybackEnabled;
+    NSString *title = enabled ? @"Disable experimental Full Screen video player" : @"Enable experimental Full Screen video player";
+    return [self browserActionWithTitle:title
+                                  style:UIAlertActionStyleDefault
+                                handler:^(__unused UIAlertAction *action) {
+        self.host.browserFullscreenVideoPlaybackEnabled = !enabled;
+    }];
+}
+
 - (NSArray<UIAlertAction *> *)advancedMenuActions {
     return @[
         [self favoritesMenuAction],
         [self historyMenuAction],
         [self showTabsAction],
         [self newTabMenuAction],
-        [self wkWebViewProofOfConceptAction],
         [self homePageAction],
         [self setCurrentPageAsHomePageAction],
         [self userAgentModeAction],
         [self topNavigationVisibilityAction],
         [self pageScalingAction],
-        [self inlineMediaPlaybackAction],
-        [self playVideoUnderCursorAction],
+        [self fullscreenVideoPlaybackToggleAction],
         [self browserActionWithTitle:@"Media Diagnostics"
                                style:UIAlertActionStyleDefault
                              handler:^(__unused UIAlertAction *action) {

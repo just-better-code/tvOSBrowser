@@ -680,6 +680,58 @@ static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
     return BrowserStringFromJavaScriptResult(evaluationResult);
 }
 
+- (void)pauseAllMediaPlayback {
+    if (self.runtimeWebView == nil) {
+        return;
+    }
+
+    // Prefer WebKit's internal media pause APIs when available.
+    SEL pauseWithCompletionHandlerSelector = NSSelectorFromString(@"pauseAllMediaPlaybackWithCompletionHandler:");
+    if ([self.runtimeWebView respondsToSelector:pauseWithCompletionHandlerSelector]) {
+        ((void (*)(id, SEL, id))objc_msgSend)(self.runtimeWebView, pauseWithCompletionHandlerSelector, nil);
+    } else {
+        SEL pauseSelector = NSSelectorFromString(@"pauseAllMediaPlayback:");
+        if ([self.runtimeWebView respondsToSelector:pauseSelector]) {
+            ((void (*)(id, SEL, id))objc_msgSend)(self.runtimeWebView, pauseSelector, nil);
+        } else {
+            SEL privatePauseSelector = NSSelectorFromString(@"_pauseAllMediaPlayback");
+            if ([self.runtimeWebView respondsToSelector:privatePauseSelector]) {
+                ((void (*)(id, SEL))objc_msgSend)(self.runtimeWebView, privatePauseSelector);
+            }
+        }
+    }
+
+    // JS fallback for page media elements and common iframe-based players.
+    NSString *pauseScript =
+        @"(function(){"
+            "function safe(fn){ try { fn(); } catch (error) {} }"
+            "var media = document.querySelectorAll('video,audio');"
+            "for (var i = 0; i < media.length; i++) {"
+                "var element = media[i];"
+                "safe(function(){ element.pause(); });"
+                "safe(function(){ element.autoplay = false; });"
+                "safe(function(){ element.removeAttribute('autoplay'); });"
+            "}"
+            "var iframePlayers = document.querySelectorAll('iframe');"
+            "for (var j = 0; j < iframePlayers.length; j++) {"
+                "var frame = iframePlayers[j];"
+                "var src = String(frame.src || '').toLowerCase();"
+                "if (!src) { continue; }"
+                "safe(function(){"
+                    "if (src.indexOf('youtube.com') !== -1 || src.indexOf('youtube-nocookie.com') !== -1) {"
+                        "frame.contentWindow.postMessage(JSON.stringify({event:'command',func:'pauseVideo',args:''}), '*');"
+                    "}"
+                "});"
+                "safe(function(){"
+                    "if (src.indexOf('vimeo.com') !== -1) {"
+                        "frame.contentWindow.postMessage(JSON.stringify({method:'pause'}), '*');"
+                    "}"
+                "});"
+            "}"
+        "})();";
+    [self stringByEvaluatingJavaScriptFromString:pauseScript];
+}
+
 - (NSString *)runtimeMediaPreferenceReport {
     if (self.runtimeWebView == nil) {
         return @"Runtime web view unavailable.";

@@ -1,11 +1,12 @@
 #import <UIKit/UIKit.h>
 #import "BrowserWebView.h"
 
-@protocol BrowserMenuPresenterHost <NSObject>
+@protocol BrowserMenuCoordinatorHost <NSObject>
 
 @property (nonatomic, readonly) BrowserWebView *browserWebView;
 @property (nonatomic, copy) NSString *browserPreviousURL;
 @property (nonatomic) NSUInteger browserTextFontSize;
+@property (nonatomic) BOOL browserFullscreenVideoPlaybackEnabled;
 @property (nonatomic, readonly) BOOL browserTopMenuShowing;
 
 - (void)browserPresentViewController:(UIViewController *)viewController;
@@ -23,9 +24,9 @@
 
 @end
 
-@interface BrowserMenuPresenter : NSObject
+@interface BrowserMenuCoordinator : NSObject
 
-- (instancetype)initWithHost:(id<BrowserMenuPresenterHost>)host;
+- (instancetype)initWithHost:(id<BrowserMenuCoordinatorHost>)host;
 - (void)showAdvancedMenu;
 
 @end
