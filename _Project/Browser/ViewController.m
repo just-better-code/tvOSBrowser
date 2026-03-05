@@ -82,6 +82,7 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     }
 }
 
+
 @interface ViewController () <BrowserMenuCoordinatorHost, BrowserVideoPlaybackCoordinatorHost>
 
 @property BrowserWebView *webview;
@@ -122,6 +123,19 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 @end
 
 @implementation ViewController
+
+- (UIAlertController *)browserAlertControllerWithTitle:(NSString *)title message:(NSString *)message {
+    return [UIAlertController alertControllerWithTitle:title
+                                               message:message
+                                        preferredStyle:UIAlertControllerStyleAlert];
+}
+
+
+- (UIAlertAction *)browserActionWithTitle:(NSString *)title
+                                    style:(UIAlertActionStyle)style
+                                  handler:(void (^ __nullable)(UIAlertAction *action))handler {
+    return [UIAlertAction actionWithTitle:title style:style handler:handler];
+}
 
 - (BOOL)applyManualScrollDelta:(CGPoint)delta {
     UIScrollView *scrollView = [self.webview scrollView];
@@ -1673,6 +1687,23 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
                     [self hideTopNav];
                 else
                     [self showTopNav];
+                
+                
+                if (self.topMenuShowing) {
+                    UIAlertController *alertController = [self browserAlertControllerWithTitle:@"Hide Top Navigation bar?"
+                                                                                       message:@"You can still open the side menu by triple-tapping the Play/Pause button."];
+                    [alertController addAction:[self browserActionWithTitle:@"Cancel"
+                                                                      style:UIAlertActionStyleCancel
+                                                                    handler:nil]];
+                    [alertController addAction:[self browserActionWithTitle:@"Hide Bar"
+                                                                      style:UIAlertActionStyleDestructive
+                                                                    handler:^(__unused UIAlertAction *action) {
+                        [self hideTopNav];
+                    }]];
+                    [self browserPresentViewController:alertController];
+                } else {
+                    [self showTopNav];
+                }
             }
             
             CGRect menuBtnFrameExtra = [self.topMenuView interactiveFrameForView:self.topMenuView.menuImageView];
