@@ -847,7 +847,7 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
                                    handler:^{
         if (self.host.browserTopMenuShowing) {
             UIAlertController *alertController = [self browserAlertControllerWithTitle:@"Hide Top Navigation bar?"
-                                                                               message:@"You can still open the side menu by triple-tapping the Play/Pause button."];
+                                                                               message:@"You can still open the side menu by double-tapping the Play/Pause button."];
             [alertController addAction:[self browserActionWithTitle:@"Cancel"
                                                               style:UIAlertActionStyleCancel
                                                             handler:nil]];
