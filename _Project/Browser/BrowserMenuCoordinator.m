@@ -1,4 +1,5 @@
 #import "BrowserMenuCoordinator.h"
+#import "BrowserPreferencesStore.h"
 #import "BrowserWebView.h"
 
 static UIColor *MenuTextColor(void) {
@@ -9,9 +10,6 @@ static UIColor *MenuTextColor(void) {
     }
 }
 
-static NSString * const kDesktopUserAgent = @"Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15";
-static NSString * const kMobileUserAgent = @"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
-static NSString * const kUserAgentDefaultsKey = @"UserAgent";
 static NSString * const kBrowserMediaDiagnosticsLogPrefix = @"[MediaDiagnostics]";
 static NSString * const kBrowserWebKitMediaPrefsLogPrefix = @"[WebKitMediaPrefs]";
 
@@ -434,15 +432,19 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
 @interface BrowserMenuCoordinator ()
 
 @property (nonatomic, weak) id<BrowserMenuCoordinatorHost> host;
+@property (nonatomic) BrowserPreferencesStore *preferencesStore;
 
 @end
 
 @implementation BrowserMenuCoordinator
 
-- (instancetype)initWithHost:(id<BrowserMenuCoordinatorHost>)host {
+- (instancetype)initWithHost:(id<BrowserMenuCoordinatorHost>)host
+            preferencesStore:(BrowserPreferencesStore *)preferencesStore {
     self = [super init];
     if (self) {
         _host = host;
+        _preferencesStore = preferencesStore ?: [BrowserPreferencesStore new];
+        [_preferencesStore ensureUserAgentConsistency];
     }
     return self;
 }
@@ -501,7 +503,7 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     }
 
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:URL];
-    NSString *userAgent = [[NSUserDefaults standardUserDefaults] stringForKey:kUserAgentDefaultsKey];
+    NSString *userAgent = self.preferencesStore.userAgent;
     if (userAgent.length > 0) {
         [request setValue:userAgent forHTTPHeaderField:@"User-Agent"];
     }
@@ -648,9 +650,8 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
 }
 
 - (void)applyUserAgent:(NSString *)userAgent mobileMode:(BOOL)mobileMode {
-    [[NSUserDefaults standardUserDefaults] setObject:userAgent forKey:@"UserAgent"];
-    [[NSUserDefaults standardUserDefaults] setBool:mobileMode forKey:@"MobileMode"];
-    [[NSUserDefaults standardUserDefaults] synchronize];
+    self.preferencesStore.userAgent = userAgent;
+    self.preferencesStore.mobileModeEnabled = mobileMode;
     
     NSURLRequest *request = [[self.host browserWebView] request];
     if (request != nil && [self stringHasVisibleContent:request.URL.absoluteString]) {
@@ -665,8 +666,7 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
 }
 
 - (void)setPageScalingEnabled:(BOOL)enabled {
-    [[NSUserDefaults standardUserDefaults] setBool:enabled forKey:@"ScalePagesToFit"];
-    [[NSUserDefaults standardUserDefaults] synchronize];
+    self.preferencesStore.scalePagesToFit = enabled;
     [[self.host browserWebView] setScalesPageToFit:enabled];
     if (enabled) {
         [[self.host browserWebView] setContentMode:UIViewContentModeScaleAspectFit];
@@ -788,7 +788,7 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
         return;
     }
 
-    BOOL mobileModeEnabled = [[NSUserDefaults standardUserDefaults] boolForKey:@"MobileMode"];
+    BOOL mobileModeEnabled = self.preferencesStore.mobileModeEnabled;
     NSString *message = [NSString stringWithFormat:
                          @"Mode: %@\n"
                           "URL: %@\n"
@@ -903,7 +903,7 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
                                    handler:^{
         NSURLRequest *request = [[self.host browserWebView] request];
         if (request != nil && [self stringHasVisibleContent:request.URL.absoluteString]) {
-            [[NSUserDefaults standardUserDefaults] setObject:request.URL.absoluteString forKey:@"homepage"];
+            self.preferencesStore.homePageURLString = request.URL.absoluteString;
         }
     }];
 }
@@ -968,9 +968,9 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
 }
 
 - (BrowserAdvancedMenuItem *)userAgentModeMenuItem {
-    BOOL mobileModeEnabled = [[NSUserDefaults standardUserDefaults] boolForKey:@"MobileMode"];
+    BOOL mobileModeEnabled = self.preferencesStore.mobileModeEnabled;
     NSString *title = mobileModeEnabled ? @"Switch To Desktop User Agent" : @"Switch To Mobile User Agent";
-    NSString *userAgent = mobileModeEnabled ? kDesktopUserAgent : kMobileUserAgent;
+    NSString *userAgent = mobileModeEnabled ? BrowserPreferencesStore.desktopUserAgent : BrowserPreferencesStore.mobileUserAgent;
     BOOL mobileMode = !mobileModeEnabled;
     
     return [self advancedMenuItemWithTitle:title

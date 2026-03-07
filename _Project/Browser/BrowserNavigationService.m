@@ -1,16 +1,34 @@
 #import "BrowserNavigationService.h"
 
+#import "BrowserPreferencesStore.h"
 #import "BrowserTabViewModel.h"
 
 static NSString * const kHistoryDefaultsKey = @"HISTORY";
-static NSString * const kHomepageDefaultsKey = @"homepage";
-static NSString * const kUserAgentDefaultsKey = @"UserAgent";
 static NSUInteger const kMaximumHistoryCount = 100;
+
+@interface BrowserNavigationService ()
+
+@property (nonatomic) BrowserPreferencesStore *preferencesStore;
+
+@end
 
 @implementation BrowserNavigationService
 
+- (instancetype)init {
+    return [self initWithPreferencesStore:[BrowserPreferencesStore new]];
+}
+
+- (instancetype)initWithPreferencesStore:(BrowserPreferencesStore *)preferencesStore {
+    self = [super init];
+    if (self) {
+        _preferencesStore = preferencesStore ?: [BrowserPreferencesStore new];
+        [_preferencesStore ensureUserAgentConsistency];
+    }
+    return self;
+}
+
 - (NSURLRequest *)homePageRequest {
-    NSString *homePageURLString = [[NSUserDefaults standardUserDefaults] stringForKey:kHomepageDefaultsKey];
+    NSString *homePageURLString = self.preferencesStore.homePageURLString;
     if (homePageURLString.length == 0) {
         homePageURLString = @"http://www.google.com";
     }
@@ -82,7 +100,7 @@ static NSUInteger const kMaximumHistoryCount = 100;
     }
 
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:URL];
-    NSString *userAgent = [[NSUserDefaults standardUserDefaults] stringForKey:kUserAgentDefaultsKey];
+    NSString *userAgent = self.preferencesStore.userAgent;
     if (userAgent.length > 0) {
         [request setValue:userAgent forHTTPHeaderField:@"User-Agent"];
     }

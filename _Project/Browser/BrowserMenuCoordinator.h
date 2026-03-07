@@ -1,6 +1,8 @@
 #import <UIKit/UIKit.h>
 #import "BrowserWebView.h"
 
+@class BrowserPreferencesStore;
+
 @protocol BrowserMenuCoordinatorHost <NSObject>
 
 @property (nonatomic, readonly) BrowserWebView *browserWebView;
@@ -26,7 +28,8 @@
 
 @interface BrowserMenuCoordinator : NSObject
 
-- (instancetype)initWithHost:(id<BrowserMenuCoordinatorHost>)host;
+- (instancetype)initWithHost:(id<BrowserMenuCoordinatorHost>)host
+            preferencesStore:(BrowserPreferencesStore *)preferencesStore;
 - (void)showAdvancedMenu;
 
 @end

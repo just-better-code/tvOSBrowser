@@ -7,6 +7,7 @@
 //
 
 #import "AppDelegate.h"
+#import "BrowserPreferencesStore.h"
 #import "BrowserWebView.h"
 
 @interface AppDelegate ()
@@ -14,9 +15,6 @@
 @end
 
 @implementation AppDelegate
-
-static NSString * const kDesktopUserAgent = @"Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15";
-static NSString * const kMobileUserAgent = @"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
 
 - (void)restoreCookiesFromDefaults {
     NSData *cookieData = [[NSUserDefaults standardUserDefaults] objectForKey:@"ApplicationCookie"];
@@ -41,12 +39,12 @@ static NSString * const kMobileUserAgent = @"Mozilla/5.0 (iPhone; CPU iPhone OS 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
 	// Override point for customization after application launch.
     if ([[NSUserDefaults standardUserDefaults] boolForKey:@"MobileMode"]) {
-        [[NSUserDefaults standardUserDefaults] setObject:kMobileUserAgent forKey:@"UserAgent"];
+        [[NSUserDefaults standardUserDefaults] setObject:BrowserPreferencesStore.mobileUserAgent forKey:@"UserAgent"];
         [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"MobileMode"];
         [[NSUserDefaults standardUserDefaults] synchronize];
     }
     else {
-        [[NSUserDefaults standardUserDefaults] setObject:kDesktopUserAgent forKey:@"UserAgent"];
+        [[NSUserDefaults standardUserDefaults] setObject:BrowserPreferencesStore.desktopUserAgent forKey:@"UserAgent"];
         [[NSUserDefaults standardUserDefaults] setBool:NO forKey:@"MobileMode"];
         [[NSUserDefaults standardUserDefaults] synchronize];
     }

@@ -6,8 +6,6 @@ static NSUInteger const kDefaultTextFontSize = 100;
 static NSUInteger const kMinimumTextFontSize = 50;
 static NSUInteger const kMaximumTextFontSize = 200;
 static NSUInteger const kMaximumTabCount = 5;
-static NSString * const kEnableFullscreenVideoPlaybackDefaultsKey = @"EnableFullscreenVideoPlayback";
-
 @implementation BrowserViewModel
 
 - (instancetype)init {
@@ -15,16 +13,9 @@ static NSString * const kEnableFullscreenVideoPlaybackDefaultsKey = @"EnableFull
     if (self) {
         _tabs = [NSMutableArray array];
         _activeTabIndex = NSNotFound;
-        NSNumber *showTopNavBar = [[NSUserDefaults standardUserDefaults] objectForKey:@"ShowTopNavigationBar"];
-        _topNavigationBarVisible = showTopNavBar ? showTopNavBar.boolValue : YES;
-        NSNumber *textFontSizeValue = [[NSUserDefaults standardUserDefaults] objectForKey:@"TextFontSize"];
-        if (textFontSizeValue != nil) {
-            NSUInteger textFontSize = textFontSizeValue.unsignedIntegerValue;
-            _textFontSize = MIN(kMaximumTextFontSize, MAX(kMinimumTextFontSize, textFontSize));
-        } else {
-            _textFontSize = kDefaultTextFontSize;
-        }
-        _fullscreenVideoPlaybackEnabled = [[NSUserDefaults standardUserDefaults] boolForKey:kEnableFullscreenVideoPlaybackDefaultsKey];
+        _topNavigationBarVisible = YES;
+        _textFontSize = kDefaultTextFontSize;
+        _fullscreenVideoPlaybackEnabled = NO;
     }
     return self;
 }
@@ -102,21 +93,15 @@ static NSString * const kEnableFullscreenVideoPlaybackDefaultsKey = @"EnableFull
 
 - (void)setTopNavigationBarVisible:(BOOL)topNavigationBarVisible {
     _topNavigationBarVisible = topNavigationBarVisible;
-    [[NSUserDefaults standardUserDefaults] setObject:@(topNavigationBarVisible) forKey:@"ShowTopNavigationBar"];
-    [[NSUserDefaults standardUserDefaults] synchronize];
 }
 
 - (void)setTextFontSize:(NSUInteger)textFontSize {
     textFontSize = MIN(kMaximumTextFontSize, MAX(kMinimumTextFontSize, textFontSize));
     _textFontSize = textFontSize;
-    [[NSUserDefaults standardUserDefaults] setObject:@(textFontSize) forKey:@"TextFontSize"];
-    [[NSUserDefaults standardUserDefaults] synchronize];
 }
 
 - (void)setFullscreenVideoPlaybackEnabled:(BOOL)fullscreenVideoPlaybackEnabled {
     _fullscreenVideoPlaybackEnabled = fullscreenVideoPlaybackEnabled;
-    [[NSUserDefaults standardUserDefaults] setBool:fullscreenVideoPlaybackEnabled forKey:kEnableFullscreenVideoPlaybackDefaultsKey];
-    [[NSUserDefaults standardUserDefaults] synchronize];
 }
 
 @end

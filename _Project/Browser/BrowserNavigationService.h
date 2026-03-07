@@ -1,9 +1,11 @@
 #import <Foundation/Foundation.h>
 
 @class BrowserTabViewModel;
+@class BrowserPreferencesStore;
 
 @interface BrowserNavigationService : NSObject
 
+- (instancetype)initWithPreferencesStore:(BrowserPreferencesStore *)preferencesStore;
 - (NSURLRequest *)homePageRequest;
 - (NSURLRequest *)requestForURLString:(NSString *)URLString;
 - (NSURLRequest *)requestForEnteredAddressString:(NSString *)addressString;
