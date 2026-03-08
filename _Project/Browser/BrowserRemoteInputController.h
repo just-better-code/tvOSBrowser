@@ -7,6 +7,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (nullable UIScrollView *)browserRemoteInputControllerActiveScrollView;
 - (nullable UIViewController *)browserRemoteInputControllerPresentedViewController;
+- (BOOL)browserRemoteInputControllerTopBarFocusActive;
+- (BOOL)browserRemoteInputControllerCanActivateTopBarFocus;
+- (void)browserRemoteInputControllerActivateTopBarFocus;
+- (void)browserRemoteInputControllerDeactivateTopBarFocus;
 - (BOOL)browserRemoteInputControllerTabOverviewVisible;
 - (BOOL)browserRemoteInputControllerTabOverviewContainsPoint:(CGPoint)point;
 - (BOOL)browserRemoteInputControllerHandleTabOverviewSelectionAtPoint:(CGPoint)point;
@@ -41,6 +45,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)handleTouchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event;
 - (void)handleTouchesEnded;
 - (void)setCursorModeEnabled:(BOOL)cursorModeEnabled;
+- (void)refreshInteractionState;
 
 @end
 

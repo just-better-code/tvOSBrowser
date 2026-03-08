@@ -30,7 +30,7 @@ static UIColor *kTextColor(void) {
     }
 }
 
-@interface ViewController () <BrowserMenuCoordinatorHost, BrowserPageActionCoordinatorHost, BrowserRemoteInputControllerHost, BrowserTabCoordinatorHost, BrowserTabOverviewControllerHost, BrowserVideoPlaybackCoordinatorHost>
+@interface ViewController () <BrowserMenuCoordinatorHost, BrowserPageActionCoordinatorHost, BrowserRemoteInputControllerHost, BrowserTabCoordinatorHost, BrowserTabOverviewControllerHost, BrowserTopBarViewDelegate, BrowserVideoPlaybackCoordinatorHost>
 
 @property (nonatomic) BrowserDOMInteractionService *domInteractionService;
 @property (nonatomic) BrowserMenuCoordinator *menuCoordinator;
@@ -45,6 +45,7 @@ static UIColor *kTextColor(void) {
 @property (nonatomic) BrowserViewModel *viewModel;
 @property (nonatomic) BOOL displayedHintsOnLaunch;
 @property (nonatomic) BOOL scrollViewAllowBounces;
+@property (nonatomic, getter=isTopBarFocusActive) BOOL topBarFocusActive;
 
 @end
 
@@ -95,6 +96,7 @@ static UIColor *kTextColor(void) {
                                                                    navigationService:self.navigationService
                                                             videoPlaybackCoordinator:self.videoPlaybackCoordinator];
 
+    self.topMenuView.delegate = self;
     self.topMenuView.loadingSpinner.hidesWhenStopped = YES;
     self.remoteInputController.cursorView.hidden = NO;
 
@@ -174,7 +176,90 @@ static UIColor *kTextColor(void) {
 }
 
 - (void)showAdvancedMenu {
+    [self deactivateTopBarFocusMode];
     [self.menuCoordinator showAdvancedMenu];
+}
+
+- (BOOL)canActivateTopBarFocusMode {
+    return self.presentedViewController == nil &&
+        !self.tabOverviewController.visible &&
+        self.viewModel.topNavigationBarVisible &&
+        !self.topMenuView.hidden;
+}
+
+- (void)activateTopBarFocusMode {
+    if (![self canActivateTopBarFocusMode]) {
+        return;
+    }
+    if (self.topBarFocusActive) {
+        return;
+    }
+
+    self.topBarFocusActive = YES;
+    [self.topMenuView setFocusModeActive:YES];
+    [self.remoteInputController refreshInteractionState];
+    [self setNeedsFocusUpdate];
+    [self updateFocusIfNeeded];
+}
+
+- (void)deactivateTopBarFocusMode {
+    if (!self.topBarFocusActive) {
+        return;
+    }
+
+    self.topBarFocusActive = NO;
+    [self.topMenuView setFocusModeActive:NO];
+    [self.remoteInputController refreshInteractionState];
+    [self setNeedsFocusUpdate];
+    [self updateFocusIfNeeded];
+}
+
+- (void)performTopBarAction:(BrowserTopBarAction)action {
+    [self deactivateTopBarFocusMode];
+
+    switch (action) {
+        case BrowserTopBarActionBack:
+            if (self.webview.canGoBack) {
+                [self.webview goBack];
+            }
+            break;
+        case BrowserTopBarActionRefresh:
+            [self.webview reload];
+            break;
+        case BrowserTopBarActionForward:
+            if (self.webview.canGoForward) {
+                [self.webview goForward];
+            }
+            break;
+        case BrowserTopBarActionHome:
+            [self loadHomePage];
+            break;
+        case BrowserTopBarActionTabs:
+            [self browserShowTabOverview];
+            break;
+        case BrowserTopBarActionURL:
+            [self showInputURLorSearchGoogle];
+            break;
+        case BrowserTopBarActionFullscreen:
+            if (self.viewModel.topNavigationBarVisible) {
+                UIAlertController *alertController = [UIAlertController alertControllerWithTitle:@"Hide Top Navigation bar?"
+                                                                                         message:@"You can still open the side menu by double-tapping the Play/Pause button."
+                                                                                  preferredStyle:UIAlertControllerStyleAlert];
+                [alertController addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+                [alertController addAction:[UIAlertAction actionWithTitle:@"Hide Bar"
+                                                                    style:UIAlertActionStyleDestructive
+                                                                  handler:^(__unused UIAlertAction *action) {
+                    [self browserHideTopNav];
+                }]];
+                [self browserPresentViewController:alertController];
+            } else {
+                [self browserShowTopNav];
+            }
+            break;
+        case BrowserTopBarActionMenu:
+            [self showAdvancedMenu];
+            break;
+    }
 }
 
 - (void)updateTextFontSize {
@@ -326,55 +411,6 @@ static UIColor *kTextColor(void) {
     [self presentViewController:alertController animated:YES completion:nil];
 }
 
-- (void)handleTopBarPrimaryActionAtPoint:(CGPoint)point {
-    CGRect backBtnFrameExtra = [self.topMenuView interactiveFrameForView:self.topMenuView.backImageView];
-    backBtnFrameExtra.origin.y = 0;
-    backBtnFrameExtra.size.height = backBtnFrameExtra.size.height + 8.0;
-
-    if (CGRectContainsPoint(backBtnFrameExtra, point)) {
-        [self.webview goBack];
-    } else if (CGRectContainsPoint([self.topMenuView interactiveFrameForView:self.topMenuView.refreshImageView], point)) {
-        [self.webview reload];
-    } else if (CGRectContainsPoint([self.topMenuView interactiveFrameForView:self.topMenuView.forwardImageView], point)) {
-        [self.webview goForward];
-    } else if (CGRectContainsPoint([self.topMenuView interactiveFrameForView:self.topMenuView.homeImageView], point)) {
-        [self loadHomePage];
-    } else if (CGRectContainsPoint([self.topMenuView interactiveFrameForView:self.topMenuView.tabsImageView], point)) {
-        [self browserShowTabOverview];
-    } else if (CGRectContainsPoint([self.topMenuView interactiveFrameForView:self.topMenuView.URLLabel], point)) {
-        [self showInputURLorSearchGoogle];
-    } else if (CGRectContainsPoint([self.topMenuView interactiveFrameForView:self.topMenuView.fullscreenImageView], point)) {
-        if (self.viewModel.topNavigationBarVisible) {
-            [self browserHideTopNav];
-        } else {
-            [self browserShowTopNav];
-        }
-
-        if (self.viewModel.topNavigationBarVisible) {
-            UIAlertController *alertController = [UIAlertController alertControllerWithTitle:@"Hide Top Navigation bar?"
-                                                                                     message:@"You can still open the side menu by double-tapping the Play/Pause button."
-                                                                              preferredStyle:UIAlertControllerStyleAlert];
-            [alertController addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
-            [alertController addAction:[UIAlertAction actionWithTitle:@"Hide Bar"
-                                                                style:UIAlertActionStyleDestructive
-                                                              handler:^(__unused UIAlertAction *action) {
-                [self browserHideTopNav];
-            }]];
-            [self browserPresentViewController:alertController];
-        } else {
-            [self browserShowTopNav];
-        }
-    }
-
-    CGRect menuBtnFrameExtra = [self.topMenuView interactiveFrameForView:self.topMenuView.menuImageView];
-    menuBtnFrameExtra.origin.y = 0;
-    menuBtnFrameExtra.size.width = menuBtnFrameExtra.size.width + 100.0;
-    menuBtnFrameExtra.size.height = menuBtnFrameExtra.size.height + 100.0;
-    if (CGRectContainsPoint(menuBtnFrameExtra, point)) {
-        [self showAdvancedMenu];
-    }
-}
-
 - (void)browserHandlePrimaryAction {
     if (!self.remoteInputController.cursorModeEnabled || self.webview == nil) {
         return;
@@ -382,13 +418,28 @@ static UIColor *kTextColor(void) {
 
     CGPoint point = [self.view convertPoint:self.remoteInputController.cursorView.frame.origin toView:self.webview];
     if (point.y < 0) {
-        CGPoint topPoint = [self.view convertPoint:self.remoteInputController.cursorView.frame.origin toView:self.topMenuView];
-        [self handleTopBarPrimaryActionAtPoint:topPoint];
+        [self activateTopBarFocusMode];
         return;
     }
 
     CGPoint domPoint = [self browserDOMPointForCursor];
     [self.pageActionCoordinator handlePageSelectionAtDOMPoint:domPoint webView:self.webview];
+}
+
+- (NSArray<id<UIFocusEnvironment>> *)preferredFocusEnvironments {
+    if (self.topBarFocusActive) {
+        UIView *preferredFocusItem = [self.topMenuView preferredFocusItem];
+        if (preferredFocusItem != nil) {
+            return @[preferredFocusItem];
+        }
+    }
+    return [super preferredFocusEnvironments];
+}
+
+#pragma mark - BrowserTopBarViewDelegate
+
+- (void)browserTopBarView:(__unused BrowserTopBarView *)topBarView didTriggerAction:(BrowserTopBarAction)action {
+    [self performTopBarAction:action];
 }
 
 #pragma mark - BrowserMenuCoordinatorHost
@@ -428,6 +479,7 @@ static UIColor *kTextColor(void) {
 }
 
 - (void)browserPresentViewController:(UIViewController *)viewController {
+    [self deactivateTopBarFocusMode];
     [self presentViewController:viewController animated:YES completion:nil];
 }
 
@@ -440,6 +492,7 @@ static UIColor *kTextColor(void) {
 }
 
 - (void)browserShowTabOverview {
+    [self deactivateTopBarFocusMode];
     [self.tabCoordinator prepareTabOverviewThumbnails];
     [self.tabOverviewController show];
 }
@@ -449,6 +502,7 @@ static UIColor *kTextColor(void) {
 }
 
 - (void)browserHideTopNav {
+    [self deactivateTopBarFocusMode];
     self.viewModel.topNavigationBarVisible = NO;
     self.preferencesStore.topNavigationBarVisible = NO;
     [self.tabCoordinator setTopNavigationVisible:NO];
@@ -560,6 +614,22 @@ static UIColor *kTextColor(void) {
 
 - (UIViewController *)browserRemoteInputControllerPresentedViewController {
     return self.presentedViewController;
+}
+
+- (BOOL)browserRemoteInputControllerTopBarFocusActive {
+    return self.topBarFocusActive;
+}
+
+- (BOOL)browserRemoteInputControllerCanActivateTopBarFocus {
+    return [self canActivateTopBarFocusMode];
+}
+
+- (void)browserRemoteInputControllerActivateTopBarFocus {
+    [self activateTopBarFocusMode];
+}
+
+- (void)browserRemoteInputControllerDeactivateTopBarFocus {
+    [self deactivateTopBarFocusMode];
 }
 
 - (BOOL)browserRemoteInputControllerTabOverviewVisible {

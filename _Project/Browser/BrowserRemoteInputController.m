@@ -95,15 +95,24 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     _cursorModeEnabled = cursorModeEnabled;
     self.lastTouchLocation = CGPointMake(-1, -1);
     [self stopManualScrollInertia];
-    UIScrollView *scrollView = [self.host browserRemoteInputControllerActiveScrollView];
-    BOOL shouldAllowWebInteraction = !cursorModeEnabled && ![self.host browserRemoteInputControllerTabOverviewVisible];
-    scrollView.scrollEnabled = shouldAllowWebInteraction;
-    self.manualScrollPanRecognizer.enabled = shouldAllowWebInteraction;
-    [self.host browserRemoteInputControllerSetWebInteractionEnabled:shouldAllowWebInteraction];
-    self.cursorView.hidden = !cursorModeEnabled || [self.host browserRemoteInputControllerTabOverviewVisible];
+    [self refreshInteractionState];
     if (!wasCursorModeEnabled && cursorModeEnabled) {
         [self.host browserRemoteInputControllerPersistSession];
     }
+}
+
+- (void)refreshInteractionState {
+    UIScrollView *scrollView = [self.host browserRemoteInputControllerActiveScrollView];
+    BOOL topBarFocusActive = [self.host browserRemoteInputControllerTopBarFocusActive];
+    BOOL shouldAllowWebInteraction = !self.cursorModeEnabled &&
+        ![self.host browserRemoteInputControllerTabOverviewVisible] &&
+        !topBarFocusActive;
+    scrollView.scrollEnabled = shouldAllowWebInteraction;
+    self.manualScrollPanRecognizer.enabled = shouldAllowWebInteraction;
+    [self.host browserRemoteInputControllerSetWebInteractionEnabled:shouldAllowWebInteraction];
+    self.cursorView.hidden = !self.cursorModeEnabled ||
+        [self.host browserRemoteInputControllerTabOverviewVisible] ||
+        topBarFocusActive;
 }
 
 - (BOOL)applyManualScrollDelta:(CGPoint)delta {
@@ -143,7 +152,9 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 }
 
 - (void)handleManualScrollDisplayLink:(CADisplayLink *)displayLink {
-    if (self.cursorModeEnabled || [self.host browserRemoteInputControllerTabOverviewVisible]) {
+    if (self.cursorModeEnabled ||
+        [self.host browserRemoteInputControllerTabOverviewVisible] ||
+        [self.host browserRemoteInputControllerTopBarFocusActive]) {
         [self stopManualScrollInertia];
         return;
     }
@@ -171,6 +182,10 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 
 - (void)handleGlobalSelectPressEndedNotification {
     if ([self.host browserRemoteInputControllerPresentedViewController] != nil) {
+        return;
+    }
+
+    if ([self.host browserRemoteInputControllerTopBarFocusActive]) {
         return;
     }
 
@@ -223,6 +238,9 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     if (sender.state != UIGestureRecognizerStateEnded) {
         return;
     }
+    if ([self.host browserRemoteInputControllerTopBarFocusActive]) {
+        return;
+    }
     if ([self.host browserRemoteInputControllerTabOverviewVisible]) {
         [self.host browserRemoteInputControllerDismissTabOverview];
         return;
@@ -231,7 +249,9 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 }
 
 - (void)handleManualScrollPan:(UIPanGestureRecognizer *)gestureRecognizer {
-    if (self.cursorModeEnabled || [self.host browserRemoteInputControllerTabOverviewVisible]) {
+    if (self.cursorModeEnabled ||
+        [self.host browserRemoteInputControllerTabOverviewVisible] ||
+        [self.host browserRemoteInputControllerTopBarFocusActive]) {
         return;
     }
 
@@ -288,6 +308,22 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
               [self.host browserRemoteInputControllerTabOverviewVisible] ? @"YES" : @"NO");
     }
 
+    if ([self.host browserRemoteInputControllerTopBarFocusActive]) {
+        if (press.type == UIPressTypeMenu || press.type == UIPressTypeDownArrow) {
+            [self.host browserRemoteInputControllerDeactivateTopBarFocus];
+            return YES;
+        }
+        if (press.type == UIPressTypePlayPause) {
+            return YES;
+        }
+        if (press.type == UIPressTypeSelect ||
+            press.type == UIPressTypeLeftArrow ||
+            press.type == UIPressTypeRightArrow ||
+            press.type == UIPressTypeUpArrow) {
+            return NO;
+        }
+    }
+
     UIViewController *presentedViewController = [self.host browserRemoteInputControllerPresentedViewController];
     if (presentedViewController != nil && ![presentedViewController isKindOfClass:[UIAlertController class]]) {
         if ([self.host browserRemoteInputControllerTabOverviewVisible]) {
@@ -311,6 +347,12 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     if (press.type == UIPressTypeSelect) {
         self.lastDirectSelectPressTimestamp = CACurrentMediaTime();
         [self handleSelectPressEnded];
+        return YES;
+    }
+
+    if (press.type == UIPressTypeUpArrow &&
+        [self.host browserRemoteInputControllerCanActivateTopBarFocus]) {
+        [self.host browserRemoteInputControllerActivateTopBarFocus];
         return YES;
     }
 
@@ -339,6 +381,9 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 - (BOOL)handleTouchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
     (void)touches;
     (void)event;
+    if ([self.host browserRemoteInputControllerTopBarFocusActive]) {
+        return NO;
+    }
     if ([self.host browserRemoteInputControllerTabOverviewVisible]) {
         return NO;
     }
@@ -351,6 +396,9 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 
 - (BOOL)handleTouchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
     (void)event;
+    if ([self.host browserRemoteInputControllerTopBarFocusActive]) {
+        return NO;
+    }
     if ([self.host browserRemoteInputControllerTabOverviewVisible]) {
         return NO;
     }
