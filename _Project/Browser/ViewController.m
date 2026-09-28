@@ -63,7 +63,9 @@ static UIColor *kTextColor(void) {
 
     self.viewModel = [BrowserViewModel new];
     self.viewModel.topNavigationBarVisible = self.preferencesStore.topNavigationBarVisible;
-    self.viewModel.textFontSize = self.preferencesStore.textFontSize;
+    NSUInteger matchingFontSize = self.preferencesStore.pageZoomPercent;
+    self.preferencesStore.textFontSize = matchingFontSize;
+    self.viewModel.textFontSize = matchingFontSize;
     self.viewModel.fullscreenVideoPlaybackEnabled = self.preferencesStore.fullscreenVideoPlaybackEnabled;
 
     self.domInteractionService = [BrowserDOMInteractionService new];
@@ -243,7 +245,7 @@ static UIColor *kTextColor(void) {
         case BrowserTopBarActionFullscreen:
             if (self.viewModel.topNavigationBarVisible) {
                 UIAlertController *alertController = [UIAlertController alertControllerWithTitle:@"Hide Top Navigation bar?"
-                                                                                         message:@"You can still open the Advanced Menu by pressing Right on the remote."
+                                                                                         message:@"You can still open the Advanced Menu by double pressing Right on the remote."
                                                                                   preferredStyle:UIAlertControllerStyleAlert];
                 [alertController addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
                 [alertController addAction:[UIAlertAction actionWithTitle:@"Hide Bar"
@@ -263,47 +265,7 @@ static UIColor *kTextColor(void) {
 }
 
 - (void)updateTextFontSize {
-    if (self.webview == nil) {
-        return;
-    }
-
-    NSString *jsString = [[NSString alloc] initWithFormat:
-                          @"(function(){"
-                           "var value='%lu%%';"
-                           "var multiplier=%lu/100;"
-                           "if (document.documentElement && document.documentElement.style) {"
-                               "document.documentElement.style.setProperty('-webkit-text-size-adjust', value, 'important');"
-                               "document.documentElement.style.setProperty('text-size-adjust', value, 'important');"
-                           "}"
-                           "if (document.body && document.body.style) {"
-                               "document.body.style.setProperty('-webkit-text-size-adjust', value, 'important');"
-                               "document.body.style.setProperty('text-size-adjust', value, 'important');"
-                           "}"
-                           "if (!document.body || !window.getComputedStyle) { return value; }"
-                           "var elements = document.querySelectorAll('body, body *');"
-                           "for (var i = 0; i < elements.length; i++) {"
-                               "var element = elements[i];"
-                               "if (!element || !element.tagName) { continue; }"
-                               "var tagName = element.tagName.toLowerCase();"
-                               "if (tagName === 'script' || tagName === 'style' || tagName === 'noscript') { continue; }"
-                               "var originalSize = element.getAttribute('data-browser-original-font-size');"
-                               "if (!originalSize) {"
-                                   "var computedSize = window.getComputedStyle(element).fontSize || '';"
-                                   "if (computedSize.indexOf('px') == -1) { continue; }"
-                                   "var parsedSize = parseFloat(computedSize);"
-                                   "if (!isFinite(parsedSize) || parsedSize <= 0) { continue; }"
-                                   "originalSize = String(parsedSize);"
-                                   "element.setAttribute('data-browser-original-font-size', originalSize);"
-                               "}"
-                               "var baseSize = parseFloat(originalSize);"
-                               "if (!isFinite(baseSize) || baseSize <= 0) { continue; }"
-                               "element.style.setProperty('font-size', (baseSize * multiplier) + 'px', 'important');"
-                           "}"
-                           "return value;"
-                          "})()",
-                          (unsigned long)self.viewModel.textFontSize,
-                          (unsigned long)self.viewModel.textFontSize];
-    [self.webview stringByEvaluatingJavaScriptFromString:jsString];
+    self.webview.textZoomFactor = self.viewModel.textFontSize / 100.0;
 }
 
 - (void)showInputURLorSearchGoogle {
@@ -388,7 +350,7 @@ static UIColor *kTextColor(void) {
 
 - (void)showHintsAlert {
     UIAlertController *alertController = [UIAlertController alertControllerWithTitle:@"Usage Guide"
-                                                                             message:@"Move the pointer with the center touchpad and press the center to click.\nPress Up or Down to scroll; double press Up to toggle browser fullscreen or Down to show tabs.\nPress Left for the Quick Menu or double press Left to go back.\nPress Right for the Advanced Menu or double press Right to go forward.\nEach Play/Pause press pauses or resumes video.\nPress Menu to exit fullscreen or go back."
+                                                                             message:@"Move the pointer with the center touchpad and press the center to click.\nPress Up or Down to scroll.\nPress Left to go back or double press Left to show tabs.\nPress Right to go forward or double press Right for the Advanced Menu.\nBrowser Fullscreen and Favorites are in the Advanced Menu.\nEach Play/Pause press pauses or resumes video.\nPress Menu to exit fullscreen or go back."
                                                                       preferredStyle:UIAlertControllerStyleAlert];
 
     __weak typeof(self) weakSelf = self;
@@ -672,14 +634,6 @@ static UIColor *kTextColor(void) {
     }
 }
 
-- (void)browserRemoteInputControllerHandleBrowserFullscreenPress {
-    if (self.viewModel.topNavigationBarVisible) {
-        [self browserHideTopNav];
-    } else {
-        [self browserShowTopNav];
-    }
-}
-
 - (void)browserRemoteInputControllerHandleTabOverviewPress {
     [self browserShowTabOverview];
 }
@@ -726,14 +680,6 @@ static UIColor *kTextColor(void) {
             [weakSelf.presentedViewController dismissViewControllerAnimated:YES completion:nil];
         }
     }];
-}
-
-- (void)browserRemoteInputControllerHandleQuickMenuPress {
-    if (self.presentedViewController != nil) {
-        [self.presentedViewController dismissViewControllerAnimated:YES completion:nil];
-    } else {
-        [self requestURLorSearchInput];
-    }
 }
 
 - (void)browserRemoteInputControllerHandleAdvancedMenuPress {
@@ -794,6 +740,16 @@ static UIColor *kTextColor(void) {
                 [self.tabOverviewController reload];
             }
         });
+    }
+}
+
+- (void)browserTabCoordinatorSnapshotDidUpdateForTab:(BrowserTabViewModel *)tab {
+    if (!self.tabOverviewController.visible) {
+        return;
+    }
+    NSInteger tabIndex = [self.viewModel.tabs indexOfObject:tab];
+    if (tabIndex != NSNotFound) {
+        [self.tabOverviewController updateCardAtIndex:tabIndex];
     }
 }
 

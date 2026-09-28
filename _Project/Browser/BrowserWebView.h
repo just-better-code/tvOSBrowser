@@ -23,6 +23,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly, getter=canGoForward) BOOL canGoForward;
 @property (nonatomic, readonly, getter=isLoading) BOOL loading;
 @property (nonatomic) BOOL scalesPageToFit;
+@property (nonatomic) CGFloat pageZoomFactor;
+@property (nonatomic) CGFloat textZoomFactor;
 @property (nonatomic, readonly) BOOL adBlockEnabled;
 @property (nonatomic, readonly, copy) NSString *adBlockStatus;
 
@@ -39,6 +41,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSString * _Nonnull)runtimeMediaPreferenceReport;
 - (void)setUserAgent:(NSString * _Nullable)userAgent;
 - (void)pauseAllMediaPlayback;
+- (void)captureSnapshotWithCompletion:(void (^)(UIImage * _Nullable snapshot))completion;
 - (void)setAdBlockEnabled:(BOOL)enabled;
 
 + (nullable NSData *)cookieDataRepresentation;
