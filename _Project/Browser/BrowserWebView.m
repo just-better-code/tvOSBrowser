@@ -9,6 +9,8 @@ static NSString * const kBrowserWebViewConfigurationClassName = @"WKWebViewConfi
 static NSString * const kBrowserWebsiteDataStoreClassName = @"WKWebsiteDataStore";
 static NSString * const kBrowserUserContentControllerClassName = @"WKUserContentController";
 static NSString * const kBrowserUserScriptClassName = @"WKUserScript";
+static NSString * const kBrowserAdBlockEnabledDefaultsKey = @"AdBlockEnabled";
+static NSString * const kBrowserAdBlockRuleListIdentifier = @"BrowserAdBlock-v1";
 
 static void BrowserEnsureWebKitRuntimeLoaded(void) {
     static dispatch_once_t onceToken;
@@ -699,6 +701,82 @@ static void BrowserInstallUserScripts(id configuration) {
     }
 }
 
+static NSString *BrowserAdBlockRulesJSON(void) {
+    NSArray<NSString *> *domains = @[
+        @"2mdn.net", @"adnxs.com", @"adsrvr.org", @"amazon-adsystem.com",
+        @"casalemedia.com", @"criteo.com", @"criteo.net", @"doubleclick.net",
+        @"googlesyndication.com", @"googleadservices.com", @"media.net",
+        @"openx.net", @"outbrain.com", @"pubmatic.com", @"rubiconproject.com",
+        @"taboola.com", @"yieldmo.com"
+    ];
+    NSMutableArray<NSDictionary *> *rules = [NSMutableArray arrayWithCapacity:domains.count];
+    for (NSString *domain in domains) {
+        NSString *escapedDomain = [domain stringByReplacingOccurrencesOfString:@"." withString:@"\\."];
+        NSString *URLFilter = [NSString stringWithFormat:@"^https?://[^/]*%@/", escapedDomain];
+        [rules addObject:@{
+            @"trigger": @{
+                @"url-filter": URLFilter,
+                @"load-type": @[@"third-party"]
+            },
+            @"action": @{@"type": @"block"}
+        }];
+    }
+    NSData *data = [NSJSONSerialization dataWithJSONObject:rules options:0 error:nil];
+    return data != nil ? [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] : nil;
+}
+
+typedef void (^BrowserAdBlockRuleListCompletion)(id ruleList, NSError *error);
+
+static void BrowserLoadAdBlockRuleList(BrowserAdBlockRuleListCompletion completion) {
+    static id cachedRuleList = nil;
+    static NSMutableArray *pendingCompletions = nil;
+    static BOOL compiling = NO;
+    if (cachedRuleList != nil) {
+        completion(cachedRuleList, nil);
+        return;
+    }
+    Class storeClass = NSClassFromString(@"WKContentRuleListStore");
+    SEL customStoreSelector = NSSelectorFromString(@"storeWithURL:");
+    SEL compileSelector = NSSelectorFromString(@"compileContentRuleListForIdentifier:encodedContentRuleList:completionHandler:");
+    NSURL *cacheURL = [[[NSFileManager defaultManager] URLsForDirectory:NSCachesDirectory inDomains:NSUserDomainMask].firstObject
+        URLByAppendingPathComponent:@"BrowserContentRules" isDirectory:YES];
+    NSError *directoryError = nil;
+    if (cacheURL != nil) {
+        [[NSFileManager defaultManager] createDirectoryAtURL:cacheURL
+                                  withIntermediateDirectories:YES attributes:nil error:&directoryError];
+    }
+    id store = cacheURL != nil && directoryError == nil && storeClass != Nil && [storeClass respondsToSelector:customStoreSelector]
+        ? ((id (*)(id, SEL, NSURL *))objc_msgSend)((id)storeClass, customStoreSelector, cacheURL) : nil;
+    NSString *rulesJSON = BrowserAdBlockRulesJSON();
+    if (store == nil || ![store respondsToSelector:compileSelector] || rulesJSON.length == 0) {
+        NSError *error = [NSError errorWithDomain:@"BrowserAdBlock" code:1
+                                        userInfo:@{NSLocalizedDescriptionKey: directoryError.localizedDescription ?: @"WebKit content rule lists are unavailable on this device."}];
+        completion(nil, error);
+        return;
+    }
+    if (pendingCompletions == nil) {
+        pendingCompletions = [NSMutableArray array];
+    }
+    [pendingCompletions addObject:[completion copy]];
+    if (compiling) {
+        return;
+    }
+    compiling = YES;
+    ((void (*)(id, SEL, NSString *, NSString *, void (^)(id, NSError *)))objc_msgSend)(
+        store, compileSelector, kBrowserAdBlockRuleListIdentifier, rulesJSON, ^(id ruleList, NSError *error) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                cachedRuleList = ruleList;
+                compiling = NO;
+                NSArray *callbacks = [pendingCompletions copy];
+                [pendingCompletions removeAllObjects];
+                for (id callbackObject in callbacks) {
+                    BrowserAdBlockRuleListCompletion callback = callbackObject;
+                    callback(ruleList, error);
+                }
+            });
+        });
+}
+
 @interface BrowserWebView ()
 
 @property (nullable, nonatomic, strong) id runtimeWebView;
@@ -706,6 +784,10 @@ static void BrowserInstallUserScripts(id configuration) {
 @property (nullable, nonatomic, copy) NSString *lastTitle;
 @property (nonatomic, copy) NSString *userAgent;
 @property (nonatomic) BOOL loading;
+@property (nonatomic, strong) id userContentController;
+@property (nonatomic, strong) id appliedAdBlockRuleList;
+@property (nonatomic, readwrite) BOOL adBlockEnabled;
+@property (nonatomic, readwrite, copy) NSString *adBlockStatus;
 
 @end
 
@@ -751,6 +833,10 @@ static void BrowserInstallUserScripts(id configuration) {
     }
     BrowserConfigurePrivateMediaPreferences(configuration);
     BrowserInstallUserScripts(configuration);
+    SEL userContentControllerSelector = NSSelectorFromString(@"userContentController");
+    if ([configuration respondsToSelector:userContentControllerSelector]) {
+        self.userContentController = ((id (*)(id, SEL))objc_msgSend)(configuration, userContentControllerSelector);
+    }
 
     id webViewObject = ((id (*)(id, SEL))objc_msgSend)((id)webViewClass, @selector(alloc));
     SEL initializer = NSSelectorFromString(@"initWithFrame:configuration:");
@@ -777,6 +863,50 @@ static void BrowserInstallUserScripts(id configuration) {
 
     [self addSubview:runtimeView];
     [self setUserAgent:userAgent];
+    [self setAdBlockEnabled:[[NSUserDefaults standardUserDefaults] boolForKey:kBrowserAdBlockEnabledDefaultsKey]];
+}
+
+- (void)setAdBlockEnabled:(BOOL)enabled {
+    _adBlockEnabled = enabled;
+    if (!enabled) {
+        id ruleList = self.appliedAdBlockRuleList;
+        SEL removeSelector = NSSelectorFromString(@"removeContentRuleList:");
+        if (ruleList != nil && [self.userContentController respondsToSelector:removeSelector]) {
+            ((void (*)(id, SEL, id))objc_msgSend)(self.userContentController, removeSelector, ruleList);
+            self.appliedAdBlockRuleList = nil;
+            if (self.request != nil) {
+                [self reload];
+            }
+        }
+        self.adBlockStatus = @"off";
+        return;
+    }
+
+    self.adBlockStatus = @"loading";
+    __weak typeof(self) weakSelf = self;
+    BrowserLoadAdBlockRuleList(^(id ruleList, NSError *error) {
+        BrowserWebView *strongSelf = weakSelf;
+        if (strongSelf == nil || !strongSelf.adBlockEnabled) {
+            return;
+        }
+        SEL addSelector = NSSelectorFromString(@"addContentRuleList:");
+        if (ruleList == nil || ![strongSelf.userContentController respondsToSelector:addSelector]) {
+            strongSelf.adBlockStatus = @"unavailable";
+            NSLog(@"[AdBlock] unavailable: %@", error ?: @"WKUserContentController cannot install rule lists");
+            return;
+        }
+        if (strongSelf.appliedAdBlockRuleList == ruleList) {
+            strongSelf.adBlockStatus = @"on";
+            return;
+        }
+        ((void (*)(id, SEL, id))objc_msgSend)(strongSelf.userContentController, addSelector, ruleList);
+        strongSelf.appliedAdBlockRuleList = ruleList;
+        strongSelf.adBlockStatus = @"on";
+        NSLog(@"[AdBlock] content rules installed");
+        if (strongSelf.request != nil) {
+            [strongSelf reload];
+        }
+    });
 }
 
 - (void)layoutSubviews {

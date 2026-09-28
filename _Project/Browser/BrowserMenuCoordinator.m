@@ -967,6 +967,14 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     }];
 }
 
+- (BrowserAdvancedMenuItem *)reloadPageMenuItem {
+    return [self advancedMenuItemWithTitle:@"Reload Page"
+                                     style:UIAlertActionStyleDefault
+                                   handler:^{
+        [self.host.browserWebView reload];
+    }];
+}
+
 - (BrowserAdvancedMenuItem *)userAgentModeMenuItem {
     BOOL mobileModeEnabled = self.preferencesStore.mobileModeEnabled;
     NSString *title = mobileModeEnabled ? @"Switch To Desktop User Agent" : @"Switch To Mobile User Agent";
@@ -1007,6 +1015,22 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
                                      style:UIAlertActionStyleDefault
                                    handler:^{
         self.host.browserFullscreenVideoPlaybackEnabled = !enabled;
+    }];
+}
+
+- (BrowserAdvancedMenuItem *)adBlockToggleMenuItem {
+    BOOL enabled = self.preferencesStore.adBlockEnabled;
+    NSString *status = self.host.browserWebView.adBlockStatus;
+    NSString *title = enabled ? @"Ad Block: On (turn off)" : @"Ad Block: Off (turn on)";
+    if (enabled && [status isEqualToString:@"unavailable"]) {
+        title = @"Ad Block: Unavailable (turn off)";
+    }
+    return [self advancedMenuItemWithTitle:title
+                                     style:UIAlertActionStyleDefault
+                                   handler:^{
+        BOOL newValue = !enabled;
+        self.preferencesStore.adBlockEnabled = newValue;
+        [self.host browserSetAdBlockEnabled:newValue];
     }];
 }
 
@@ -1054,6 +1078,7 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
         [BrowserAdvancedMenuSection sectionWithTitle:@"Navigation"
                                                items:@[
             [self homePageMenuItem],
+            [self reloadPageMenuItem],
             [self setCurrentPageAsHomePageMenuItem],
             [self favoritesMenuItem],
             [self historyMenuItem],
@@ -1078,6 +1103,7 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Diagnostics"
                                                items:@[
+            [self adBlockToggleMenuItem],
             mediaDiagnosticsItem,
             webkitMediaPrefsItem,
         ]],
