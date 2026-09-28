@@ -23,6 +23,7 @@
 - (void)browserRecreateActiveWebViewPreservingCurrentURL;
 - (void)browserBringCursorToFront;
 - (void)browserPlayVideoUnderCursorIfAvailable;
+- (void)browserSetAdBlockEnabled:(BOOL)enabled;
 
 @end
 

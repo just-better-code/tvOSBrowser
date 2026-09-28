@@ -534,6 +534,10 @@ static UIColor *kTextColor(void) {
     [self.videoPlaybackCoordinator playVideoUnderCursorIfAvailable];
 }
 
+- (void)browserSetAdBlockEnabled:(BOOL)enabled {
+    [self.tabCoordinator setAdBlockEnabledForAllWebViews:enabled];
+}
+
 #pragma mark - BrowserVideoPlaybackCoordinatorHost
 
 - (BOOL)browserIsCursorModeEnabled {

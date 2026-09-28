@@ -5,6 +5,7 @@ static NSString * const kMobileModeDefaultsKey = @"MobileMode";
 static NSString * const kShowTopNavigationBarDefaultsKey = @"ShowTopNavigationBar";
 static NSString * const kTextFontSizeDefaultsKey = @"TextFontSize";
 static NSString * const kEnableFullscreenVideoPlaybackDefaultsKey = @"EnableFullscreenVideoPlayback";
+static NSString * const kAdBlockEnabledDefaultsKey = @"AdBlockEnabled";
 static NSString * const kScalePagesToFitDefaultsKey = @"ScalePagesToFit";
 static NSString * const kDontShowHintsOnLaunchDefaultsKey = @"DontShowHintsOnLaunch";
 static NSString * const kHomepageDefaultsKey = @"homepage";
@@ -87,6 +88,15 @@ static NSUInteger const kMaximumTextFontSize = 200;
 
 - (void)setFullscreenVideoPlaybackEnabled:(BOOL)fullscreenVideoPlaybackEnabled {
     [[self defaults] setBool:fullscreenVideoPlaybackEnabled forKey:kEnableFullscreenVideoPlaybackDefaultsKey];
+    [[self defaults] synchronize];
+}
+
+- (BOOL)adBlockEnabled {
+    return [[self defaults] boolForKey:kAdBlockEnabledDefaultsKey];
+}
+
+- (void)setAdBlockEnabled:(BOOL)adBlockEnabled {
+    [[self defaults] setBool:adBlockEnabled forKey:kAdBlockEnabledDefaultsKey];
     [[self defaults] synchronize];
 }
 

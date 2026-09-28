@@ -564,6 +564,12 @@ static CGFloat const kThumbnailStagingOffset = 4096.0;
     [self persistSession];
 }
 
+- (void)setAdBlockEnabledForAllWebViews:(BOOL)enabled {
+    for (BrowserWebView *webView in self.webViewsByTabIdentifier.allValues) {
+        [webView setAdBlockEnabled:enabled];
+    }
+}
+
 - (void)handleWebViewPanGesture:(UIPanGestureRecognizer *)gestureRecognizer {
     if (gestureRecognizer.state != UIGestureRecognizerStateEnded &&
         gestureRecognizer.state != UIGestureRecognizerStateCancelled &&
