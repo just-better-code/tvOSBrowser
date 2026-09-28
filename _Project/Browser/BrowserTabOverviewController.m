@@ -152,7 +152,7 @@ static CGFloat const kTabCardURLHeight = 64.0;
     self.thumbnailView.image = nil;
     self.addIconBackdropView.hidden = NO;
     self.titleLabel.text = @"New Tab";
-    self.urlLabel.text = @"Open the home page";
+    self.urlLabel.text = @"Favorites and recent history";
     self.hintLabel.hidden = YES;
     [self updateAppearance];
 }
@@ -165,7 +165,7 @@ static CGFloat const kTabCardURLHeight = 64.0;
     self.addIconBackdropView.hidden = YES;
     self.titleLabel.text = tab.title.length > 0 ? tab.title : @"New Tab";
     self.urlLabel.text = tab.URLString.length > 0 ? tab.URLString : @"Home page";
-    self.hintLabel.text = @"Play/Pause to Close";
+    self.hintLabel.text = @"Double Up to Close";
     self.hintLabel.hidden = !self.isFocused;
     [self updateAppearance];
 }
@@ -290,7 +290,7 @@ static CGFloat const kTabCardURLHeight = 64.0;
 
     UILabel *footerLabel = [UILabel new];
     footerLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    footerLabel.text = @"Select: Open   Play/Pause: Close Focused Tab   Menu: Dismiss";
+    footerLabel.text = @"Select: Open   Double Up: Close Focused Tab   Menu: Dismiss";
     footerLabel.textColor = [UIColor colorWithWhite:1.0 alpha:0.62];
     footerLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleCaption1];
     footerLabel.textAlignment = NSTextAlignmentCenter;

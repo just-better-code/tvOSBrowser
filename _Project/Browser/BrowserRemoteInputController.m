@@ -58,6 +58,7 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 @property (nonatomic) BOOL awaitingSecondHorizontalPress;
 @property (nonatomic) UIPressType pendingHorizontalPressType;
 @property (nonatomic) CFTimeInterval lastHorizontalPressTimestamp;
+@property (nonatomic) CFTimeInterval lastTabOverviewUpPressTimestamp;
 @property (nonatomic) BOOL primaryActionInProgress;
 @property (nonatomic) BOOL hoverRequestInFlight;
 @property (nonatomic) CGPoint latestHoverPoint;
@@ -240,6 +241,11 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
         return;
     }
 
+    if ([self.host browserRemoteInputControllerNewTabVisible]) {
+        [self.host browserRemoteInputControllerActivateNewTabSelection];
+        return;
+    }
+
     if (self.primaryActionInProgress) {
         return;
     }
@@ -358,6 +364,9 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     if (press == nil) {
         return NO;
     }
+    if (![self.host browserRemoteInputControllerTabOverviewVisible] || press.type != UIPressTypeUpArrow) {
+        self.lastTabOverviewUpPressTimestamp = 0.0;
+    }
     if (self.awaitingSecondHorizontalPress &&
         press.type != UIPressTypeLeftArrow && press.type != UIPressTypeRightArrow) {
         self.awaitingSecondHorizontalPress = NO;
@@ -390,6 +399,17 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     UIViewController *presentedViewController = [self.host browserRemoteInputControllerPresentedViewController];
     if (presentedViewController != nil && ![presentedViewController isKindOfClass:[UIAlertController class]]) {
         if ([self.host browserRemoteInputControllerTabOverviewVisible]) {
+            if (press.type == UIPressTypeUpArrow) {
+                CFTimeInterval now = CACurrentMediaTime();
+                if (self.lastTabOverviewUpPressTimestamp > 0.0 &&
+                    (now - self.lastTabOverviewUpPressTimestamp) < 0.42) {
+                    self.lastTabOverviewUpPressTimestamp = 0.0;
+                    [self.host browserRemoteInputControllerHandleTabOverviewAlternateAction];
+                } else {
+                    self.lastTabOverviewUpPressTimestamp = now;
+                }
+                return YES;
+            }
             if (press.type == UIPressTypeMenu) {
                 [self.host browserRemoteInputControllerDismissTabOverview];
                 return YES;
@@ -405,6 +425,23 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
             return YES;
         }
         return YES;
+    }
+
+    if ([self.host browserRemoteInputControllerNewTabVisible]) {
+        NSString *direction = nil;
+        switch (press.type) {
+            case UIPressTypeUpArrow: direction = @"up"; break;
+            case UIPressTypeDownArrow: direction = @"down"; break;
+            case UIPressTypeLeftArrow: direction = @"left"; break;
+            case UIPressTypeRightArrow: direction = @"right"; break;
+            default: break;
+        }
+        if (direction != nil) {
+            self.awaitingSecondHorizontalPress = NO;
+            [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(handleDeferredHorizontalPressAction) object:nil];
+            [self.host browserRemoteInputControllerNavigateNewTabInDirection:direction];
+            return YES;
+        }
     }
 
     if (press.type == UIPressTypeSelect) {

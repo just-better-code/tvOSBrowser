@@ -622,6 +622,20 @@ static UIColor *kTextColor(void) {
     [self browserHandlePrimaryAction];
 }
 
+- (BOOL)browserRemoteInputControllerNewTabVisible {
+    return [self.tabCoordinator.activeTab.URLString isEqualToString:@"about:blank"];
+}
+
+- (void)browserRemoteInputControllerNavigateNewTabInDirection:(NSString *)direction {
+    NSString *script = [NSString stringWithFormat:@"window.browserNewTabNavigate && window.browserNewTabNavigate('%@')", direction];
+    [self.webview evaluateJavaScript:script completion:^(__unused NSString *result) {}];
+}
+
+- (void)browserRemoteInputControllerActivateNewTabSelection {
+    [self.webview evaluateJavaScript:@"window.browserNewTabActivate && window.browserNewTabActivate()"
+                           completion:^(__unused NSString *result) {}];
+}
+
 - (void)browserRemoteInputControllerHandleHistoryBackPress {
     if (self.webview.canGoBack) {
         [self.webview goBack];
@@ -717,6 +731,14 @@ static UIColor *kTextColor(void) {
 
 - (BOOL)webView:(id)webView shouldStartLoadWithRequest:(NSURLRequest *)request navigationType:(NSInteger)navigationType {
     (void)navigationType;
+    if ([request.URL.scheme.lowercaseString isEqualToString:@"tvosbrowser"] &&
+        [request.URL.host.lowercaseString isEqualToString:@"search"] &&
+        [self browserRemoteInputControllerNewTabVisible]) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self showInputURLorSearchGoogle];
+        });
+        return NO;
+    }
     [self.tabCoordinator prepareTabForRequest:request webView:webView];
     return YES;
 }
