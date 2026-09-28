@@ -1,4 +1,7 @@
 #import "BrowserMenuCoordinator.h"
+#import "BrowserFavoriteEditorViewController.h"
+#import "BrowserHistoryViewController.h"
+#import "BrowserHistoryStore.h"
 #import "BrowserPreferencesStore.h"
 #import "BrowserWebView.h"
 
@@ -83,6 +86,7 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
 @property (nonatomic, copy) NSArray<BrowserAdvancedMenuItem *> *toolbarItems;
 @property (nonatomic, copy) NSArray<UIButton *> *toolbarButtons;
 @property (nonatomic) UIButton *addressButton;
+@property (nonatomic) UIStackView *historyToolbar;
 @property (nonatomic, copy) NSArray<BrowserAdvancedMenuSection *> *sections;
 @property (nonatomic, copy) NSString *footerText;
 @property (nonatomic) UIView *dimView;
@@ -162,7 +166,6 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
     addressButton.accessibilityLabel = @"Edit Address";
     addressButton.accessibilityValue = self.addressText;
     [addressButton addTarget:self action:@selector(addressButtonPressed:) forControlEvents:UIControlEventPrimaryActionTriggered];
-    [panelView.contentView addSubview:addressButton];
     self.addressButton = addressButton;
 
     UIImageSymbolConfiguration *addressSymbolConfiguration = [UIImageSymbolConfiguration configurationWithPointSize:28.0
@@ -178,7 +181,9 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
     UILabel *addressLabel = [UILabel new];
     addressLabel.translatesAutoresizingMaskIntoConstraints = NO;
     addressLabel.tag = 9898;
-    addressLabel.text = self.addressText.length > 0 ? self.addressText : @"Search or enter address";
+    NSURL *displayURL = [NSURL URLWithString:self.addressText ?: @""];
+    NSString *displayDomain = displayURL.host;
+    addressLabel.text = displayDomain.length > 0 ? displayDomain : @"Search or enter address";
     addressLabel.font = [UIFont systemFontOfSize:25.0 weight:UIFontWeightMedium];
     addressLabel.textColor = UIColor.whiteColor;
     addressLabel.lineBreakMode = NSLineBreakByTruncatingMiddle;
@@ -191,11 +196,19 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
         row.translatesAutoresizingMaskIntoConstraints = NO;
         row.axis = UILayoutConstraintAxisHorizontal;
         row.alignment = UIStackViewAlignmentFill;
-        row.distribution = UIStackViewDistributionFillEqually;
+        row.distribution = row == navigationToolbar ? UIStackViewDistributionEqualSpacing : UIStackViewDistributionFillEqually;
         row.spacing = 8.0;
         [panelView.contentView addSubview:row];
     }
-    NSArray<NSString *> *toolbarSymbols = @[@"house.fill", @"chevron.left", @"arrow.clockwise", @"chevron.right",
+    UIStackView *historyToolbar = [UIStackView new];
+    historyToolbar.translatesAutoresizingMaskIntoConstraints = NO;
+    historyToolbar.axis = UILayoutConstraintAxisHorizontal;
+    historyToolbar.alignment = UIStackViewAlignmentFill;
+    historyToolbar.distribution = UIStackViewDistributionFillEqually;
+    historyToolbar.spacing = 0.0;
+    [historyToolbar.widthAnchor constraintEqualToConstant:96.0].active = YES;
+    self.historyToolbar = historyToolbar;
+    NSArray<NSString *> *toolbarSymbols = @[@"house.fill", @"chevron.left", @"chevron.right", @"arrow.clockwise",
                                             @"square.on.square", @"star", @"clock.arrow.circlepath",
                                             @"minus.magnifyingglass", @"", @"plus.magnifyingglass"];
     NSMutableArray<UIButton *> *toolbarButtons = [NSMutableArray arrayWithCapacity:self.toolbarItems.count];
@@ -207,6 +220,11 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
             ? [UIColor colorWithRed:0.20 green:0.54 blue:0.90 alpha:0.72]
             : [UIColor colorWithWhite:1.0 alpha:0.12];
         button.layer.cornerRadius = 12.0;
+        if (index == 1) {
+            button.layer.maskedCorners = kCALayerMinXMinYCorner | kCALayerMinXMaxYCorner;
+        } else if (index == 2) {
+            button.layer.maskedCorners = kCALayerMaxXMinYCorner | kCALayerMaxXMaxYCorner;
+        }
         NSString *symbolName = index < toolbarSymbols.count ? toolbarSymbols[index] : @"";
         if (symbolName.length > 0) {
             UIImageSymbolConfiguration *symbolConfiguration = [UIImageSymbolConfiguration configurationWithPointSize:34.0
@@ -247,10 +265,35 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
         button.accessibilityValue = item.toggleStateProvider != nil ? (item.toggleStateProvider() ? @"On" : @"Off") : nil;
         [button addTarget:self action:@selector(toolbarButtonPressed:) forControlEvents:UIControlEventPrimaryActionTriggered];
         UIStackView *row = index < kBrowserNavigationToolbarItemCount ? navigationToolbar : quickToolbar;
-        [row addArrangedSubview:button];
+        if (index == kBrowserNavigationToolbarItemCount - 2) {
+            [navigationToolbar addArrangedSubview:addressButton];
+        }
+        if (index == 1) {
+            [navigationToolbar addArrangedSubview:historyToolbar];
+        }
+        if (index == 1 || index == 2) {
+            [historyToolbar addArrangedSubview:button];
+        } else {
+            [row addArrangedSubview:button];
+        }
+        if (row == navigationToolbar && index != 1 && index != 2) {
+            [button.widthAnchor constraintEqualToConstant:58.0].active = YES;
+        }
         [toolbarButtons addObject:button];
     }];
     self.toolbarButtons = toolbarButtons;
+
+    UIView *historyDivider = [UIView new];
+    historyDivider.translatesAutoresizingMaskIntoConstraints = NO;
+    historyDivider.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.28];
+    historyDivider.userInteractionEnabled = NO;
+    [historyToolbar addSubview:historyDivider];
+    [NSLayoutConstraint activateConstraints:@[
+        [historyDivider.centerXAnchor constraintEqualToAnchor:historyToolbar.centerXAnchor],
+        [historyDivider.centerYAnchor constraintEqualToAnchor:historyToolbar.centerYAnchor],
+        [historyDivider.widthAnchor constraintEqualToConstant:1.0],
+        [historyDivider.heightAnchor constraintEqualToConstant:36.0],
+    ]];
 
     UIView *toolbarSeparator = [UIView new];
     toolbarSeparator.translatesAutoresizingMaskIntoConstraints = NO;
@@ -306,6 +349,7 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
     self.panelTrailingConstraint = [panelView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor
                                                                              constant:self.panelWidth + 32.0];
 
+    CGFloat addressWidth = MIN(240.0, MAX(120.0, self.panelWidth - 48.0 - 58.0 * 3.0 - 96.0 - 32.0));
     NSMutableArray<NSLayoutConstraint *> *constraints = [NSMutableArray arrayWithArray:@[
         [dimView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
         [dimView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
@@ -317,10 +361,8 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
         [panelView.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-16.0],
         self.panelTrailingConstraint,
 
-        [addressButton.leadingAnchor constraintEqualToAnchor:panelView.leadingAnchor constant:24.0],
-        [addressButton.trailingAnchor constraintEqualToAnchor:panelView.trailingAnchor constant:-24.0],
-        [addressButton.topAnchor constraintEqualToAnchor:panelView.topAnchor constant:24.0],
         [addressButton.heightAnchor constraintEqualToConstant:64.0],
+        [addressButton.widthAnchor constraintEqualToConstant:addressWidth],
         [addressIcon.leadingAnchor constraintEqualToAnchor:addressButton.leadingAnchor constant:18.0],
         [addressIcon.centerYAnchor constraintEqualToAnchor:addressButton.centerYAnchor],
         [addressIcon.widthAnchor constraintEqualToConstant:32.0],
@@ -331,7 +373,7 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
 
         [navigationToolbar.leadingAnchor constraintEqualToAnchor:panelView.leadingAnchor constant:24.0],
         [navigationToolbar.trailingAnchor constraintEqualToAnchor:panelView.trailingAnchor constant:-24.0],
-        [navigationToolbar.topAnchor constraintEqualToAnchor:addressButton.bottomAnchor constant:18.0],
+        [navigationToolbar.topAnchor constraintEqualToAnchor:panelView.topAnchor constant:24.0],
         [navigationToolbar.heightAnchor constraintEqualToConstant:64.0],
 
         [toolbarSeparator.leadingAnchor constraintEqualToAnchor:panelView.leadingAnchor constant:32.0],
@@ -616,6 +658,12 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
 }
 
 - (NSArray<id<UIFocusEnvironment>> *)preferredFocusEnvironments {
+    if (self.toolbarButtons.count >= kBrowserNavigationToolbarItemCount) {
+        UIButton *tabsButton = self.toolbarButtons[kBrowserNavigationToolbarItemCount - 1];
+        if (tabsButton.enabled) {
+            return @[tabsButton];
+        }
+    }
     if (self.addressButton.enabled) {
         return @[self.addressButton];
     }
@@ -633,19 +681,28 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     UIView *previousView = context.previouslyFocusedView;
     UIView *nextView = context.nextFocusedView;
     if (previousView == self.addressButton) {
+        previousView.layer.zPosition = 0.0;
         ((UILabel *)[self.addressButton viewWithTag:9898]).textColor = UIColor.whiteColor;
         [self setToolbarIconColor:UIColor.whiteColor forButton:self.addressButton];
     }
     if (nextView == self.addressButton) {
+        [nextView.superview bringSubviewToFront:nextView];
+        nextView.layer.zPosition = 2.0;
         ((UILabel *)[self.addressButton viewWithTag:9898]).textColor = UIColor.blackColor;
         [self setToolbarIconColor:UIColor.blackColor forButton:self.addressButton];
     }
     if ([self.toolbarButtons containsObject:(UIButton *)previousView]) {
         previousView.layer.zPosition = 0.0;
+        if (previousView.superview == self.historyToolbar) {
+            self.historyToolbar.layer.zPosition = 0.0;
+        }
     }
     if ([self.toolbarButtons containsObject:(UIButton *)nextView]) {
         [nextView.superview bringSubviewToFront:nextView];
         nextView.layer.zPosition = 1.0;
+        if (nextView.superview == self.historyToolbar) {
+            self.historyToolbar.layer.zPosition = 1.0;
+        }
     }
     [coordinator addCoordinatedAnimations:^{
         if ([self.toolbarButtons containsObject:(UIButton *)previousView]) {
@@ -737,63 +794,81 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     return trimmedString.length > 0;
 }
 
-- (NSString *)displayTitleForStoredTitle:(NSString *)storedTitle
-                               URLString:(NSString *)URLString
-                              includeURL:(BOOL)includeURL {
-    NSString *displayTitle = [self stringHasVisibleContent:storedTitle] ? storedTitle : URLString;
-    if (includeURL && [self stringHasVisibleContent:storedTitle] && [self stringHasVisibleContent:URLString]) {
-        return [NSString stringWithFormat:@"%@ - %@", storedTitle, URLString];
-    }
-    return displayTitle ?: @"";
-}
-
-- (void)loadStoredURLString:(NSString *)URLString {
-    if (![self stringHasVisibleContent:URLString]) {
-        return;
-    }
-    NSURL *URL = [NSURL URLWithString:URLString];
-    if (URL == nil) {
-        return;
-    }
-
-    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:URL];
-    NSString *userAgent = self.preferencesStore.userAgent;
-    if (userAgent.length > 0) {
-        [request setValue:userAgent forHTTPHeaderField:@"User-Agent"];
-    }
-    [[self.host browserWebView] loadRequest:request];
-}
-
 - (void)saveFavoritesArray:(NSArray *)favorites {
-    [[NSUserDefaults standardUserDefaults] setObject:favorites forKey:@"FAVORITES"];
-    [[NSUserDefaults standardUserDefaults] synchronize];
+    [[BrowserHistoryStore sharedStore] saveFavorites:favorites];
+    [self.host browserRefreshNewTabPageSelectingGroup:@"favorites" index:0];
 }
 
-- (void)presentDeleteFavoriteMenu {
-    NSArray *favorites = [[NSUserDefaults standardUserDefaults] arrayForKey:@"FAVORITES"];
-    UIAlertController *alertController = [self browserAlertControllerWithTitle:@"Delete a Favorite"
-                                                                       message:@"Select a Favorite to Delete"];
+- (NSArray *)storedEntryForKind:(NSString *)kind index:(NSUInteger)index {
+    NSArray *entries = [kind isEqualToString:@"favorite"] ? [[BrowserHistoryStore sharedStore] favorites] : @[];
+    if (index >= entries.count || ![entries[index] isKindOfClass:[NSArray class]]) {
+        return nil;
+    }
+    return entries[index];
+}
+
+- (void)presentEditFavoriteAtIndex:(NSUInteger)index title:(NSString *)title URLString:(NSString *)URLString {
+    BrowserFavoriteEditorViewController *editor = [[BrowserFavoriteEditorViewController alloc]
+                                                    initWithTitle:title URLString:URLString];
     __weak typeof(self) weakSelf = self;
-    
-    [favorites enumerateObjectsUsingBlock:^(NSArray *entry, NSUInteger index, BOOL *stop) {
-        NSString *URLString = entry.count > 0 ? entry[0] : @"";
-        NSString *title = entry.count > 1 ? entry[1] : @"";
-        if (![weakSelf stringHasVisibleContent:URLString]) {
+    editor.saveHandler = ^NSString *(NSString *rawTitle, NSString *rawURL) {
+        NSString *enteredTitle = [rawTitle stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+        NSString *enteredURL = [rawURL stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+        if ([enteredURL rangeOfString:@"://"].location == NSNotFound) {
+            enteredURL = [@"https://" stringByAppendingString:enteredURL];
+        }
+        NSURLComponents *components = [NSURLComponents componentsWithString:enteredURL];
+        NSString *scheme = components.scheme.lowercaseString;
+        if (components.host.length == 0 || !([scheme isEqualToString:@"http"] || [scheme isEqualToString:@"https"])) {
+            return @"Enter a valid http or https address.";
+        }
+        NSMutableArray *favorites = [[[BrowserHistoryStore sharedStore] favorites] mutableCopy];
+        if (index >= favorites.count) {
+            return @"This favorite is no longer available.";
+        }
+        NSString *savedTitle = enteredTitle.length > 0 ? enteredTitle : components.host;
+        favorites[index] = @[components.URL.absoluteString ?: enteredURL, savedTitle ?: @""];
+        [[BrowserHistoryStore sharedStore] saveFavorites:favorites];
+        [weakSelf.host browserRefreshNewTabPageSelectingGroup:@"favorites" index:index];
+        return nil;
+    };
+    editor.deleteHandler = ^{
+        NSMutableArray *favorites = [[[BrowserHistoryStore sharedStore] favorites] mutableCopy];
+        if (index >= favorites.count) {
             return;
         }
-        
-        NSString *displayTitle = [weakSelf displayTitleForStoredTitle:title URLString:URLString includeURL:NO];
-        [alertController addAction:[weakSelf browserActionWithTitle:displayTitle
-                                                              style:UIAlertActionStyleDefault
-                                                            handler:^(__unused UIAlertAction *action) {
-            NSMutableArray *updatedFavorites = [favorites mutableCopy];
-            [updatedFavorites removeObjectAtIndex:index];
-            [weakSelf saveFavoritesArray:updatedFavorites];
-        }]];
-    }];
-    
-    [alertController addAction:[self browserCancelAction]];
-    [self.host browserPresentViewController:alertController];
+        [favorites removeObjectAtIndex:index];
+        [[BrowserHistoryStore sharedStore] saveFavorites:favorites];
+        [weakSelf.host browserRefreshNewTabPageSelectingGroup:@"favorites" index:index];
+    };
+    [self.host browserPresentViewController:editor];
+}
+
+- (void)presentStoredItemActionsForKind:(NSString *)kind index:(NSUInteger)index {
+    if (![kind isEqualToString:@"favorite"]) {
+        return;
+    }
+    NSArray *entry = [self storedEntryForKind:kind index:index];
+    if (entry == nil || entry.count == 0 || ![entry[0] isKindOfClass:[NSString class]]) {
+        return;
+    }
+    NSString *URLString = entry[0];
+    NSString *title = entry.count > 1 && [entry[1] isKindOfClass:[NSString class]] ? entry[1] : @"";
+    [self presentEditFavoriteAtIndex:index title:title URLString:URLString];
+}
+
+- (void)presentAllHistory {
+    BrowserHistoryViewController *controller = [BrowserHistoryViewController new];
+    __weak typeof(self) weakSelf = self;
+    controller.historyDidChange = ^{
+        [weakSelf.host browserRefreshNewTabPageSelectingGroup:@"history" index:0];
+    };
+    [self.host browserPresentViewController:controller];
+}
+
+- (void)deleteHistoryForURLString:(NSString *)URLString {
+    [[BrowserHistoryStore sharedStore] deleteVisitsForURLString:URLString];
+    [self.host browserRefreshNewTabPageSelectingGroup:@"history" index:0];
 }
 
 - (void)presentAddFavoritePrompt {
@@ -825,7 +900,7 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
         }
         
         NSArray *favoriteEntry = @[currentURL, savedTitle ?: @""];
-        NSMutableArray *favorites = [[[NSUserDefaults standardUserDefaults] arrayForKey:@"FAVORITES"] mutableCopy];
+        NSMutableArray *favorites = [[[BrowserHistoryStore sharedStore] favorites] mutableCopy];
         if (favorites == nil) {
             favorites = [NSMutableArray array];
         }
@@ -839,76 +914,6 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
         }
         [weakSelf saveFavoritesArray:favorites];
     }]];
-    [alertController addAction:[self browserCancelAction]];
-    [self.host browserPresentViewController:alertController];
-}
-
-- (void)presentFavoritesMenu {
-    NSArray *favorites = [[NSUserDefaults standardUserDefaults] arrayForKey:@"FAVORITES"];
-    UIAlertController *alertController = [self browserAlertControllerWithTitle:@"Favorites" message:@""];
-    __weak typeof(self) weakSelf = self;
-    
-    [favorites enumerateObjectsUsingBlock:^(NSArray *entry, NSUInteger index, BOOL *stop) {
-        NSString *URLString = entry.count > 0 ? entry[0] : @"";
-        NSString *title = entry.count > 1 ? entry[1] : @"";
-        NSString *displayTitle = [weakSelf displayTitleForStoredTitle:title URLString:URLString includeURL:NO];
-        if (![weakSelf stringHasVisibleContent:displayTitle]) {
-            return;
-        }
-        
-        [alertController addAction:[weakSelf browserActionWithTitle:displayTitle
-                                                              style:UIAlertActionStyleDefault
-                                                            handler:^(__unused UIAlertAction *action) {
-            [weakSelf loadStoredURLString:URLString];
-        }]];
-    }];
-    
-    if (favorites.count > 0) {
-        [alertController addAction:[self browserActionWithTitle:@"Delete a Favorite"
-                                                          style:UIAlertActionStyleDestructive
-                                                        handler:^(__unused UIAlertAction *action) {
-            [weakSelf presentDeleteFavoriteMenu];
-        }]];
-    }
-    
-    [alertController addAction:[self browserActionWithTitle:@"Add Current Page to Favorites"
-                                                      style:UIAlertActionStyleDefault
-                                                    handler:^(__unused UIAlertAction *action) {
-        [weakSelf presentAddFavoritePrompt];
-    }]];
-    [alertController addAction:[self browserCancelAction]];
-    [self.host browserPresentViewController:alertController];
-}
-
-- (void)presentHistoryMenu {
-    NSArray *historyEntries = [[NSUserDefaults standardUserDefaults] arrayForKey:@"HISTORY"];
-    UIAlertController *alertController = [self browserAlertControllerWithTitle:@"History" message:@""];
-    __weak typeof(self) weakSelf = self;
-    
-    if (historyEntries.count > 0) {
-        [alertController addAction:[self browserActionWithTitle:@"Clear History"
-                                                          style:UIAlertActionStyleDestructive
-                                                        handler:^(__unused UIAlertAction *action) {
-            [[NSUserDefaults standardUserDefaults] removeObjectForKey:@"HISTORY"];
-            [[NSUserDefaults standardUserDefaults] synchronize];
-        }]];
-    }
-    
-    [historyEntries enumerateObjectsUsingBlock:^(NSArray *entry, NSUInteger index, BOOL *stop) {
-        NSString *URLString = entry.count > 0 ? entry[0] : @"";
-        NSString *title = entry.count > 1 ? entry[1] : @"";
-        NSString *displayTitle = [weakSelf displayTitleForStoredTitle:title URLString:URLString includeURL:YES];
-        if (![weakSelf stringHasVisibleContent:displayTitle]) {
-            return;
-        }
-        
-        [alertController addAction:[weakSelf browserActionWithTitle:displayTitle
-                                                              style:UIAlertActionStyleDefault
-                                                            handler:^(__unused UIAlertAction *action) {
-            [weakSelf loadStoredURLString:URLString];
-        }]];
-    }];
-    
     [alertController addAction:[self browserCancelAction]];
     [self.host browserPresentViewController:alertController];
 }
@@ -1194,14 +1199,6 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     }];
 }
 
-- (BrowserAdvancedMenuItem *)favoritesMenuItem {
-    return [self advancedMenuItemWithTitle:@"Favorites"
-                                     style:UIAlertActionStyleDefault
-                                   handler:^{
-        [self presentFavoritesMenu];
-    }];
-}
-
 - (BrowserAdvancedMenuItem *)userAgentModeMenuItem {
     BrowserAdvancedMenuItem *item = [self advancedMenuItemWithTitle:@"Mobile User Agent"
                                                                style:UIAlertActionStyleDefault
@@ -1321,7 +1318,7 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     BrowserAdvancedMenuItem *historyItem = [self advancedMenuItemWithTitle:@"History"
                                                                      style:UIAlertActionStyleDefault
                                                                    handler:^{
-        [self presentHistoryMenu];
+        [self.host browserShowNewTabPageSelectingGroup:@"history"];
     }];
     BrowserAdvancedMenuItem *zoomOutItem = [self advancedMenuItemWithTitle:@"Zoom Out"
                                                                     style:UIAlertActionStyleDefault
@@ -1341,7 +1338,7 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     zoomOutItem.keepsMenuOpen = YES;
     zoomResetItem.keepsMenuOpen = YES;
     zoomInItem.keepsMenuOpen = YES;
-    return @[homeItem, backItem, reloadItem, forwardItem, tabsItem,
+    return @[homeItem, backItem, forwardItem, reloadItem, tabsItem,
              addFavoriteItem, historyItem, zoomOutItem, zoomResetItem, zoomInItem];
 }
 
@@ -1368,10 +1365,9 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     }];
 
     return @[
-        [BrowserAdvancedMenuSection sectionWithTitle:@"Navigation"
+        [BrowserAdvancedMenuSection sectionWithTitle:@"Privacy"
                                                items:@[
             [self adBlockToggleMenuItem],
-            [self favoritesMenuItem],
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Appearance"
                                                items:@[

@@ -23,6 +23,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface BrowserTabCoordinator : NSObject
 
+@property (nonatomic, readonly) NSUInteger newTabPageGeneration;
+
 @property (nonatomic, readonly, nullable) BrowserWebView *activeWebView;
 @property (nonatomic, readonly, nullable) BrowserTabViewModel *activeTab;
 @property (nonatomic, copy) NSString *requestURL;
@@ -55,6 +57,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)captureSnapshotForCurrentTab;
 - (void)prepareTabOverviewThumbnails;
 - (void)persistSession;
+- (void)refreshNewTabPageIfVisibleSelectingGroup:(NSString *)group index:(NSUInteger)index;
+- (void)showNewTabPageSelectingGroup:(NSString *)group;
 - (void)handleWebViewPanGesture:(UIPanGestureRecognizer *)gestureRecognizer;
 - (void)webViewDidStartLoad:(id)webView;
 - (void)webViewDidFinishLoad:(id)webView;
@@ -62,6 +66,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setTopNavigationVisible:(BOOL)visible;
 - (BrowserTabViewModel *)tabForWebView:(id)webView;
 - (BOOL)isPrimaryDocumentRequest:(NSURLRequest *)request;
+- (void)reloadStartPageIfActive;
 
 @end
 

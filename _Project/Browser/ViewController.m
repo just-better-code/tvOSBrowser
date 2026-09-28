@@ -22,6 +22,7 @@
 #import "ViewController.h"
 
 static NSString * const kBrowserGlobalSelectPressEndedNotification = @"BrowserGlobalSelectPressEndedNotification";
+static NSString * const kBrowserGlobalDirectionalPressBeganNotification = @"BrowserGlobalDirectionalPressBeganNotification";
 
 static UIColor *kTextColor(void) {
     if (@available(tvOS 13, *)) {
@@ -120,6 +121,10 @@ static UIColor *kTextColor(void) {
                                              selector:@selector(handleGlobalSelectPressEndedNotification:)
                                                  name:kBrowserGlobalSelectPressEndedNotification
                                                object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(handleGlobalDirectionalPressBeganNotification:)
+                                                 name:kBrowserGlobalDirectionalPressBeganNotification
+                                               object:nil];
 
     [self.tabCoordinator restoreInitialStateOrCreateFirstTab];
     self.remoteInputController.magnifierEnabled = self.preferencesStore.cursorMagnifierEnabled;
@@ -162,6 +167,11 @@ static UIColor *kTextColor(void) {
 - (void)handleGlobalSelectPressEndedNotification:(NSNotification *)notification {
     (void)notification;
     [self.remoteInputController handleGlobalSelectPressEndedNotification];
+}
+
+- (void)handleGlobalDirectionalPressBeganNotification:(NSNotification *)notification {
+    (void)notification;
+    [self.remoteInputController hideCursorForDirectionalNavigation];
 }
 
 #pragma mark - Helpers
@@ -534,6 +544,10 @@ static UIColor *kTextColor(void) {
     [self.tabCoordinator closeTabAtIndex:tabIndex];
 }
 
+- (void)browserTabOverviewControllerReturnToStartPage {
+    [self.tabCoordinator reloadStartPageIfActive];
+}
+
 #pragma mark - BrowserPageActionCoordinatorHost
 
 - (void)browserPageActionCoordinatorPresentViewController:(UIViewController *)viewController {
@@ -596,6 +610,10 @@ static UIColor *kTextColor(void) {
 
 - (BOOL)browserRemoteInputControllerNewTabVisible {
     return [self.tabCoordinator.activeTab.URLString isEqualToString:@"about:blank"];
+}
+
+- (NSUInteger)browserRemoteInputControllerNewTabPageGeneration {
+    return self.tabCoordinator.newTabPageGeneration;
 }
 
 - (void)browserRemoteInputControllerNavigateNewTabInDirection:(NSString *)direction {
@@ -662,6 +680,19 @@ static UIColor *kTextColor(void) {
     }];
 }
 
+- (void)browserRemoteInputControllerEditNewTabFavoriteUsingKeyboardSelection:(BOOL)keyboardSelection {
+    if (![self browserRemoteInputControllerNewTabVisible]) return;
+    NSString *script;
+    if (keyboardSelection) {
+        script = @"window.browserNewTabManageSelected ? window.browserNewTabManageSelected() : false";
+    } else {
+        CGPoint point = [self browserDOMPointForCursor];
+        script = [NSString stringWithFormat:
+            @"window.browserNewTabManageAt ? window.browserNewTabManageAt(%.3f, %.3f) : false", point.x, point.y];
+    }
+    [self.webview evaluateJavaScript:script completion:^(__unused NSString *result) {}];
+}
+
 - (void)browserRemoteInputControllerHandleAdvancedMenuPress {
     [self showAdvancedMenu];
 }
@@ -717,6 +748,49 @@ static UIColor *kTextColor(void) {
 - (BOOL)webView:(id)webView shouldStartLoadWithRequest:(NSURLRequest *)request navigationType:(NSInteger)navigationType {
     (void)navigationType;
     if ([request.URL.scheme.lowercaseString isEqualToString:@"tvosbrowser"] &&
+        [request.URL.host.lowercaseString isEqualToString:@"manage"] &&
+        [self browserRemoteInputControllerNewTabVisible]) {
+        NSString *kind = nil;
+        NSUInteger index = NSNotFound;
+        for (NSURLQueryItem *item in [NSURLComponents componentsWithURL:request.URL resolvingAgainstBaseURL:NO].queryItems) {
+            if ([item.name isEqualToString:@"kind"]) {
+                kind = item.value;
+            } else if ([item.name isEqualToString:@"index"] && item.value.length > 0) {
+                NSScanner *scanner = [NSScanner scannerWithString:item.value];
+                unsigned long long parsedIndex = 0;
+                if ([scanner scanUnsignedLongLong:&parsedIndex] && scanner.isAtEnd && parsedIndex <= NSUIntegerMax) {
+                    index = (NSUInteger)parsedIndex;
+                }
+            }
+        }
+        if (index != NSNotFound && [kind isEqualToString:@"favorite"]) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [self.menuCoordinator presentStoredItemActionsForKind:kind index:index];
+            });
+        }
+        return NO;
+    }
+    if ([request.URL.scheme.lowercaseString isEqualToString:@"tvosbrowser"] &&
+        [self browserRemoteInputControllerNewTabVisible]) {
+        NSString *host = request.URL.host.lowercaseString;
+        if ([host isEqualToString:@"history"]) {
+            dispatch_async(dispatch_get_main_queue(), ^{ [self.menuCoordinator presentAllHistory]; });
+            return NO;
+        }
+        if ([host isEqualToString:@"delete-history"]) {
+            NSString *URLString = nil;
+            for (NSURLQueryItem *item in [NSURLComponents componentsWithURL:request.URL resolvingAgainstBaseURL:NO].queryItems) {
+                if ([item.name isEqualToString:@"url"]) URLString = item.value;
+            }
+            if (URLString.length > 0) {
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    [self.menuCoordinator deleteHistoryForURLString:URLString];
+                });
+            }
+            return NO;
+        }
+    }
+    if ([request.URL.scheme.lowercaseString isEqualToString:@"tvosbrowser"] &&
         [request.URL.host.lowercaseString isEqualToString:@"search"] &&
         [self browserRemoteInputControllerNewTabVisible]) {
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -726,6 +800,14 @@ static UIColor *kTextColor(void) {
     }
     [self.tabCoordinator prepareTabForRequest:request webView:webView];
     return YES;
+}
+
+- (void)browserRefreshNewTabPageSelectingGroup:(NSString *)group index:(NSUInteger)index {
+    [self.tabCoordinator refreshNewTabPageIfVisibleSelectingGroup:group index:index];
+}
+
+- (void)browserShowNewTabPageSelectingGroup:(NSString *)group {
+    [self.tabCoordinator showNewTabPageSelectingGroup:group];
 }
 
 - (void)webViewDidStartLoad:(id)webView {

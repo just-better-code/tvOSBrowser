@@ -26,13 +26,17 @@ static NSNumber *BrowserSessionVersion(void) {
         return NO;
     }
     
+    NSInteger activeTabIndex = [sessionRepresentation[kBrowserSessionActiveTabIndexKey] respondsToSelector:@selector(integerValue)] ? [sessionRepresentation[kBrowserSessionActiveTabIndexKey] integerValue] : 0;
+    NSInteger restoredActiveIndex = NSNotFound;
     NSMutableArray<BrowserTabViewModel *> *tabs = [NSMutableArray array];
-    for (NSDictionary *tabRepresentation in tabRepresentations) {
+    for (NSUInteger originalIndex = 0; originalIndex < tabRepresentations.count; originalIndex++) {
+        NSDictionary *tabRepresentation = tabRepresentations[originalIndex];
         if (![tabRepresentation isKindOfClass:[NSDictionary class]]) {
             continue;
         }
         BrowserTabViewModel *tab = [[BrowserTabViewModel alloc] initWithSessionRepresentation:tabRepresentation];
-        if (tab != nil) {
+        if (tab != nil && ![tab.URLString isEqualToString:@"about:blank"]) {
+            if (originalIndex == activeTabIndex) restoredActiveIndex = tabs.count;
             [tabs addObject:tab];
         }
     }
@@ -41,8 +45,7 @@ static NSNumber *BrowserSessionVersion(void) {
         return NO;
     }
     
-    NSInteger activeTabIndex = [sessionRepresentation[kBrowserSessionActiveTabIndexKey] respondsToSelector:@selector(integerValue)] ? [sessionRepresentation[kBrowserSessionActiveTabIndexKey] integerValue] : 0;
-    [viewModel restoreTabs:tabs activeTabIndex:activeTabIndex];
+    [viewModel restoreTabs:tabs activeTabIndex:restoredActiveIndex == NSNotFound ? tabs.count - 1 : restoredActiveIndex];
     return YES;
 }
 
@@ -54,13 +57,21 @@ static NSNumber *BrowserSessionVersion(void) {
     }
     
     NSMutableArray *tabRepresentations = [NSMutableArray arrayWithCapacity:viewModel.tabs.count];
+    NSInteger savedActiveIndex = NSNotFound;
     for (BrowserTabViewModel *tab in viewModel.tabs) {
+        if ([tab.URLString isEqualToString:@"about:blank"]) continue;
+        if (tab == viewModel.activeTab) savedActiveIndex = tabRepresentations.count;
         [tabRepresentations addObject:[tab sessionRepresentation]];
+    }
+    if (tabRepresentations.count == 0) {
+        [[NSUserDefaults standardUserDefaults] removeObjectForKey:kBrowserSessionDefaultsKey];
+        [[NSUserDefaults standardUserDefaults] synchronize];
+        return;
     }
     
     NSDictionary *sessionRepresentation = @{
         kBrowserSessionVersionKey: BrowserSessionVersion(),
-        kBrowserSessionActiveTabIndexKey: @(viewModel.activeTabIndex),
+        kBrowserSessionActiveTabIndexKey: @(savedActiveIndex == NSNotFound ? tabRepresentations.count - 1 : savedActiveIndex),
         kBrowserSessionTabsKey: tabRepresentations
     };
 

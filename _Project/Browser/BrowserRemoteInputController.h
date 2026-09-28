@@ -18,6 +18,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)browserRemoteInputControllerHandleTabOverviewAlternateAction;
 - (void)browserRemoteInputControllerHandlePrimaryAction;
 - (BOOL)browserRemoteInputControllerNewTabVisible;
+- (NSUInteger)browserRemoteInputControllerNewTabPageGeneration;
 - (void)browserRemoteInputControllerNavigateNewTabInDirection:(NSString *)direction;
 - (void)browserRemoteInputControllerActivateNewTabSelection;
 - (void)browserRemoteInputControllerHandleHistoryBackPress;
@@ -25,6 +26,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)browserRemoteInputControllerHandleTabOverviewPress;
 - (void)browserRemoteInputControllerHandleMenuPress;
 - (void)browserRemoteInputControllerHandlePlayPausePress;
+- (void)browserRemoteInputControllerEditNewTabFavoriteUsingKeyboardSelection:(BOOL)keyboardSelection;
 - (void)browserRemoteInputControllerToggleMagnifier;
 - (void)browserRemoteInputControllerHandleAdvancedMenuPress;
 - (void)browserRemoteInputControllerHoverStateAtCursorPoint:(CGPoint)point
@@ -49,6 +51,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (instancetype)init NS_UNAVAILABLE;
 
 - (void)handleGlobalSelectPressEndedNotification;
+- (void)hideCursorForDirectionalNavigation;
 - (void)handlePressesBegan:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event;
 - (BOOL)handlePressesEnded:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event;
 - (void)handlePressesCancelled:(NSSet<UIPress *> *)presses;

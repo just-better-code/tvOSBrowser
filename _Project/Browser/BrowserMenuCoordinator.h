@@ -22,6 +22,8 @@
 - (void)browserBringCursorToFront;
 - (void)browserPlayVideoUnderCursorIfAvailable;
 - (void)browserSetAdBlockEnabled:(BOOL)enabled;
+- (void)browserRefreshNewTabPageSelectingGroup:(NSString *)group index:(NSUInteger)index;
+- (void)browserShowNewTabPageSelectingGroup:(NSString *)group;
 
 @end
 
@@ -30,5 +32,8 @@
 - (instancetype)initWithHost:(id<BrowserMenuCoordinatorHost>)host
             preferencesStore:(BrowserPreferencesStore *)preferencesStore;
 - (void)showAdvancedMenu;
+- (void)presentStoredItemActionsForKind:(NSString *)kind index:(NSUInteger)index;
+- (void)presentAllHistory;
+- (void)deleteHistoryForURLString:(NSString *)URLString;
 
 @end
