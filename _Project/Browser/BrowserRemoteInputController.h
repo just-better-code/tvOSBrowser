@@ -25,11 +25,14 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)browserRemoteInputControllerHandleTabOverviewPress;
 - (void)browserRemoteInputControllerHandleMenuPress;
 - (void)browserRemoteInputControllerHandlePlayPausePress;
+- (void)browserRemoteInputControllerToggleMagnifier;
 - (void)browserRemoteInputControllerHandleAdvancedMenuPress;
 - (void)browserRemoteInputControllerHoverStateAtCursorPoint:(CGPoint)point
                                                 completion:(void (^)(BOOL isInteractive))completion;
 - (void)browserRemoteInputControllerSetWebInteractionEnabled:(BOOL)enabled;
 - (void)browserRemoteInputControllerPersistSession;
+- (void)browserRemoteInputControllerCaptureMagnifierAtPoint:(CGPoint)point
+                                                  completion:(void (^)(UIImage * _Nullable image))completion;
 
 @end
 
@@ -38,6 +41,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) UIImageView *cursorView;
 @property (nonatomic, readonly) UIPanGestureRecognizer *manualScrollPanRecognizer;
 @property (nonatomic, readonly, getter=isCursorModeEnabled) BOOL cursorModeEnabled;
+@property (nonatomic, getter=isMagnifierEnabled) BOOL magnifierEnabled;
 
 - (instancetype)initWithHost:(id<BrowserRemoteInputControllerHost>)host
                     rootView:(UIView *)rootView NS_DESIGNATED_INITIALIZER;

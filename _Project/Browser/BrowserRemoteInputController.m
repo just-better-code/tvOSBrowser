@@ -18,6 +18,9 @@ static UIImage *BrowserPointerCursor(void) {
     return image;
 }
 
+static NSTimeInterval const kBrowserCursorIdleDelay = 3.0;
+static CGFloat const kBrowserMagnifierDiameter = 384.0;
+
 static NSString *BrowserPressTypeString(UIPressType type) {
     switch (type) {
         case UIPressTypeMenu: return @"Menu";
@@ -59,10 +62,21 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 @property (nonatomic) UIPressType pendingHorizontalPressType;
 @property (nonatomic) CFTimeInterval lastHorizontalPressTimestamp;
 @property (nonatomic) CFTimeInterval lastTabOverviewUpPressTimestamp;
+@property (nonatomic) CFTimeInterval lastPlayPausePressTimestamp;
+@property (nonatomic) BOOL awaitingSecondPlayPausePress;
 @property (nonatomic) BOOL primaryActionInProgress;
 @property (nonatomic) BOOL hoverRequestInFlight;
 @property (nonatomic) CGPoint latestHoverPoint;
 @property (nonatomic) NSUInteger hoverGeneration;
+@property (nonatomic) NSUInteger cursorIdleGeneration;
+@property (nonatomic) BOOL cursorIdleHidden;
+@property (nonatomic) UIView *magnifierView;
+@property (nonatomic) UIImageView *magnifierImageView;
+@property (nonatomic) BOOL magnifierCaptureInFlight;
+@property (nonatomic) CFTimeInterval lastMagnifierCaptureTimestamp;
+@property (nonatomic) CGPoint latestMagnifierPoint;
+@property (nonatomic) NSUInteger magnifierGeneration;
+@property (nonatomic) NSTimer *magnifierRefreshTimer;
 
 @end
 
@@ -81,6 +95,25 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
         _cursorView.center = CGPointMake(CGRectGetMidX([UIScreen mainScreen].bounds), CGRectGetMidY([UIScreen mainScreen].bounds));
         _cursorView.image = BrowserDefaultCursor();
 
+        _magnifierView = [[UIView alloc] initWithFrame:CGRectMake(0.0, 0.0, kBrowserMagnifierDiameter, kBrowserMagnifierDiameter)];
+        _magnifierView.hidden = YES;
+        _magnifierView.userInteractionEnabled = NO;
+        _magnifierView.backgroundColor = [UIColor colorWithWhite:0.1 alpha:1.0];
+        _magnifierView.layer.cornerRadius = kBrowserMagnifierDiameter / 2.0;
+        _magnifierView.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.88].CGColor;
+        _magnifierView.layer.borderWidth = 5.0;
+        _magnifierView.layer.shadowColor = UIColor.blackColor.CGColor;
+        _magnifierView.layer.shadowOpacity = 0.6;
+        _magnifierView.layer.shadowRadius = 20.0;
+        _magnifierView.layer.shadowOffset = CGSizeMake(0.0, 8.0);
+        _magnifierImageView = [[UIImageView alloc] initWithFrame:CGRectInset(_magnifierView.bounds, 5.0, 5.0)];
+        _magnifierImageView.contentMode = UIViewContentModeScaleAspectFill;
+        _magnifierImageView.clipsToBounds = YES;
+        _magnifierImageView.layer.cornerRadius = (kBrowserMagnifierDiameter - 10.0) / 2.0;
+        [_magnifierView addSubview:_magnifierImageView];
+        [rootView addSubview:_magnifierView];
+        [rootView bringSubviewToFront:_cursorView];
+
         _manualScrollPanRecognizer = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handleManualScrollPan:)];
         _manualScrollPanRecognizer.allowedTouchTypes = @[ @(UITouchTypeIndirect) ];
         _manualScrollPanRecognizer.cancelsTouchesInView = NO;
@@ -90,6 +123,73 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     return self;
 }
 
+- (void)setMagnifierEnabled:(BOOL)magnifierEnabled {
+    if (_magnifierEnabled == magnifierEnabled) {
+        return;
+    }
+    _magnifierEnabled = magnifierEnabled;
+    self.magnifierGeneration += 1;
+    [self.magnifierRefreshTimer invalidate];
+    self.magnifierRefreshTimer = nil;
+    self.magnifierImageView.image = nil;
+    self.magnifierView.hidden = YES;
+    if (magnifierEnabled) {
+        [self noteCursorActivity];
+        [self updateMagnifierAtPoint:self.cursorView.frame.origin];
+        __weak typeof(self) weakSelf = self;
+        self.magnifierRefreshTimer = [NSTimer timerWithTimeInterval:0.25 repeats:YES block:^(__unused NSTimer *timer) {
+            __strong typeof(weakSelf) strongSelf = weakSelf;
+            if (strongSelf != nil && !strongSelf.cursorIdleHidden) {
+                [strongSelf updateMagnifierAtPoint:strongSelf.cursorView.frame.origin];
+            }
+        }];
+        [[NSRunLoop mainRunLoop] addTimer:self.magnifierRefreshTimer forMode:NSRunLoopCommonModes];
+    }
+}
+
+- (void)updateMagnifierAtPoint:(CGPoint)point {
+    if (!self.magnifierEnabled || !self.cursorModeEnabled || self.cursorIdleHidden ||
+        [self.host browserRemoteInputControllerPresentedViewController] != nil ||
+        [self.host browserRemoteInputControllerTabOverviewVisible] ||
+        [self.host browserRemoteInputControllerTopBarFocusActive]) {
+        self.magnifierView.hidden = YES;
+        return;
+    }
+    CGFloat viewWidth = CGRectGetWidth(self.rootView.bounds);
+    CGFloat viewHeight = CGRectGetHeight(self.rootView.bounds);
+    CGFloat x = MIN(MAX(16.0, point.x - kBrowserMagnifierDiameter / 2.0),
+                    MAX(16.0, viewWidth - kBrowserMagnifierDiameter - 16.0));
+    CGFloat y = MIN(MAX(16.0, point.y - kBrowserMagnifierDiameter / 2.0),
+                    MAX(16.0, viewHeight - kBrowserMagnifierDiameter - 16.0));
+    self.magnifierView.frame = CGRectMake(x, y,
+                                           kBrowserMagnifierDiameter, kBrowserMagnifierDiameter);
+    [self.rootView bringSubviewToFront:self.magnifierView];
+    [self.rootView bringSubviewToFront:self.cursorView];
+    self.latestMagnifierPoint = point;
+    CFTimeInterval now = CACurrentMediaTime();
+    if (self.magnifierCaptureInFlight || now - self.lastMagnifierCaptureTimestamp < 0.12) {
+        return;
+    }
+    self.magnifierCaptureInFlight = YES;
+    self.lastMagnifierCaptureTimestamp = now;
+    NSUInteger generation = self.magnifierGeneration;
+    __weak typeof(self) weakSelf = self;
+    [self.host browserRemoteInputControllerCaptureMagnifierAtPoint:point completion:^(UIImage *image) {
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (strongSelf == nil) { return; }
+        strongSelf.magnifierCaptureInFlight = NO;
+        if (generation != strongSelf.magnifierGeneration || !strongSelf.magnifierEnabled) { return; }
+        strongSelf.magnifierImageView.image = image;
+        strongSelf.magnifierView.hidden = image == nil || strongSelf.cursorIdleHidden ||
+            [strongSelf.host browserRemoteInputControllerPresentedViewController] != nil ||
+            [strongSelf.host browserRemoteInputControllerTabOverviewVisible] ||
+            [strongSelf.host browserRemoteInputControllerTopBarFocusActive];
+        if (!CGPointEqualToPoint(point, strongSelf.latestMagnifierPoint)) {
+            [strongSelf updateMagnifierAtPoint:strongSelf.latestMagnifierPoint];
+        }
+    }];
+}
+
 - (void)setCursorModeEnabled:(BOOL)cursorModeEnabled {
     BOOL wasCursorModeEnabled = self.cursorModeEnabled;
     _cursorModeEnabled = cursorModeEnabled;
@@ -97,9 +197,49 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     self.lastTouchLocation = CGPointMake(-1, -1);
     [self stopManualScrollInertia];
     [self refreshInteractionState];
+    if (cursorModeEnabled) {
+        [self noteCursorActivity];
+    } else {
+        self.cursorIdleGeneration += 1;
+    }
     if (!wasCursorModeEnabled && cursorModeEnabled) {
         [self.host browserRemoteInputControllerPersistSession];
     }
+}
+
+- (void)noteCursorActivity {
+    if (!self.cursorModeEnabled) {
+        return;
+    }
+    self.cursorIdleHidden = NO;
+    self.cursorView.hidden = [self.host browserRemoteInputControllerTabOverviewVisible] ||
+        [self.host browserRemoteInputControllerTopBarFocusActive];
+    self.magnifierView.hidden = !self.magnifierEnabled || self.magnifierImageView.image == nil ||
+        self.cursorView.hidden || [self.host browserRemoteInputControllerPresentedViewController] != nil;
+    if (self.cursorView.alpha < 1.0) {
+        [UIView animateWithDuration:0.15 animations:^{
+            self.cursorView.alpha = 1.0;
+        }];
+    }
+
+    NSUInteger generation = ++self.cursorIdleGeneration;
+    __weak typeof(self) weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kBrowserCursorIdleDelay * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (strongSelf == nil || generation != strongSelf.cursorIdleGeneration || !strongSelf.cursorModeEnabled) {
+            return;
+        }
+        strongSelf.cursorIdleHidden = YES;
+        strongSelf.magnifierView.hidden = YES;
+        [UIView animateWithDuration:0.25 animations:^{
+            strongSelf.cursorView.alpha = 0.0;
+        } completion:^(__unused BOOL finished) {
+            if (generation == strongSelf.cursorIdleGeneration && strongSelf.cursorIdleHidden) {
+                strongSelf.cursorView.hidden = YES;
+            }
+        }];
+    });
 }
 
 - (void)requestHoverStateAtPoint:(CGPoint)point {
@@ -145,7 +285,12 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     [self.host browserRemoteInputControllerSetWebInteractionEnabled:shouldAllowWebInteraction];
     self.cursorView.hidden = !self.cursorModeEnabled ||
         [self.host browserRemoteInputControllerTabOverviewVisible] ||
-        topBarFocusActive;
+        topBarFocusActive || self.cursorIdleHidden;
+    self.magnifierView.hidden = !self.magnifierEnabled || self.magnifierImageView.image == nil ||
+        self.cursorView.hidden || [self.host browserRemoteInputControllerPresentedViewController] != nil;
+    if (self.cursorModeEnabled && self.cursorIdleGeneration == 0) {
+        [self noteCursorActivity];
+    }
 }
 
 - (BOOL)applyManualScrollDelta:(CGPoint)delta {
@@ -241,6 +386,8 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
         return;
     }
 
+    [self noteCursorActivity];
+
     if ([self.host browserRemoteInputControllerNewTabVisible]) {
         [self.host browserRemoteInputControllerActivateNewTabSelection];
         return;
@@ -269,6 +416,31 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     } else {
         [self.host browserRemoteInputControllerHandleHistoryForwardPress];
     }
+}
+
+- (void)handleDeferredPlayPausePressAction {
+    if (!self.awaitingSecondPlayPausePress) { return; }
+    self.awaitingSecondPlayPausePress = NO;
+    if ([self.host browserRemoteInputControllerPresentedViewController] == nil &&
+        ![self.host browserRemoteInputControllerTopBarFocusActive]) {
+        [self.host browserRemoteInputControllerHandlePlayPausePress];
+    }
+}
+
+- (void)handlePlayPausePressEnded {
+    CFTimeInterval now = CACurrentMediaTime();
+    if (self.awaitingSecondPlayPausePress &&
+        now - self.lastPlayPausePressTimestamp < 0.35) {
+        self.awaitingSecondPlayPausePress = NO;
+        [NSObject cancelPreviousPerformRequestsWithTarget:self
+                                                  selector:@selector(handleDeferredPlayPausePressAction)
+                                                    object:nil];
+        [self.host browserRemoteInputControllerToggleMagnifier];
+        return;
+    }
+    self.awaitingSecondPlayPausePress = YES;
+    self.lastPlayPausePressTimestamp = now;
+    [self performSelector:@selector(handleDeferredPlayPausePressAction) withObject:nil afterDelay:0.35];
 }
 
 - (void)handleHorizontalPressEnded:(UIPressType)pressType {
@@ -363,6 +535,12 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     UIPress *press = presses.anyObject;
     if (press == nil) {
         return NO;
+    }
+    if (self.awaitingSecondPlayPausePress && press.type != UIPressTypePlayPause) {
+        [NSObject cancelPreviousPerformRequestsWithTarget:self
+                                                  selector:@selector(handleDeferredPlayPausePressAction)
+                                                    object:nil];
+        [self handleDeferredPlayPausePressAction];
     }
     if (![self.host browserRemoteInputControllerTabOverviewVisible] || press.type != UIPressTypeUpArrow) {
         self.lastTabOverviewUpPressTimestamp = 0.0;
@@ -466,7 +644,7 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
         return YES;
     }
     if (press.type == UIPressTypePlayPause) {
-        [self.host browserRemoteInputControllerHandlePlayPausePress];
+        [self handlePlayPausePressEnded];
         return YES;
     }
     if (press.type == UIPressTypeRightArrow) {
@@ -512,6 +690,8 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
         return NO;
     }
 
+    [self noteCursorActivity];
+
     for (UITouch *touch in touches) {
         UIScrollView *activeScrollView = [self.host browserRemoteInputControllerActiveScrollView];
         UIView *targetView = activeScrollView ?: self.rootView;
@@ -522,6 +702,9 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
         } else {
             CGFloat xDiff = location.x - self.lastTouchLocation.x;
             CGFloat yDiff = location.y - self.lastTouchLocation.y;
+            CGFloat cursorSensitivity = self.magnifierEnabled ? 0.25 : 1.0;
+            xDiff *= cursorSensitivity;
+            yDiff *= cursorSensitivity;
             CGRect rect = self.cursorView.frame;
 
             if (rect.origin.x + xDiff >= 0 && rect.origin.x + xDiff <= 1920) {
@@ -543,6 +726,7 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
         }
         if (self.cursorModeEnabled) {
             [self requestHoverStateAtPoint:self.cursorView.frame.origin];
+            [self updateMagnifierAtPoint:self.cursorView.frame.origin];
         }
         break;
     }

@@ -12,6 +12,7 @@ static UIColor *MenuTextColor(void) {
 
 static NSString * const kBrowserMediaDiagnosticsLogPrefix = @"[MediaDiagnostics]";
 static NSString * const kBrowserWebKitMediaPrefsLogPrefix = @"[WebKitMediaPrefs]";
+static NSUInteger const kBrowserNavigationToolbarItemCount = 5;
 
 typedef void (^BrowserAdvancedMenuItemHandler)(void);
 typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
@@ -23,6 +24,7 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
 @property (nonatomic, copy) BrowserAdvancedMenuItemHandler handler;
 @property (nonatomic, copy) BrowserAdvancedMenuToggleStateProvider toggleStateProvider;
 @property (nonatomic) BOOL enabled;
+@property (nonatomic) BOOL keepsMenuOpen;
 
 + (instancetype)itemWithTitle:(NSString *)title
                         style:(UIAlertActionStyle)style
@@ -67,6 +69,9 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
 
 @interface BrowserAdvancedMenuViewController : UIViewController <UITableViewDataSource, UITableViewDelegate>
 
+@property (nonatomic, copy) NSString *addressText;
+@property (nonatomic, copy) BrowserAdvancedMenuItemHandler addressHandler;
+
 - (instancetype)initWithToolbarItems:(NSArray<BrowserAdvancedMenuItem *> *)toolbarItems
                            sections:(NSArray<BrowserAdvancedMenuSection *> *)sections
                    footerText:(NSString *)footerText;
@@ -77,6 +82,7 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
 
 @property (nonatomic, copy) NSArray<BrowserAdvancedMenuItem *> *toolbarItems;
 @property (nonatomic, copy) NSArray<UIButton *> *toolbarButtons;
+@property (nonatomic) UIButton *addressButton;
 @property (nonatomic, copy) NSArray<BrowserAdvancedMenuSection *> *sections;
 @property (nonatomic, copy) NSString *footerText;
 @property (nonatomic) UIView *dimView;
@@ -149,20 +155,57 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
         [panelView.contentView addSubview:panelTint];
     }
 
-    UIStackView *toolbar = [UIStackView new];
-    toolbar.translatesAutoresizingMaskIntoConstraints = NO;
-    toolbar.axis = UILayoutConstraintAxisHorizontal;
-    toolbar.alignment = UIStackViewAlignmentFill;
-    toolbar.distribution = UIStackViewDistributionFillEqually;
-    toolbar.spacing = 8.0;
+    UIButton *addressButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    addressButton.translatesAutoresizingMaskIntoConstraints = NO;
+    addressButton.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.12];
+    addressButton.layer.cornerRadius = 16.0;
+    addressButton.accessibilityLabel = @"Edit Address";
+    addressButton.accessibilityValue = self.addressText;
+    [addressButton addTarget:self action:@selector(addressButtonPressed:) forControlEvents:UIControlEventPrimaryActionTriggered];
+    [panelView.contentView addSubview:addressButton];
+    self.addressButton = addressButton;
+
+    UIImageSymbolConfiguration *addressSymbolConfiguration = [UIImageSymbolConfiguration configurationWithPointSize:28.0
+                                                                                                              weight:UIImageSymbolWeightMedium];
+    UIImageView *addressIcon = [[UIImageView alloc] initWithImage:[[UIImage systemImageNamed:@"globe" withConfiguration:addressSymbolConfiguration]
+                                                                   imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
+    addressIcon.translatesAutoresizingMaskIntoConstraints = NO;
+    addressIcon.tag = 9797;
+    addressIcon.tintColor = UIColor.whiteColor;
+    addressIcon.userInteractionEnabled = NO;
+    [addressButton addSubview:addressIcon];
+
+    UILabel *addressLabel = [UILabel new];
+    addressLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    addressLabel.tag = 9898;
+    addressLabel.text = self.addressText.length > 0 ? self.addressText : @"Search or enter address";
+    addressLabel.font = [UIFont systemFontOfSize:25.0 weight:UIFontWeightMedium];
+    addressLabel.textColor = UIColor.whiteColor;
+    addressLabel.lineBreakMode = NSLineBreakByTruncatingMiddle;
+    addressLabel.userInteractionEnabled = NO;
+    [addressButton addSubview:addressLabel];
+
+    UIStackView *navigationToolbar = [UIStackView new];
+    UIStackView *quickToolbar = [UIStackView new];
+    for (UIStackView *row in @[navigationToolbar, quickToolbar]) {
+        row.translatesAutoresizingMaskIntoConstraints = NO;
+        row.axis = UILayoutConstraintAxisHorizontal;
+        row.alignment = UIStackViewAlignmentFill;
+        row.distribution = UIStackViewDistributionFillEqually;
+        row.spacing = 8.0;
+        [panelView.contentView addSubview:row];
+    }
     NSArray<NSString *> *toolbarSymbols = @[@"house.fill", @"chevron.left", @"arrow.clockwise", @"chevron.right",
+                                            @"square.on.square", @"star", @"clock.arrow.circlepath",
                                             @"minus.magnifyingglass", @"", @"plus.magnifyingglass"];
     NSMutableArray<UIButton *> *toolbarButtons = [NSMutableArray arrayWithCapacity:self.toolbarItems.count];
     [self.toolbarItems enumerateObjectsUsingBlock:^(BrowserAdvancedMenuItem *item, NSUInteger index, __unused BOOL *stop) {
         UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
         button.tag = 10000 + (NSInteger)index;
         button.enabled = item.enabled;
-        button.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.12];
+        button.backgroundColor = item.toggleStateProvider != nil && item.toggleStateProvider()
+            ? [UIColor colorWithRed:0.20 green:0.54 blue:0.90 alpha:0.72]
+            : [UIColor colorWithWhite:1.0 alpha:0.12];
         button.layer.cornerRadius = 12.0;
         NSString *symbolName = index < toolbarSymbols.count ? toolbarSymbols[index] : @"";
         if (symbolName.length > 0) {
@@ -201,12 +244,13 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
             ]];
         }
         button.accessibilityLabel = item.title;
+        button.accessibilityValue = item.toggleStateProvider != nil ? (item.toggleStateProvider() ? @"On" : @"Off") : nil;
         [button addTarget:self action:@selector(toolbarButtonPressed:) forControlEvents:UIControlEventPrimaryActionTriggered];
-        [toolbar addArrangedSubview:button];
+        UIStackView *row = index < kBrowserNavigationToolbarItemCount ? navigationToolbar : quickToolbar;
+        [row addArrangedSubview:button];
         [toolbarButtons addObject:button];
     }];
     self.toolbarButtons = toolbarButtons;
-    [panelView.contentView addSubview:toolbar];
 
     UIView *separator = [UIView new];
     separator.translatesAutoresizingMaskIntoConstraints = NO;
@@ -268,14 +312,31 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
         [panelView.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-16.0],
         self.panelTrailingConstraint,
 
-        [toolbar.leadingAnchor constraintEqualToAnchor:panelView.leadingAnchor constant:24.0],
-        [toolbar.trailingAnchor constraintEqualToAnchor:panelView.trailingAnchor constant:-24.0],
-        [toolbar.topAnchor constraintEqualToAnchor:panelView.topAnchor constant:24.0],
-        [toolbar.heightAnchor constraintEqualToConstant:64.0],
+        [addressButton.leadingAnchor constraintEqualToAnchor:panelView.leadingAnchor constant:24.0],
+        [addressButton.trailingAnchor constraintEqualToAnchor:panelView.trailingAnchor constant:-24.0],
+        [addressButton.topAnchor constraintEqualToAnchor:panelView.topAnchor constant:24.0],
+        [addressButton.heightAnchor constraintEqualToConstant:64.0],
+        [addressIcon.leadingAnchor constraintEqualToAnchor:addressButton.leadingAnchor constant:18.0],
+        [addressIcon.centerYAnchor constraintEqualToAnchor:addressButton.centerYAnchor],
+        [addressIcon.widthAnchor constraintEqualToConstant:32.0],
+        [addressIcon.heightAnchor constraintEqualToConstant:32.0],
+        [addressLabel.leadingAnchor constraintEqualToAnchor:addressIcon.trailingAnchor constant:14.0],
+        [addressLabel.trailingAnchor constraintEqualToAnchor:addressButton.trailingAnchor constant:-18.0],
+        [addressLabel.centerYAnchor constraintEqualToAnchor:addressButton.centerYAnchor],
+
+        [navigationToolbar.leadingAnchor constraintEqualToAnchor:panelView.leadingAnchor constant:24.0],
+        [navigationToolbar.trailingAnchor constraintEqualToAnchor:panelView.trailingAnchor constant:-24.0],
+        [navigationToolbar.topAnchor constraintEqualToAnchor:addressButton.bottomAnchor constant:12.0],
+        [navigationToolbar.heightAnchor constraintEqualToConstant:64.0],
+
+        [quickToolbar.leadingAnchor constraintEqualToAnchor:panelView.leadingAnchor constant:24.0],
+        [quickToolbar.trailingAnchor constraintEqualToAnchor:panelView.trailingAnchor constant:-24.0],
+        [quickToolbar.topAnchor constraintEqualToAnchor:navigationToolbar.bottomAnchor constant:12.0],
+        [quickToolbar.heightAnchor constraintEqualToConstant:64.0],
 
         [separator.leadingAnchor constraintEqualToAnchor:panelView.leadingAnchor constant:20.0],
         [separator.trailingAnchor constraintEqualToAnchor:panelView.trailingAnchor constant:-20.0],
-        [separator.topAnchor constraintEqualToAnchor:toolbar.bottomAnchor constant:16.0],
+        [separator.topAnchor constraintEqualToAnchor:quickToolbar.bottomAnchor constant:16.0],
         [separator.heightAnchor constraintEqualToConstant:1.0],
 
         [tableView.topAnchor constraintEqualToAnchor:separator.bottomAnchor constant:12.0],
@@ -525,14 +586,29 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     if (!item.enabled || item.handler == nil) {
         return;
     }
-    if (index < 4) {
-        [self dismissMenuWithCompletion:item.handler];
-    } else {
+    if (item.keepsMenuOpen) {
         item.handler();
+        if (item.toggleStateProvider != nil) {
+            BOOL isOn = item.toggleStateProvider();
+            button.backgroundColor = isOn ? [UIColor colorWithRed:0.20 green:0.54 blue:0.90 alpha:0.72]
+                                          : [UIColor colorWithWhite:1.0 alpha:0.12];
+            button.accessibilityValue = isOn ? @"On" : @"Off";
+        }
+    } else {
+        [self dismissMenuWithCompletion:item.handler];
+    }
+}
+
+- (void)addressButtonPressed:(__unused UIButton *)button {
+    if (self.addressHandler != nil) {
+        [self dismissMenuWithCompletion:self.addressHandler];
     }
 }
 
 - (NSArray<id<UIFocusEnvironment>> *)preferredFocusEnvironments {
+    if (self.addressButton.enabled) {
+        return @[self.addressButton];
+    }
     for (UIButton *button in self.toolbarButtons) {
         if (button.enabled) {
             return @[button];
@@ -546,6 +622,14 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     [super didUpdateFocusInContext:context withAnimationCoordinator:coordinator];
     UIView *previousView = context.previouslyFocusedView;
     UIView *nextView = context.nextFocusedView;
+    if (previousView == self.addressButton) {
+        ((UILabel *)[self.addressButton viewWithTag:9898]).textColor = UIColor.whiteColor;
+        [self setToolbarIconColor:UIColor.whiteColor forButton:self.addressButton];
+    }
+    if (nextView == self.addressButton) {
+        ((UILabel *)[self.addressButton viewWithTag:9898]).textColor = UIColor.blackColor;
+        [self setToolbarIconColor:UIColor.blackColor forButton:self.addressButton];
+    }
     if ([self.toolbarButtons containsObject:(UIButton *)previousView]) {
         previousView.layer.zPosition = 0.0;
     }
@@ -607,6 +691,12 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     BrowserAdvancedMenuViewController *menuViewController = [[BrowserAdvancedMenuViewController alloc] initWithToolbarItems:[self advancedMenuToolbarItems]
                                                                                                                      sections:[self advancedMenuSections]
                                                                                                                    footerText:[self advancedMenuFooterText]];
+    NSString *address = self.host.browserWebView.request.URL.absoluteString;
+    menuViewController.addressText = [address isEqualToString:@"about:blank"] ? @"" : address;
+    __weak typeof(self) weakSelf = self;
+    menuViewController.addressHandler = ^{
+        [weakSelf.host browserEditCurrentAddress];
+    };
     [self.host browserPresentViewController:menuViewController];
 }
 
@@ -822,11 +912,8 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
         [self.host browserCaptureSnapshotForCurrentTab];
     }
     
-    __weak typeof(self) weakSelf = self;
-    [BrowserWebView resetWebsiteDataWithCompletion:^{
-        [weakSelf.host browserRecreateActiveWebViewPreservingCurrentURL];
-        [weakSelf.host browserBringCursorToFront];
-    }];
+    [self.host browserRecreateActiveWebViewPreservingCurrentURL];
+    [self.host browserBringCursorToFront];
 }
 
 - (void)setPageScalingEnabled:(BOOL)enabled {
@@ -1070,30 +1157,6 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     [self.host browserPresentViewController:alertController];
 }
 
-- (BrowserAdvancedMenuItem *)topNavigationVisibilityMenuItem {
-    BrowserAdvancedMenuItem *item = [self advancedMenuItemWithTitle:@"Browser Fullscreen"
-                                                               style:UIAlertActionStyleDefault
-                                                             handler:^{
-        if (self.host.browserTopMenuShowing) {
-            [self.host browserHideTopNav];
-        } else {
-            [self.host browserShowTopNav];
-        }
-    }];
-    item.toggleStateProvider = ^BOOL {
-        return !self.host.browserTopMenuShowing;
-    };
-    return item;
-}
-
-- (BrowserAdvancedMenuItem *)addCurrentPageToFavoritesMenuItem {
-    return [self advancedMenuItemWithTitle:@"Add to Favorites"
-                                     style:UIAlertActionStyleDefault
-                                   handler:^{
-        [self presentAddFavoritePrompt];
-    }];
-}
-
 - (BrowserAdvancedMenuItem *)usageGuideMenuItem {
     return [self advancedMenuItemWithTitle:@"Usage Guide"
                                      style:UIAlertActionStyleDefault
@@ -1121,22 +1184,6 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     }];
 }
 
-- (BrowserAdvancedMenuItem *)showTabsMenuItem {
-    return [self advancedMenuItemWithTitle:@"Show Tabs"
-                                     style:UIAlertActionStyleDefault
-                                   handler:^{
-        [self.host browserShowTabOverview];
-    }];
-}
-
-- (BrowserAdvancedMenuItem *)newTabMenuItem {
-    return [self advancedMenuItemWithTitle:@"Open New Tab"
-                                     style:UIAlertActionStyleDefault
-                                   handler:^{
-        [self.host browserCreateNewTabLoadingHomePage:YES];
-    }];
-}
-
 - (BrowserAdvancedMenuItem *)favoritesMenuItem {
     return [self advancedMenuItemWithTitle:@"Favorites"
                                      style:UIAlertActionStyleDefault
@@ -1145,43 +1192,42 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     }];
 }
 
-- (BrowserAdvancedMenuItem *)historyMenuItem {
-    return [self advancedMenuItemWithTitle:@"History"
-                                     style:UIAlertActionStyleDefault
-                                   handler:^{
-        [self presentHistoryMenu];
-    }];
-}
-
-- (BrowserAdvancedMenuItem *)reloadPageMenuItem {
-    return [self advancedMenuItemWithTitle:@"Reload Page"
-                                     style:UIAlertActionStyleDefault
-                                   handler:^{
-        [self.host.browserWebView reload];
-    }];
-}
-
 - (BrowserAdvancedMenuItem *)userAgentModeMenuItem {
-    BOOL mobileModeEnabled = self.preferencesStore.mobileModeEnabled;
-    NSString *title = mobileModeEnabled ? @"Switch To Desktop User Agent" : @"Switch To Mobile User Agent";
-    NSString *userAgent = mobileModeEnabled ? BrowserPreferencesStore.desktopUserAgent : BrowserPreferencesStore.mobileUserAgent;
-    BOOL mobileMode = !mobileModeEnabled;
-    
-    return [self advancedMenuItemWithTitle:title
-                                     style:UIAlertActionStyleDefault
-                                   handler:^{
+    BrowserAdvancedMenuItem *item = [self advancedMenuItemWithTitle:@"Mobile User Agent"
+                                                               style:UIAlertActionStyleDefault
+                                                             handler:^{
+        BOOL mobileMode = !self.preferencesStore.mobileModeEnabled;
+        NSString *userAgent = mobileMode ? BrowserPreferencesStore.mobileUserAgent : BrowserPreferencesStore.desktopUserAgent;
         [self applyUserAgent:userAgent mobileMode:mobileMode];
     }];
+    item.toggleStateProvider = ^BOOL {
+        return self.preferencesStore.mobileModeEnabled;
+    };
+    return item;
 }
 
 - (BrowserAdvancedMenuItem *)pageScalingMenuItem {
-    BOOL scalesPageToFit = [[self.host browserWebView] scalesPageToFit];
-    NSString *title = scalesPageToFit ? @"Stop Scaling Pages to Fit" : @"Scale Pages to Fit";
-    return [self advancedMenuItemWithTitle:title
-                                     style:UIAlertActionStyleDefault
-                                   handler:^{
-        [self setPageScalingEnabled:!scalesPageToFit];
+    BrowserAdvancedMenuItem *item = [self advancedMenuItemWithTitle:@"Scale Pages to Fit"
+                                                               style:UIAlertActionStyleDefault
+                                                             handler:^{
+        [self setPageScalingEnabled:!self.preferencesStore.scalePagesToFit];
     }];
+    item.toggleStateProvider = ^BOOL {
+        return self.preferencesStore.scalePagesToFit;
+    };
+    return item;
+}
+
+- (BrowserAdvancedMenuItem *)cursorMagnifierToggleMenuItem {
+    BrowserAdvancedMenuItem *item = [self advancedMenuItemWithTitle:@"Cursor Magnifier"
+                                                               style:UIAlertActionStyleDefault
+                                                             handler:^{
+        self.host.browserCursorMagnifierEnabled = !self.host.browserCursorMagnifierEnabled;
+    }];
+    item.toggleStateProvider = ^BOOL {
+        return self.host.browserCursorMagnifierEnabled;
+    };
+    return item;
 }
 
 - (UIAlertAction *)playVideoUnderCursorAction {
@@ -1195,13 +1241,15 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
 }
 
 - (BrowserAdvancedMenuItem *)fullscreenVideoPlaybackToggleMenuItem {
-    BOOL enabled = self.host.browserFullscreenVideoPlaybackEnabled;
-    NSString *title = enabled ? @"Disable Full Screen player" : @"Enable Full Screen player";
-    return [self advancedMenuItemWithTitle:title
-                                     style:UIAlertActionStyleDefault
-                                   handler:^{
-        self.host.browserFullscreenVideoPlaybackEnabled = !enabled;
+    BrowserAdvancedMenuItem *item = [self advancedMenuItemWithTitle:@"Full Screen Player"
+                                                               style:UIAlertActionStyleDefault
+                                                             handler:^{
+        self.host.browserFullscreenVideoPlaybackEnabled = !self.host.browserFullscreenVideoPlaybackEnabled;
     }];
+    item.toggleStateProvider = ^BOOL {
+        return self.host.browserFullscreenVideoPlaybackEnabled;
+    };
+    return item;
 }
 
 - (BrowserAdvancedMenuItem *)adBlockToggleMenuItem {
@@ -1250,6 +1298,21 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
         }
     }];
     forwardItem.enabled = self.host.browserWebView.canGoForward;
+    BrowserAdvancedMenuItem *tabsItem = [self advancedMenuItemWithTitle:@"Tabs"
+                                                                 style:UIAlertActionStyleDefault
+                                                               handler:^{
+        [self.host browserShowTabOverview];
+    }];
+    BrowserAdvancedMenuItem *addFavoriteItem = [self advancedMenuItemWithTitle:@"Add to Favorites"
+                                                                         style:UIAlertActionStyleDefault
+                                                                       handler:^{
+        [self presentAddFavoritePrompt];
+    }];
+    BrowserAdvancedMenuItem *historyItem = [self advancedMenuItemWithTitle:@"History"
+                                                                     style:UIAlertActionStyleDefault
+                                                                   handler:^{
+        [self presentHistoryMenu];
+    }];
     BrowserAdvancedMenuItem *zoomOutItem = [self advancedMenuItemWithTitle:@"Zoom Out"
                                                                     style:UIAlertActionStyleDefault
                                                                   handler:^{
@@ -1265,7 +1328,11 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
                                                                  handler:^{
         [self setPageZoomPercent:self.preferencesStore.pageZoomPercent + 10];
     }];
-    return @[homeItem, backItem, reloadItem, forwardItem, zoomOutItem, zoomResetItem, zoomInItem];
+    zoomOutItem.keepsMenuOpen = YES;
+    zoomResetItem.keepsMenuOpen = YES;
+    zoomInItem.keepsMenuOpen = YES;
+    return @[homeItem, backItem, reloadItem, forwardItem, tabsItem,
+             addFavoriteItem, historyItem, zoomOutItem, zoomResetItem, zoomInItem];
 }
 
 - (NSArray<BrowserAdvancedMenuSection *> *)advancedMenuSections {
@@ -1294,16 +1361,11 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
         [BrowserAdvancedMenuSection sectionWithTitle:@"Navigation"
                                                items:@[
             [self adBlockToggleMenuItem],
-            [self reloadPageMenuItem],
-            [self addCurrentPageToFavoritesMenuItem],
             [self favoritesMenuItem],
-            [self historyMenuItem],
-            [self showTabsMenuItem],
-            [self newTabMenuItem],
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Appearance"
                                                items:@[
-            [self topNavigationVisibilityMenuItem],
+            [self cursorMagnifierToggleMenuItem],
             [self pageScalingMenuItem],
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Video Playback"

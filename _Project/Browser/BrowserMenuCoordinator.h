@@ -9,15 +9,13 @@
 @property (nonatomic, copy) NSString *browserPreviousURL;
 @property (nonatomic) NSUInteger browserTextFontSize;
 @property (nonatomic) BOOL browserFullscreenVideoPlaybackEnabled;
-@property (nonatomic, readonly) BOOL browserTopMenuShowing;
+@property (nonatomic) BOOL browserCursorMagnifierEnabled;
 
 - (void)browserPresentViewController:(UIViewController *)viewController;
 - (void)browserLoadHomePage;
+- (void)browserEditCurrentAddress;
 - (void)browserShowHints;
 - (void)browserShowTabOverview;
-- (void)browserCreateNewTabLoadingHomePage:(BOOL)loadHomePage;
-- (void)browserHideTopNav;
-- (void)browserShowTopNav;
 - (void)browserUpdateTextFontSize;
 - (void)browserCaptureSnapshotForCurrentTab;
 - (void)browserRecreateActiveWebViewPreservingCurrentURL;

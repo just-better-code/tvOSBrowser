@@ -470,6 +470,8 @@ static NSString *BrowserFrameClickBridgeScript(NSString *secret) {
                 "var fullscreenTargetStyle = '';"
                 "var fullscreenFrame = null;"
                 "var fullscreenFrameStyle = '';"
+                "var theaterBackdrop = null;"
+                "var raisedAncestors = [];"
                 "var lastActiveFrame = null;"
                 "function notifyFullscreenChange() {"
                     "try { document.dispatchEvent(new Event('fullscreenchange')); } catch (error) {}"
@@ -480,10 +482,35 @@ static NSString *BrowserFrameClickBridgeScript(NSString *secret) {
                         "window.parent.postMessage({browserTVFrameFullscreen: secret, action: action}, '*');"
                     "}"
                 "}"
+                "function beginTheater(element) {"
+                    "var body = document.body;"
+                    "if (!body) { return; }"
+                    "theaterBackdrop = document.createElement('div');"
+                    "theaterBackdrop.style.cssText = 'position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;background:rgba(0,0,0,.88)!important;z-index:2147483645!important;opacity:0;transition:opacity .22s ease!important';"
+                    "theaterBackdrop.addEventListener('click', function() { if (window.__browserTVExitFullscreen) { window.__browserTVExitFullscreen(); } });"
+                    "body.appendChild(theaterBackdrop);"
+                    "requestAnimationFrame(function() { if (theaterBackdrop) { theaterBackdrop.style.opacity = '1'; } });"
+                    "var ancestor = element.parentElement || (element.getRootNode && element.getRootNode().host);"
+                    "while (ancestor && ancestor !== body) {"
+                        "raisedAncestors.push({element:ancestor, style:ancestor.style.cssText});"
+                        "if (getComputedStyle(ancestor).position === 'static') { ancestor.style.setProperty('position', 'relative', 'important'); }"
+                        "ancestor.style.setProperty('z-index', '2147483646', 'important');"
+                        "ancestor.style.setProperty('overflow', 'visible', 'important');"
+                        "ancestor = ancestor.parentElement || (ancestor.getRootNode && ancestor.getRootNode().host);"
+                    "}"
+                "}"
+                "function endTheater() {"
+                    "for (var i = raisedAncestors.length - 1; i >= 0; i--) {"
+                        "raisedAncestors[i].element.style.cssText = raisedAncestors[i].style;"
+                    "}"
+                    "raisedAncestors = [];"
+                    "if (theaterBackdrop) { theaterBackdrop.remove(); theaterBackdrop = null; }"
+                "}"
                 "function enterFullscreen(element) {"
                     "if (!element || fullscreenTarget) { return; }"
                     "fullscreenTarget = element;"
                     "fullscreenTargetStyle = element.style.cssText;"
+                    "beginTheater(element);"
                     "element.style.cssText += ';position:fixed!important;left:0!important;top:0!important;width:100vw!important;height:100vh!important;max-width:none!important;max-height:none!important;z-index:2147483647!important;background:#000!important';"
                     "sendFullscreenToParent('enter');"
                     "notifyFullscreenChange();"
@@ -491,6 +518,7 @@ static NSString *BrowserFrameClickBridgeScript(NSString *secret) {
                 "function exitFullscreen() {"
                     "if (!fullscreenTarget) { return false; }"
                     "fullscreenTarget.style.cssText = fullscreenTargetStyle;"
+                    "endTheater();"
                     "fullscreenTarget = null;"
                     "fullscreenTargetStyle = '';"
                     "sendFullscreenToParent('exit');"
@@ -648,9 +676,11 @@ static NSString *BrowserFrameClickBridgeScript(NSString *secret) {
                         "if (data.action === 'enter') {"
                             "fullscreenFrame = frame;"
                             "fullscreenFrameStyle = frame.style.cssText;"
+                            "beginTheater(frame);"
                             "frame.style.cssText += ';position:fixed!important;left:0!important;top:0!important;width:100vw!important;height:100vh!important;max-width:none!important;max-height:none!important;z-index:2147483647!important;background:#000!important';"
                         "} else if (data.action === 'exit' && fullscreenFrame === frame) {"
                             "frame.style.cssText = fullscreenFrameStyle;"
+                            "endTheater();"
                             "fullscreenFrame = null;"
                             "fullscreenFrameStyle = '';"
                         "}"
@@ -1325,6 +1355,33 @@ static void BrowserLoadAdBlockRuleList(BrowserAdBlockRuleListCompletion completi
             completion(error == nil ? snapshot : nil);
         }
     });
+}
+
+- (void)captureSnapshotInRect:(CGRect)rect
+                       width:(CGFloat)width
+                  completion:(void (^)(UIImage *snapshot))completion {
+    SEL snapshotSelector = NSSelectorFromString(@"takeSnapshotWithConfiguration:completionHandler:");
+    Class configurationClass = NSClassFromString(@"WKSnapshotConfiguration");
+    if (self.runtimeWebView == nil || configurationClass == Nil ||
+        ![self.runtimeWebView respondsToSelector:snapshotSelector]) {
+        if (completion != nil) { completion(nil); }
+        return;
+    }
+    id configuration = ((id (*)(id, SEL))objc_msgSend)((id)configurationClass, @selector(new));
+    SEL rectSelector = NSSelectorFromString(@"setRect:");
+    SEL widthSelector = NSSelectorFromString(@"setSnapshotWidth:");
+    if (![configuration respondsToSelector:rectSelector] || ![configuration respondsToSelector:widthSelector]) {
+        if (completion != nil) { completion(nil); }
+        return;
+    }
+    ((void (*)(id, SEL, CGRect))objc_msgSend)(configuration, rectSelector, rect);
+    ((void (*)(id, SEL, id))objc_msgSend)(configuration, widthSelector, @(width));
+    ((id (*)(id, SEL, id, id))objc_msgSend)(self.runtimeWebView, snapshotSelector, configuration,
+        ^(UIImage *snapshot, NSError *error) {
+            if (completion != nil) {
+                completion(error == nil ? snapshot : nil);
+            }
+        });
 }
 
 - (void)webView:(id)webView didStartProvisionalNavigation:(id)navigation {
