@@ -189,8 +189,7 @@ static UIColor *BrowserPageActionTextColor(void) {
                                                                                                 "return type;"];
     [self.domInteractionService evaluateResolvedElementJavaScriptAtPoint:point
                                                                  webView:webView
-                                                                    body:@"var frame = document.elementFromPoint(x, y);"
-                                                                         "if (frame && frame.tagName === 'IFRAME' && typeof window.__browserTVFrameClick === 'function') {"
+                                                                    body:@"if (typeof window.__browserTVFrameAtPoint === 'function' && window.__browserTVFrameAtPoint(x, y) && typeof window.__browserTVFrameClick === 'function') {"
                                                                              "return window.__browserTVFrameClick(x, y) ? 'true' : 'false';"
                                                                          "}"
                                                                          "var target = editableElement || interactiveElement || resolvedElement;"
