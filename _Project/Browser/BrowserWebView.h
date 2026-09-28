@@ -43,6 +43,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setUserAgent:(NSString * _Nullable)userAgent;
 - (void)pauseAllMediaPlayback;
 - (void)captureSnapshotWithCompletion:(void (^)(UIImage * _Nullable snapshot))completion;
+- (void)captureSnapshotInRect:(CGRect)rect
+                       width:(CGFloat)width
+                  completion:(void (^)(UIImage * _Nullable snapshot))completion;
 - (void)setAdBlockEnabled:(BOOL)enabled;
 
 + (nullable NSData *)cookieDataRepresentation;

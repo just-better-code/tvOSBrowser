@@ -8,6 +8,7 @@ static NSString * const kPageZoomPercentDefaultsKey = @"PageZoomPercent";
 static NSString * const kEnableFullscreenVideoPlaybackDefaultsKey = @"EnableFullscreenVideoPlayback";
 static NSString * const kAdBlockEnabledDefaultsKey = @"AdBlockEnabled";
 static NSString * const kScalePagesToFitDefaultsKey = @"ScalePagesToFit";
+static NSString * const kCursorMagnifierEnabledDefaultsKey = @"CursorMagnifierEnabled";
 static NSString * const kDontShowHintsOnLaunchDefaultsKey = @"DontShowHintsOnLaunch";
 static NSString * const kHomepageDefaultsKey = @"homepage";
 
@@ -119,6 +120,14 @@ static NSUInteger const kMaximumTextFontSize = 200;
 - (void)setScalePagesToFit:(BOOL)scalePagesToFit {
     [[self defaults] setBool:scalePagesToFit forKey:kScalePagesToFitDefaultsKey];
     [[self defaults] synchronize];
+}
+
+- (BOOL)cursorMagnifierEnabled {
+    return [[self defaults] boolForKey:kCursorMagnifierEnabledDefaultsKey];
+}
+
+- (void)setCursorMagnifierEnabled:(BOOL)cursorMagnifierEnabled {
+    [[self defaults] setBool:cursorMagnifierEnabled forKey:kCursorMagnifierEnabledDefaultsKey];
 }
 
 - (BOOL)dontShowHintsOnLaunch {

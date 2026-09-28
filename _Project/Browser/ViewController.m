@@ -62,7 +62,8 @@ static UIColor *kTextColor(void) {
     [self.preferencesStore ensureUserAgentConsistency];
 
     self.viewModel = [BrowserViewModel new];
-    self.viewModel.topNavigationBarVisible = self.preferencesStore.topNavigationBarVisible;
+    self.preferencesStore.topNavigationBarVisible = NO;
+    self.viewModel.topNavigationBarVisible = NO;
     NSUInteger matchingFontSize = self.preferencesStore.pageZoomPercent;
     self.preferencesStore.textFontSize = matchingFontSize;
     self.viewModel.textFontSize = matchingFontSize;
@@ -120,6 +121,7 @@ static UIColor *kTextColor(void) {
                                                object:nil];
 
     [self.tabCoordinator restoreInitialStateOrCreateFirstTab];
+    self.remoteInputController.magnifierEnabled = self.preferencesStore.cursorMagnifierEnabled;
 }
 
 - (void)viewDidAppear:(BOOL)animated {
@@ -243,20 +245,6 @@ static UIColor *kTextColor(void) {
             [self showInputURLorSearchGoogle];
             break;
         case BrowserTopBarActionFullscreen:
-            if (self.viewModel.topNavigationBarVisible) {
-                UIAlertController *alertController = [UIAlertController alertControllerWithTitle:@"Hide Top Navigation bar?"
-                                                                                         message:@"You can still open the Advanced Menu by double pressing Right on the remote."
-                                                                                  preferredStyle:UIAlertControllerStyleAlert];
-                [alertController addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
-                [alertController addAction:[UIAlertAction actionWithTitle:@"Hide Bar"
-                                                                    style:UIAlertActionStyleDestructive
-                                                                  handler:^(__unused UIAlertAction *action) {
-                    [self browserHideTopNav];
-                }]];
-                [self browserPresentViewController:alertController];
-            } else {
-                [self browserShowTopNav];
-            }
             break;
         case BrowserTopBarActionMenu:
             [self showAdvancedMenu];
@@ -268,7 +256,7 @@ static UIColor *kTextColor(void) {
     self.webview.textZoomFactor = self.viewModel.textFontSize / 100.0;
 }
 
-- (void)showInputURLorSearchGoogle {
+- (void)showInputURLorSearchGoogleWithInitialText:(NSString *)initialText {
     UIAlertController *alertController = [UIAlertController alertControllerWithTitle:@"Enter URL or Search Terms"
                                                                              message:@""
                                                                       preferredStyle:UIAlertControllerStyleAlert];
@@ -276,6 +264,7 @@ static UIColor *kTextColor(void) {
     [alertController addTextFieldWithConfigurationHandler:^(UITextField *textField) {
         textField.keyboardType = UIKeyboardTypeURL;
         textField.placeholder = @"Enter URL or Search Terms";
+        textField.text = initialText;
         textField.textColor = kTextColor();
         [textField setReturnKeyType:UIReturnKeyDone];
     }];
@@ -314,6 +303,10 @@ static UIColor *kTextColor(void) {
     if (self.webview.request == nil || self.webview.request.URL.absoluteString.length > 0) {
         [textField becomeFirstResponder];
     }
+}
+
+- (void)showInputURLorSearchGoogle {
+    [self showInputURLorSearchGoogleWithInitialText:nil];
 }
 
 - (void)requestURLorSearchInput {
@@ -427,10 +420,6 @@ static UIColor *kTextColor(void) {
     self.preferencesStore.textFontSize = self.viewModel.textFontSize;
 }
 
-- (BOOL)browserTopMenuShowing {
-    return self.viewModel.topNavigationBarVisible;
-}
-
 - (BOOL)browserFullscreenVideoPlaybackEnabled {
     return self.viewModel.fullscreenVideoPlaybackEnabled;
 }
@@ -438,6 +427,19 @@ static UIColor *kTextColor(void) {
 - (void)setBrowserFullscreenVideoPlaybackEnabled:(BOOL)browserFullscreenVideoPlaybackEnabled {
     self.viewModel.fullscreenVideoPlaybackEnabled = browserFullscreenVideoPlaybackEnabled;
     self.preferencesStore.fullscreenVideoPlaybackEnabled = browserFullscreenVideoPlaybackEnabled;
+}
+
+- (BOOL)browserCursorMagnifierEnabled {
+    return self.preferencesStore.cursorMagnifierEnabled;
+}
+
+- (void)setBrowserCursorMagnifierEnabled:(BOOL)browserCursorMagnifierEnabled {
+    self.preferencesStore.cursorMagnifierEnabled = browserCursorMagnifierEnabled;
+    self.remoteInputController.magnifierEnabled = browserCursorMagnifierEnabled;
+}
+
+- (void)browserRemoteInputControllerToggleMagnifier {
+    self.browserCursorMagnifierEnabled = !self.browserCursorMagnifierEnabled;
 }
 
 - (void)browserPresentViewController:(UIViewController *)viewController {
@@ -449,6 +451,11 @@ static UIColor *kTextColor(void) {
     [self loadHomePage];
 }
 
+- (void)browserEditCurrentAddress {
+    NSString *address = self.webview.request.URL.absoluteString;
+    [self showInputURLorSearchGoogleWithInitialText:[address isEqualToString:@"about:blank"] ? nil : address];
+}
+
 - (void)browserShowHints {
     [self showHintsAlert];
 }
@@ -457,23 +464,6 @@ static UIColor *kTextColor(void) {
     [self deactivateTopBarFocusMode];
     [self.tabCoordinator prepareTabOverviewThumbnails];
     [self.tabOverviewController show];
-}
-
-- (void)browserCreateNewTabLoadingHomePage:(BOOL)loadHomePage {
-    [self.tabCoordinator createNewTabLoadingHomePage:loadHomePage];
-}
-
-- (void)browserHideTopNav {
-    [self deactivateTopBarFocusMode];
-    self.viewModel.topNavigationBarVisible = NO;
-    self.preferencesStore.topNavigationBarVisible = NO;
-    [self.tabCoordinator setTopNavigationVisible:NO];
-}
-
-- (void)browserShowTopNav {
-    self.viewModel.topNavigationBarVisible = YES;
-    self.preferencesStore.topNavigationBarVisible = YES;
-    [self.tabCoordinator setTopNavigationVisible:YES];
 }
 
 - (void)browserUpdateTextFontSize {
@@ -711,6 +701,25 @@ static UIColor *kTextColor(void) {
                                                           inView:self.view
                                                          webView:webView
                                                       completion:completion];
+}
+
+- (void)browserRemoteInputControllerCaptureMagnifierAtPoint:(CGPoint)point
+                                                  completion:(void (^)(UIImage *))completion {
+    BrowserWebView *webView = self.webview;
+    if (webView == nil || webView.request == nil || CGRectIsEmpty(webView.bounds)) {
+        completion(nil);
+        return;
+    }
+    CGPoint webPoint = [self.view convertPoint:point toView:webView];
+    if (!CGRectContainsPoint(webView.bounds, webPoint)) {
+        completion(nil);
+        return;
+    }
+    CGFloat cropSize = MIN(192.0, MIN(CGRectGetWidth(webView.bounds), CGRectGetHeight(webView.bounds)));
+    CGRect crop = CGRectMake(MIN(MAX(webPoint.x - cropSize / 2.0, 0.0), CGRectGetWidth(webView.bounds) - cropSize),
+                             MIN(MAX(webPoint.y - cropSize / 2.0, 0.0), CGRectGetHeight(webView.bounds) - cropSize),
+                             cropSize, cropSize);
+    [webView captureSnapshotInRect:crop width:384.0 completion:completion];
 }
 
 - (void)browserRemoteInputControllerSetWebInteractionEnabled:(BOOL)enabled {
