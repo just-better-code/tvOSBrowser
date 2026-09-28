@@ -30,19 +30,17 @@ static NSString * const kEditableElementSelector = @"input, textarea, select, [c
     return point;
 }
 
-- (NSString *)evaluateResolvedElementJavaScriptAtPoint:(CGPoint)point
-                                                webView:(BrowserWebView *)webView
-                                                   body:(NSString *)body {
-    if (webView == nil) {
-        return @"";
-    }
-
-    NSInteger pointX = (NSInteger)llround(point.x);
-    NSInteger pointY = (NSInteger)llround(point.y);
+- (NSString *)resolvedElementJavaScriptAtPoint:(CGPoint)point
+                                viewportWidth:(CGFloat)viewportWidth
+                                         body:(NSString *)body {
+    NSString *coordinates = viewportWidth > 0.0
+        ? [NSString stringWithFormat:@"var scale=window.innerWidth/%.6f;var x=%.6f*scale;var y=%.6f*scale;",
+           viewportWidth, point.x, point.y]
+        : [NSString stringWithFormat:@"var x=%ld;var y=%ld;",
+           (long)llround(point.x), (long)llround(point.y)];
     NSString *script = [NSString stringWithFormat:
                         @"(function(){"
-                        "var x=%ld;"
-                        "var y=%ld;"
+                        "%@"
                         "var interactiveSelector=\"%@\";"
                         "var editableSelector=\"%@\";"
                         "function resolveElement(root, px, py) {"
@@ -84,11 +82,21 @@ static NSString * const kEditableElementSelector = @"input, textarea, select, [c
                         "var editableElement = closestMatch(resolvedElement, editableSelector);"
                         "%@"
                         "})()",
-                        (long)pointX,
-                        (long)pointY,
+                        coordinates,
                         kInteractiveElementSelector,
                         kEditableElementSelector,
                         body];
+    return script;
+}
+
+- (NSString *)evaluateResolvedElementJavaScriptAtPoint:(CGPoint)point
+                                                webView:(BrowserWebView *)webView
+                                                   body:(NSString *)body {
+    if (webView == nil) {
+        return @"";
+    }
+
+    NSString *script = [self resolvedElementJavaScriptAtPoint:point viewportWidth:0.0 body:body];
     return [webView stringByEvaluatingJavaScriptFromString:script] ?: @"";
 }
 
@@ -131,20 +139,32 @@ static NSString * const kEditableElementSelector = @"input, textarea, select, [c
     return [self evaluateResolvedElementJavaScriptAtPoint:point webView:webView body:wrappedBody];
 }
 
-- (NSString *)evaluateHoverStateJavaScriptAtPoint:(CGPoint)point
-                                           webView:(BrowserWebView *)webView {
-    if (webView == nil) {
-        return @"false";
+- (void)evaluateHoverStateAtCursorPoint:(CGPoint)point
+                                 inView:(UIView *)containerView
+                                webView:(BrowserWebView *)webView
+                             completion:(void (^)(BOOL))completion {
+    if (webView == nil || containerView == nil || CGRectGetWidth(webView.bounds) <= 0.0) {
+        completion(NO);
+        return;
     }
 
-    return [self evaluateResolvedElementJavaScriptAtPoint:point
-                                                  webView:webView
-                                                     body:@"var candidate = interactiveElement || resolvedElement;"
-                                                          "while (candidate) {"
-                                                              "if (candidate.matches && candidate.matches(interactiveSelector)) { return 'true'; }"
-                                                              "candidate = candidate.parentElement;"
-                                                          "}"
-                                                          "return 'false';"];
+    CGPoint viewPoint = [containerView convertPoint:point toView:webView];
+    if (viewPoint.y < 0.0) {
+        completion(NO);
+        return;
+    }
+
+    NSString *script = [self resolvedElementJavaScriptAtPoint:viewPoint
+                                               viewportWidth:CGRectGetWidth(webView.bounds)
+                                                        body:@"var candidate = interactiveElement || resolvedElement;"
+                                                             "while (candidate) {"
+                                                                 "if (candidate.matches && candidate.matches(interactiveSelector)) { return 'true'; }"
+                                                                 "candidate = candidate.parentElement;"
+                                                             "}"
+                                                             "return 'false';"];
+    [webView evaluateJavaScript:script completion:^(NSString *result) {
+        completion([result isEqualToString:@"true"]);
+    }];
 }
 
 - (NSString *)javaScriptEscapedString:(NSString *)string {

@@ -17,10 +17,16 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)browserRemoteInputControllerDismissTabOverview;
 - (void)browserRemoteInputControllerHandleTabOverviewAlternateAction;
 - (void)browserRemoteInputControllerHandlePrimaryAction;
+- (void)browserRemoteInputControllerHandleHistoryBackPress;
+- (void)browserRemoteInputControllerHandleHistoryForwardPress;
+- (void)browserRemoteInputControllerHandleBrowserFullscreenPress;
+- (void)browserRemoteInputControllerHandleTabOverviewPress;
 - (void)browserRemoteInputControllerHandleMenuPress;
 - (void)browserRemoteInputControllerHandlePlayPausePress;
+- (void)browserRemoteInputControllerHandleQuickMenuPress;
 - (void)browserRemoteInputControllerHandleAdvancedMenuPress;
-- (NSString *)browserRemoteInputControllerHoverStateAtCursorPoint:(CGPoint)point;
+- (void)browserRemoteInputControllerHoverStateAtCursorPoint:(CGPoint)point
+                                                completion:(void (^)(BOOL isInteractive))completion;
 - (void)browserRemoteInputControllerSetWebInteractionEnabled:(BOOL)enabled;
 - (void)browserRemoteInputControllerPersistSession;
 
@@ -30,7 +36,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nonatomic, readonly) UIImageView *cursorView;
 @property (nonatomic, readonly) UIPanGestureRecognizer *manualScrollPanRecognizer;
-@property (nonatomic, readonly) UITapGestureRecognizer *playPauseDoubleTapRecognizer;
 @property (nonatomic, readonly, getter=isCursorModeEnabled) BOOL cursorModeEnabled;
 
 - (instancetype)initWithHost:(id<BrowserRemoteInputControllerHost>)host
