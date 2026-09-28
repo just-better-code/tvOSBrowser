@@ -2,9 +2,8 @@
 
 #import "BrowserPreferencesStore.h"
 #import "BrowserTabViewModel.h"
+#import "BrowserHistoryStore.h"
 
-static NSString * const kHistoryDefaultsKey = @"HISTORY";
-static NSUInteger const kMaximumHistoryCount = 100;
 
 @interface BrowserNavigationService ()
 
@@ -130,27 +129,7 @@ static NSUInteger const kMaximumHistoryCount = 100;
 }
 
 - (void)persistHistoryItemWithURLString:(NSString *)URLString title:(NSString *)title {
-    if (URLString.length == 0) {
-        return;
-    }
-    
-    NSArray *historyItem = @[URLString, title ?: @""];
-    NSMutableArray *historyItems = [NSMutableArray arrayWithObject:historyItem];
-    NSArray *storedHistory = [[NSUserDefaults standardUserDefaults] arrayForKey:kHistoryDefaultsKey];
-    if (storedHistory.count > 0) {
-        NSArray *latestItem = storedHistory.firstObject;
-        if ([latestItem isKindOfClass:[NSArray class]] && latestItem.count > 0 && [latestItem[0] isEqualToString:URLString]) {
-            [historyItems removeObjectAtIndex:0];
-        }
-        [historyItems addObjectsFromArray:storedHistory];
-    }
-    
-    while (historyItems.count > kMaximumHistoryCount) {
-        [historyItems removeLastObject];
-    }
-    
-    [[NSUserDefaults standardUserDefaults] setObject:historyItems forKey:kHistoryDefaultsKey];
-    [[NSUserDefaults standardUserDefaults] synchronize];
+    [[BrowserHistoryStore sharedStore] recordURLString:URLString title:title];
 }
 
 @end

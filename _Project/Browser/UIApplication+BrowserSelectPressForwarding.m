@@ -4,11 +4,13 @@
 #import <objc/runtime.h>
 
 NSString * const BrowserGlobalSelectPressEndedNotification = @"BrowserGlobalSelectPressEndedNotification";
+NSString * const BrowserGlobalDirectionalPressBeganNotification = @"BrowserGlobalDirectionalPressBeganNotification";
 static BOOL sBrowserNativeScrubTracking = NO;
 static CGFloat sBrowserNativePendingScrubPixels = 0.0;
 static CGPoint sBrowserNativeLastTouchLocation = {0, 0};
 static CFTimeInterval sBrowserNativeLastArrowPressTimestamp = 0.0;
 static UIPressType sBrowserNativeLastArrowPressType = (UIPressType)-1;
+static BOOL sBrowserSwallowTabOverviewMenuUntilEnd = NO;
 static CGFloat const kBrowserNativeScrubPixelStep = 18.0;
 static CFTimeInterval const kBrowserNativeArrowDoubleTapInterval = 0.35;
 
@@ -78,13 +80,13 @@ static UIViewController *BrowserFindViewControllerOfClass(UIViewController *view
     return nil;
 }
 
-static UIViewController *BrowserFindPresentedNativeVideoPlayerViewController(UIApplication *application, Class nativeVideoPlayerClass) {
+static UIViewController *BrowserFindPresentedViewControllerOfClass(UIApplication *application, Class targetClass) {
     for (UIWindow *window in application.windows) {
         if (window.hidden || window.rootViewController == nil) {
             continue;
         }
 
-        UIViewController *match = BrowserFindViewControllerOfClass(window.rootViewController, nativeVideoPlayerClass);
+        UIViewController *match = BrowserFindViewControllerOfClass(window.rootViewController, targetClass);
         if (match != nil) {
             return match;
         }
@@ -113,7 +115,7 @@ static UIViewController *BrowserFindPresentedNativeVideoPlayerViewController(UIA
 
 - (void)browser_sendEvent:(UIEvent *)event {
     Class nativeVideoPlayerClass = NSClassFromString(@"BrowserNativeVideoPlayerViewController");
-    UIViewController *nativeVideoPlayerViewController = BrowserFindPresentedNativeVideoPlayerViewController(self, nativeVideoPlayerClass);
+    UIViewController *nativeVideoPlayerViewController = BrowserFindPresentedViewControllerOfClass(self, nativeVideoPlayerClass);
 
     if (event.type == UIEventTypeTouches) {
         SEL allTouchesSelector = NSSelectorFromString(@"allTouches");
@@ -176,7 +178,35 @@ static UIViewController *BrowserFindPresentedNativeVideoPlayerViewController(UIA
 
     NSSet<UIPress *> *presses = ((id (*)(id, SEL))objc_msgSend)(event, allPressesSelector);
     for (UIPress *press in presses) {
-        nativeVideoPlayerViewController = BrowserFindPresentedNativeVideoPlayerViewController(self, nativeVideoPlayerClass);
+        if (press.phase == UIPressPhaseBegan &&
+            (press.type == UIPressTypeUpArrow || press.type == UIPressTypeDownArrow ||
+             press.type == UIPressTypeLeftArrow || press.type == UIPressTypeRightArrow)) {
+            [[NSNotificationCenter defaultCenter] postNotificationName:BrowserGlobalDirectionalPressBeganNotification object:nil];
+        }
+        nativeVideoPlayerViewController = BrowserFindPresentedViewControllerOfClass(self, nativeVideoPlayerClass);
+        if (press.type == UIPressTypeMenu) {
+            if (sBrowserSwallowTabOverviewMenuUntilEnd) {
+                if (press.phase != UIPressPhaseBegan) {
+                    if (press.phase == UIPressPhaseEnded || press.phase == UIPressPhaseCancelled) {
+                        sBrowserSwallowTabOverviewMenuUntilEnd = NO;
+                    }
+                    return;
+                }
+                sBrowserSwallowTabOverviewMenuUntilEnd = NO;
+            }
+            if (press.phase == UIPressPhaseBegan) {
+                UIViewController *overview = BrowserFindPresentedViewControllerOfClass(
+                    self, NSClassFromString(@"BrowserTabOverviewViewController"));
+                SEL dismissSelector = NSSelectorFromString(@"browserDismissForBackPress");
+                if (overview != nil && [overview respondsToSelector:dismissSelector]) {
+                    sBrowserSwallowTabOverviewMenuUntilEnd = YES;
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        ((void (*)(id, SEL))objc_msgSend)(overview, dismissSelector);
+                    });
+                    return;
+                }
+            }
+        }
         if (press.type == UIPressTypeMenu || press.type == UIPressTypePlayPause || press.type == UIPressTypeSelect) {
             NSLog(@"[InputTrace][App] press=%@ phase=%@ top=%@",
                   BrowserPressTypeString(press.type),
