@@ -32,6 +32,7 @@ NS_ASSUME_NONNULL_BEGIN
       allowsInlineMediaPlayback:(BOOL)allowsInlineMediaPlayback NS_DESIGNATED_INITIALIZER;
 
 - (void)loadRequest:(NSURLRequest * _Nullable)request;
+- (void)loadHTMLString:(NSString *)HTMLString;
 - (void)reload;
 - (void)goBack;
 - (void)goForward;

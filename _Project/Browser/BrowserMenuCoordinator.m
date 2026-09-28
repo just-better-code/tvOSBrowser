@@ -155,7 +155,7 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
     toolbar.alignment = UIStackViewAlignmentFill;
     toolbar.distribution = UIStackViewDistributionFillEqually;
     toolbar.spacing = 8.0;
-    NSArray<NSString *> *toolbarSymbols = @[@"chevron.left", @"house.fill", @"chevron.right",
+    NSArray<NSString *> *toolbarSymbols = @[@"house.fill", @"chevron.left", @"arrow.clockwise", @"chevron.right",
                                             @"minus.magnifyingglass", @"", @"plus.magnifyingglass"];
     NSMutableArray<UIButton *> *toolbarButtons = [NSMutableArray arrayWithCapacity:self.toolbarItems.count];
     [self.toolbarItems enumerateObjectsUsingBlock:^(BrowserAdvancedMenuItem *item, NSUInteger index, __unused BOOL *stop) {
@@ -525,7 +525,7 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     if (!item.enabled || item.handler == nil) {
         return;
     }
-    if (index < 3) {
+    if (index < 4) {
         [self dismissMenuWithCompletion:item.handler];
     } else {
         item.handler();
@@ -1236,6 +1236,11 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
                                                                 handler:^{
         [self.host browserLoadHomePage];
     }];
+    BrowserAdvancedMenuItem *reloadItem = [self advancedMenuItemWithTitle:@"Reload Page"
+                                                                   style:UIAlertActionStyleDefault
+                                                                 handler:^{
+        [self.host.browserWebView reload];
+    }];
     BrowserAdvancedMenuItem *forwardItem = [self advancedMenuItemWithTitle:@"Forward"
                                                                      style:UIAlertActionStyleDefault
                                                                    handler:^{
@@ -1260,7 +1265,7 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
                                                                  handler:^{
         [self setPageZoomPercent:self.preferencesStore.pageZoomPercent + 10];
     }];
-    return @[backItem, homeItem, forwardItem, zoomOutItem, zoomResetItem, zoomInItem];
+    return @[homeItem, backItem, reloadItem, forwardItem, zoomOutItem, zoomResetItem, zoomInItem];
 }
 
 - (NSArray<BrowserAdvancedMenuSection *> *)advancedMenuSections {

@@ -995,6 +995,17 @@ static void BrowserLoadAdBlockRuleList(BrowserAdBlockRuleListCompletion completi
     }
 }
 
+- (void)loadHTMLString:(NSString *)HTMLString {
+    if (self.runtimeWebView == nil || HTMLString.length == 0) {
+        return;
+    }
+    SEL selector = NSSelectorFromString(@"loadHTMLString:baseURL:");
+    if ([self.runtimeWebView respondsToSelector:selector]) {
+        self.lastRequest = [NSURLRequest requestWithURL:[NSURL URLWithString:@"about:blank"]];
+        ((id (*)(id, SEL, id, id))objc_msgSend)(self.runtimeWebView, selector, HTMLString, nil);
+    }
+}
+
 - (void)reload {
     SEL selector = NSSelectorFromString(@"reload");
     if (self.runtimeWebView != nil && [self.runtimeWebView respondsToSelector:selector]) {

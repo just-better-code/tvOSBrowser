@@ -9,6 +9,53 @@
 #import "BrowserWebView.h"
 
 static CGFloat const kThumbnailStagingOffset = 4096.0;
+static NSString * const kBrowserNewTabURL = @"about:blank";
+
+static NSString *BrowserNewTabEscape(NSString *value) {
+    NSString *escaped = [value isKindOfClass:[NSString class]] ? value : @"";
+    escaped = [escaped stringByReplacingOccurrencesOfString:@"&" withString:@"&amp;"];
+    escaped = [escaped stringByReplacingOccurrencesOfString:@"<" withString:@"&lt;"];
+    escaped = [escaped stringByReplacingOccurrencesOfString:@">" withString:@"&gt;"];
+    escaped = [escaped stringByReplacingOccurrencesOfString:@"\"" withString:@"&quot;"];
+    return [escaped stringByReplacingOccurrencesOfString:@"'" withString:@"&#39;"];
+}
+
+static NSString *BrowserNewTabSectionHTML(NSArray *entries, BOOL favorites, NSUInteger limit) {
+    NSMutableString *cards = [NSMutableString string];
+    NSUInteger count = 0;
+    for (id rawEntry in entries) {
+        if (![rawEntry isKindOfClass:[NSArray class]]) {
+            continue;
+        }
+        NSArray *entry = rawEntry;
+        NSString *URLString = entry.count > 0 && [entry[0] isKindOfClass:[NSString class]] ? entry[0] : @"";
+        NSURL *URL = [NSURL URLWithString:URLString];
+        NSString *scheme = URL.scheme.lowercaseString;
+        if (URL.host.length == 0 || !([scheme isEqualToString:@"https"] || [scheme isEqualToString:@"http"])) {
+            continue;
+        }
+        NSString *storedTitle = entry.count > 1 && [entry[1] isKindOfClass:[NSString class]] ? entry[1] : @"";
+        NSString *displayTitle = storedTitle.length > 0 ? storedTitle : URL.host;
+        NSString *monogram = [URL.host.uppercaseString substringToIndex:1];
+        if (favorites) {
+            [cards appendFormat:@"<a class='tile nav-target' href='%@'><span class='tile-icon'>%@</span><span class='tile-title'>%@</span></a>",
+                BrowserNewTabEscape(URLString), BrowserNewTabEscape(monogram), BrowserNewTabEscape(displayTitle)];
+        } else {
+            [cards appendFormat:@"<a class='history-row nav-target' href='%@'><span class='history-icon'>%@</span><span class='history-text'><strong>%@</strong><small>%@</small></span><span class='history-arrow'>↗</span></a>",
+                BrowserNewTabEscape(URLString), BrowserNewTabEscape(monogram),
+                BrowserNewTabEscape(displayTitle), BrowserNewTabEscape(URL.host)];
+        }
+        if (++count >= limit) {
+            break;
+        }
+    }
+    if (count == 0) {
+        [cards appendFormat:@"<p class='empty'>%@</p>", favorites ? @"Saved pages will appear here." : @"Visited pages will appear here."];
+    }
+    return [NSString stringWithFormat:@"<section id='%@'><div class='section-heading'><h2>%@</h2><span class='count'>%lu</span></div><div class='%@'>%@</div></section>",
+        favorites ? @"favorites" : @"history", favorites ? @"Favorites" : @"History",
+        (unsigned long)count, favorites ? @"tiles" : @"history-list", cards];
+}
 
 @interface BrowserTabCoordinator ()
 
@@ -27,6 +74,8 @@ static CGFloat const kThumbnailStagingOffset = 4096.0;
 @property (nonatomic) NSMutableDictionary<NSString *, BrowserWebView *> *webViewsByTabIdentifier;
 @property (nonatomic) UIView *thumbnailStagingView;
 @property (nonatomic, readwrite, nullable) BrowserWebView *activeWebView;
+
+- (void)showNewTabPageInWebView:(BrowserWebView *)webView tab:(BrowserTabViewModel *)tab;
 
 @end
 
@@ -231,7 +280,8 @@ static CGFloat const kThumbnailStagingOffset = 4096.0;
 
     NSURLRequest *request = self.activeWebView.request;
     NSString *currentURL = tab.URLString.length > 0 ? tab.URLString : request.URL.absoluteString;
-    self.topMenuView.URLLabel.text = currentURL.length > 0 ? currentURL : @"New Tab";
+    self.topMenuView.URLLabel.text = currentURL.length > 0 && ![currentURL isEqualToString:kBrowserNewTabURL]
+        ? currentURL : @"New Tab";
 
     if (request != nil) {
         [self.host browserTabCoordinatorUpdateTextFontSize];
@@ -265,6 +315,68 @@ static CGFloat const kThumbnailStagingOffset = 4096.0;
     NSURLRequest *homePageRequest = [self.navigationService homePageRequest];
     if (homePageRequest != nil) {
         [self.activeWebView loadRequest:homePageRequest];
+    }
+}
+
+- (void)showNewTabPageInWebView:(BrowserWebView *)webView tab:(BrowserTabViewModel *)tab {
+    if (webView == nil || tab == nil) {
+        return;
+    }
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    NSString *favorites = BrowserNewTabSectionHTML([defaults arrayForKey:@"FAVORITES"], YES, 40);
+    NSString *history = BrowserNewTabSectionHTML([defaults arrayForKey:@"HISTORY"], NO, 24);
+    NSMutableString *HTML = [NSMutableString stringWithString:
+        @"<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'>"
+         "<title>New Tab</title><style>"
+         ":root{color-scheme:dark;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif}"
+         "*{box-sizing:border-box}html{background:#292832}body{margin:0;min-height:100vh;color:#f7f7fb;background:#292832}"
+         "main{max-width:1760px;margin:0 auto;padding:62px 72px 100px}"
+         ".brand{display:flex;justify-content:center;align-items:center;gap:20px;margin:10px 0 72px}"
+         ".brand-mark{display:grid;place-items:center;width:74px;height:74px;border-radius:24px;background:linear-gradient(135deg,#ea6c48,#9b4fc4);font-size:44px;font-weight:800}"
+         "h1{font-size:54px;line-height:1;margin:0;letter-spacing:-.035em}"
+         ".search{display:flex;align-items:center;gap:23px;width:100%;height:102px;padding:0 34px;border-radius:54px;background:#41414e;color:#b9b8c4;text-decoration:none;font-size:28px}"
+         ".search-symbol{font-size:35px;color:#e1e1ed}.search:hover,.search:focus,.search.selected{background:#575766;color:white;outline:4px solid #9d92ee}"
+         "section{margin-top:72px}.section-heading{display:flex;align-items:center;gap:15px;margin-bottom:23px}"
+         "h2{font-size:27px;margin:0;font-weight:650}.count{color:#a9a8b7;font-size:20px}"
+         ".tiles{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:24px}"
+         ".tile{display:flex;flex-direction:column;align-items:center;min-width:0;color:#ecebf1;text-decoration:none;text-align:center;border-radius:20px;padding:12px 7px}"
+         ".tile-icon{display:grid;place-items:center;width:116px;height:116px;border-radius:24px;background:#444454;color:white;font-size:54px;font-weight:700}"
+         ".tile-title{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;margin-top:13px;font-size:21px;line-height:1.25;max-width:155px}"
+         ".tile:hover,.tile:focus,.tile.selected{background:#4a485a;outline:4px solid #9d92ee;transform:scale(1.035)}"
+         ".history-list{display:flex;flex-direction:column;gap:9px}"
+         ".history-row{display:flex;align-items:center;gap:20px;min-height:79px;padding:11px 22px;border-radius:18px;background:#373641;color:#f3f2f6;text-decoration:none}"
+         ".history-icon{display:grid;place-items:center;flex:none;width:48px;height:48px;border-radius:13px;background:#535265;font-size:25px;font-weight:700}"
+         ".history-text{display:flex;flex-direction:column;min-width:0;gap:4px}.history-text strong{font-size:21px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}"
+         ".history-text small{font-size:16px;color:#b9b7c6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}"
+         ".history-arrow{margin-left:auto;color:#b9b7c6;font-size:22px}.history-row:hover,.history-row:focus,.history-row.selected{background:#53516a;outline:4px solid #9d92ee}"
+         ".empty{color:#aaa8b6;font-size:21px;margin:0;padding:18px 4px}"
+         "@media(max-width:1450px){.tiles{grid-template-columns:repeat(6,minmax(0,1fr))}}"
+         "@media(max-width:1000px){main{padding:45px 35px}.tiles{grid-template-columns:repeat(4,minmax(0,1fr))}}"
+         "</style></head><body><main><div class='brand'><span class='brand-mark'>◆</span><h1>New Tab</h1></div>"
+         "<a class='search nav-target selected' id='search' href='tvosbrowser://search'><span class='search-symbol'>⌕</span>Search or enter an address</a>"];
+    [HTML appendString:favorites];
+    [HTML appendString:history];
+    [HTML appendString:@"<script>(function(){let group='search',index=0;const search=document.getElementById('search');"
+                       "const favorites=Array.from(document.querySelectorAll('#favorites .nav-target'));"
+                       "const history=Array.from(document.querySelectorAll('#history .nav-target'));"
+                       "function current(){return group==='search'?search:(group==='favorites'?favorites:history)[index]}"
+                       "function select(g,i){let old=current();if(old)old.classList.remove('selected');group=g;index=i;let item=current();"
+                       "if(item){item.classList.add('selected');item.scrollIntoView({block:'nearest',inline:'nearest'})}}"
+                       "window.browserNewTabNavigate=function(d){if(group==='search'){if(d==='down')select(favorites.length?'favorites':history.length?'history':'search',0)}"
+                       "else if(group==='favorites'){if(d==='left')select(group,Math.max(0,index-1));else if(d==='right')select(group,Math.min(favorites.length-1,index+1));"
+                       "else if(d==='up')select('search',0);else if(d==='down'&&history.length)select('history',0)}"
+                       "else{if(d==='up')select(index>0?'history':favorites.length?'favorites':'search',index>0?index-1:0);"
+                       "else if(d==='down')select('history',Math.min(history.length-1,index+1));"
+                       "else if(d==='left'&&favorites.length)select('favorites',Math.min(index,favorites.length-1));"
+                       "else if(d==='right')select('search',0)}return true};"
+                       "window.browserNewTabActivate=function(){let item=current();if(item)item.click();return true}"
+                       "})();</script></main></body></html>"];
+    tab.title = @"New Tab";
+    tab.URLString = kBrowserNewTabURL;
+    tab.requestURL = kBrowserNewTabURL;
+    [webView loadHTMLString:HTML];
+    if (tab == self.activeTab) {
+        [self refreshActiveTabUI];
     }
 }
 
@@ -357,12 +469,9 @@ static CGFloat const kThumbnailStagingOffset = 4096.0;
     }
 
     NSString *URLString = tab.URLString.length > 0 ? tab.URLString : tab.requestURL;
-    if (URLString.length == 0) {
+    if (URLString.length == 0 || [URLString isEqualToString:kBrowserNewTabURL]) {
         if (fallbackToHomePage) {
-            NSURLRequest *homePageRequest = [self.navigationService homePageRequest];
-            if (homePageRequest != nil) {
-                [webView loadRequest:homePageRequest];
-            }
+            [self showNewTabPageInWebView:webView tab:tab];
         }
         return;
     }
@@ -474,14 +583,12 @@ static CGFloat const kThumbnailStagingOffset = 4096.0;
         return;
     }
 
-    (void)tab;
+    (void)loadHomePage;
     [self initWebView];
     [self refreshActiveTabUI];
     [self.rootView bringSubviewToFront:self.cursorView];
 
-    if (loadHomePage) {
-        [self loadHomePage];
-    }
+    [self showNewTabPageInWebView:self.activeWebView tab:tab];
     [self persistSession];
 }
 
@@ -515,7 +622,9 @@ static CGFloat const kThumbnailStagingOffset = 4096.0;
     [self.viewModel switchToTabAtIndex:tabIndex];
     [self initWebView];
     [self.rootView bringSubviewToFront:self.cursorView];
-    if (self.activeWebView.request == nil) {
+    if ([self.activeTab.URLString isEqualToString:kBrowserNewTabURL]) {
+        [self showNewTabPageInWebView:self.activeWebView tab:self.activeTab];
+    } else if (self.activeWebView.request == nil) {
         [self loadStoredContentForTab:self.activeTab webView:self.activeWebView fallbackToHomePage:YES];
     }
     [self persistSession];
@@ -659,7 +768,14 @@ static CGFloat const kThumbnailStagingOffset = 4096.0;
     NSString *theTitle = [webView title];
     NSURLRequest *request = [webView request];
     NSString *currentURL = request.URL.absoluteString ?: @"";
-    [self.navigationService updateTab:tab withPageTitle:theTitle currentURLString:currentURL];
+    if ([currentURL isEqualToString:kBrowserNewTabURL] ||
+        (currentURL.length == 0 && [tab.URLString isEqualToString:kBrowserNewTabURL])) {
+        tab.title = @"New Tab";
+        tab.URLString = kBrowserNewTabURL;
+        tab.requestURL = kBrowserNewTabURL;
+    } else {
+        [self.navigationService updateTab:tab withPageTitle:theTitle currentURLString:currentURL];
+    }
 
     if (tab == self.activeTab) {
         [self refreshActiveTabUI];
