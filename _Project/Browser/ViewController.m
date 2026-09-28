@@ -243,7 +243,7 @@ static UIColor *kTextColor(void) {
         case BrowserTopBarActionFullscreen:
             if (self.viewModel.topNavigationBarVisible) {
                 UIAlertController *alertController = [UIAlertController alertControllerWithTitle:@"Hide Top Navigation bar?"
-                                                                                         message:@"You can still open the side menu by double-tapping the Play/Pause button."
+                                                                                         message:@"You can still open the Advanced Menu by pressing Right on the remote."
                                                                                   preferredStyle:UIAlertControllerStyleAlert];
                 [alertController addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
                 [alertController addAction:[UIAlertAction actionWithTitle:@"Hide Bar"
@@ -388,7 +388,7 @@ static UIColor *kTextColor(void) {
 
 - (void)showHintsAlert {
     UIAlertController *alertController = [UIAlertController alertControllerWithTitle:@"Usage Guide"
-                                                                             message:@"Double press the touch area to switch between cursor & scroll mode.\nPress the touch area while in cursor mode to click.\nSingle tap to Menu button to Go Back, or Exit on root page.\nSingle tap the Play/Pause button to: Go Forward, Enter URL or Reload Page.\nDouble tap the Play/Pause to show the Advanced Menu with more options.\nUse the tabs icon in the top bar to open the tab overview."
+                                                                             message:@"Move the pointer with the center touchpad and press the center to click.\nPress Up or Down to scroll; double press Up to toggle browser fullscreen or Down to show tabs.\nPress Left for the Quick Menu or double press Left to go back.\nPress Right for the Advanced Menu or double press Right to go forward.\nEach Play/Pause press pauses or resumes video.\nPress Menu to exit fullscreen or go back."
                                                                       preferredStyle:UIAlertControllerStyleAlert];
 
     __weak typeof(self) weakSelf = self;
@@ -656,7 +656,42 @@ static UIColor *kTextColor(void) {
     [self browserHandlePrimaryAction];
 }
 
+- (void)browserRemoteInputControllerHandleHistoryBackPress {
+    if (self.webview.canGoBack) {
+        [self.webview goBack];
+    }
+}
+
+- (void)browserRemoteInputControllerHandleHistoryForwardPress {
+    if (self.webview.canGoForward) {
+        [self.webview goForward];
+    }
+}
+
+- (void)browserRemoteInputControllerHandleBrowserFullscreenPress {
+    if (self.viewModel.topNavigationBarVisible) {
+        [self browserHideTopNav];
+    } else {
+        [self browserShowTopNav];
+    }
+}
+
+- (void)browserRemoteInputControllerHandleTabOverviewPress {
+    [self browserShowTabOverview];
+}
+
 - (void)browserRemoteInputControllerHandleMenuPress {
+    __weak typeof(self) weakSelf = self;
+    [self.webview evaluateJavaScript:@"window.__browserTVExitFullscreen ? window.__browserTVExitFullscreen() : false"
+                           completion:^(NSString *result) {
+        if ([result isEqualToString:@"true"]) {
+            return;
+        }
+        [weakSelf handleMenuPressOutsideFullscreen];
+    }];
+}
+
+- (void)handleMenuPressOutsideFullscreen {
     UIAlertController *alertController = (UIAlertController *)self.presentedViewController;
     if (alertController != nil) {
         [self.presentedViewController dismissViewControllerAnimated:YES completion:nil];
@@ -677,8 +712,20 @@ static UIColor *kTextColor(void) {
 }
 
 - (void)browserRemoteInputControllerHandlePlayPausePress {
-    UIAlertController *alertController = (UIAlertController *)self.presentedViewController;
-    if (alertController != nil) {
+    __weak typeof(self) weakSelf = self;
+    [self.webview evaluateJavaScript:@"window.__browserTVToggleVideo ? window.__browserTVToggleVideo() : false"
+                           completion:^(NSString *result) {
+        if ([result isEqualToString:@"true"]) {
+            return;
+        }
+        if ([weakSelf.presentedViewController isKindOfClass:[UIAlertController class]]) {
+            [weakSelf.presentedViewController dismissViewControllerAnimated:YES completion:nil];
+        }
+    }];
+}
+
+- (void)browserRemoteInputControllerHandleQuickMenuPress {
+    if (self.presentedViewController != nil) {
         [self.presentedViewController dismissViewControllerAnimated:YES completion:nil];
     } else {
         [self requestURLorSearchInput];
@@ -689,16 +736,17 @@ static UIColor *kTextColor(void) {
     [self showAdvancedMenu];
 }
 
-- (NSString *)browserRemoteInputControllerHoverStateAtCursorPoint:(CGPoint)point {
-    if (self.webview.request == nil) {
-        return @"false";
+- (void)browserRemoteInputControllerHoverStateAtCursorPoint:(CGPoint)point
+                                                completion:(void (^)(BOOL))completion {
+    BrowserWebView *webView = self.webview;
+    if (webView.request == nil) {
+        completion(NO);
+        return;
     }
-    CGPoint webPoint = [self.view convertPoint:point toView:self.webview];
-    if (webPoint.y < 0) {
-        return @"false";
-    }
-    CGPoint domPoint = [self browserDOMPointForCursor];
-    return [self.pageActionCoordinator hoverStateAtDOMPoint:domPoint webView:self.webview];
+    [self.domInteractionService evaluateHoverStateAtCursorPoint:point
+                                                          inView:self.view
+                                                         webView:webView
+                                                      completion:completion];
 }
 
 - (void)browserRemoteInputControllerSetWebInteractionEnabled:(BOOL)enabled {

@@ -48,7 +48,6 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 @property (nonatomic, weak) UIView *rootView;
 @property (nonatomic, readwrite) UIImageView *cursorView;
 @property (nonatomic, readwrite) UIPanGestureRecognizer *manualScrollPanRecognizer;
-@property (nonatomic, readwrite) UITapGestureRecognizer *playPauseDoubleTapRecognizer;
 @property (nonatomic, readwrite, getter=isCursorModeEnabled) BOOL cursorModeEnabled;
 @property (nonatomic) CGPoint lastTouchLocation;
 @property (nonatomic) CADisplayLink *manualScrollDisplayLink;
@@ -56,8 +55,16 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 @property (nonatomic) CFTimeInterval manualScrollLastTimestamp;
 @property (nonatomic) CFTimeInterval manualScrollLastMovementTimestamp;
 @property (nonatomic) CFTimeInterval lastDirectSelectPressTimestamp;
-@property (nonatomic) CFTimeInterval lastSelectPressTimestamp;
-@property (nonatomic) BOOL awaitingSecondSelectPress;
+@property (nonatomic) BOOL awaitingSecondHorizontalPress;
+@property (nonatomic) UIPressType pendingHorizontalPressType;
+@property (nonatomic) CFTimeInterval lastHorizontalPressTimestamp;
+@property (nonatomic) BOOL awaitingSecondVerticalPress;
+@property (nonatomic) UIPressType pendingVerticalPressType;
+@property (nonatomic) CFTimeInterval lastVerticalPressTimestamp;
+@property (nonatomic) BOOL primaryActionInProgress;
+@property (nonatomic) BOOL hoverRequestInFlight;
+@property (nonatomic) CGPoint latestHoverPoint;
+@property (nonatomic) NSUInteger hoverGeneration;
 
 @end
 
@@ -76,11 +83,6 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
         _cursorView.center = CGPointMake(CGRectGetMidX([UIScreen mainScreen].bounds), CGRectGetMidY([UIScreen mainScreen].bounds));
         _cursorView.image = BrowserDefaultCursor();
 
-        _playPauseDoubleTapRecognizer = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handlePlayPauseDoubleTap:)];
-        _playPauseDoubleTapRecognizer.numberOfTapsRequired = 2;
-        _playPauseDoubleTapRecognizer.allowedPressTypes = @[@(UIPressTypePlayPause)];
-        [rootView addGestureRecognizer:_playPauseDoubleTapRecognizer];
-
         _manualScrollPanRecognizer = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handleManualScrollPan:)];
         _manualScrollPanRecognizer.allowedTouchTypes = @[ @(UITouchTypeIndirect) ];
         _manualScrollPanRecognizer.cancelsTouchesInView = NO;
@@ -93,12 +95,45 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 - (void)setCursorModeEnabled:(BOOL)cursorModeEnabled {
     BOOL wasCursorModeEnabled = self.cursorModeEnabled;
     _cursorModeEnabled = cursorModeEnabled;
+    self.hoverGeneration += 1;
     self.lastTouchLocation = CGPointMake(-1, -1);
     [self stopManualScrollInertia];
     [self refreshInteractionState];
     if (!wasCursorModeEnabled && cursorModeEnabled) {
         [self.host browserRemoteInputControllerPersistSession];
     }
+}
+
+- (void)requestHoverStateAtPoint:(CGPoint)point {
+    self.latestHoverPoint = point;
+    if (self.hoverRequestInFlight) {
+        return;
+    }
+
+    self.hoverRequestInFlight = YES;
+    NSUInteger generation = self.hoverGeneration;
+    __weak typeof(self) weakSelf = self;
+    [self.host browserRemoteInputControllerHoverStateAtCursorPoint:point completion:^(BOOL isInteractive) {
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (strongSelf == nil) {
+            return;
+        }
+        strongSelf.hoverRequestInFlight = NO;
+        if (!strongSelf.cursorModeEnabled ||
+            [strongSelf.host browserRemoteInputControllerTopBarFocusActive] ||
+            [strongSelf.host browserRemoteInputControllerTabOverviewVisible]) {
+            return;
+        }
+        if (generation != strongSelf.hoverGeneration) {
+            [strongSelf requestHoverStateAtPoint:strongSelf.latestHoverPoint];
+            return;
+        }
+        if (!CGPointEqualToPoint(strongSelf.latestHoverPoint, point)) {
+            [strongSelf requestHoverStateAtPoint:strongSelf.latestHoverPoint];
+            return;
+        }
+        strongSelf.cursorView.image = isInteractive ? BrowserPointerCursor() : BrowserDefaultCursor();
+    }];
 }
 
 - (void)refreshInteractionState {
@@ -196,12 +231,7 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     [self handleSelectPressEnded];
 }
 
-- (void)handleDeferredSelectPressAction {
-    if (!self.awaitingSecondSelectPress) {
-        return;
-    }
-
-    self.awaitingSecondSelectPress = NO;
+- (void)handleSelectPressEnded {
     self.lastTouchLocation = CGPointMake(-1, -1);
 
     if ([self.host browserRemoteInputControllerPresentedViewController] != nil) {
@@ -213,39 +243,97 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
         return;
     }
 
+    if (self.primaryActionInProgress) {
+        return;
+    }
+    self.primaryActionInProgress = YES;
     [self.host browserRemoteInputControllerHandlePrimaryAction];
+    self.primaryActionInProgress = NO;
 }
 
-- (void)handleSelectPressEnded {
+- (void)handleDeferredHorizontalPressAction {
+    if (!self.awaitingSecondHorizontalPress) {
+        return;
+    }
+    self.awaitingSecondHorizontalPress = NO;
+    if ([self.host browserRemoteInputControllerPresentedViewController] != nil ||
+        [self.host browserRemoteInputControllerTopBarFocusActive] ||
+        [self.host browserRemoteInputControllerTabOverviewVisible]) {
+        return;
+    }
+    if (self.pendingHorizontalPressType == UIPressTypeLeftArrow) {
+        [self.host browserRemoteInputControllerHandleQuickMenuPress];
+    } else {
+        [self.host browserRemoteInputControllerHandleAdvancedMenuPress];
+    }
+}
+
+- (void)handleHorizontalPressEnded:(UIPressType)pressType {
     CFTimeInterval now = CACurrentMediaTime();
-    if (self.awaitingSecondSelectPress && (now - self.lastSelectPressTimestamp) < 0.35) {
-        self.awaitingSecondSelectPress = NO;
-        self.lastSelectPressTimestamp = now;
-        [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(handleDeferredSelectPressAction) object:nil];
-        if (![self.host browserRemoteInputControllerTabOverviewVisible]) {
-            [self setCursorModeEnabled:!self.cursorModeEnabled];
+    if (self.awaitingSecondHorizontalPress &&
+        self.pendingHorizontalPressType == pressType &&
+        (now - self.lastHorizontalPressTimestamp) < 0.35) {
+        self.awaitingSecondHorizontalPress = NO;
+        [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(handleDeferredHorizontalPressAction) object:nil];
+        if (pressType == UIPressTypeLeftArrow) {
+            [self.host browserRemoteInputControllerHandleHistoryBackPress];
+        } else {
+            [self.host browserRemoteInputControllerHandleHistoryForwardPress];
         }
         return;
     }
 
-    self.awaitingSecondSelectPress = YES;
-    self.lastSelectPressTimestamp = now;
-    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(handleDeferredSelectPressAction) object:nil];
-    [self performSelector:@selector(handleDeferredSelectPressAction) withObject:nil afterDelay:0.3];
+    self.awaitingSecondHorizontalPress = YES;
+    self.pendingHorizontalPressType = pressType;
+    self.lastHorizontalPressTimestamp = now;
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(handleDeferredHorizontalPressAction) object:nil];
+    [self performSelector:@selector(handleDeferredHorizontalPressAction) withObject:nil afterDelay:0.35];
 }
 
-- (void)handlePlayPauseDoubleTap:(UITapGestureRecognizer *)sender {
-    if (sender.state != UIGestureRecognizerStateEnded) {
+- (void)handleDeferredVerticalPressAction {
+    if (!self.awaitingSecondVerticalPress) {
         return;
     }
-    if ([self.host browserRemoteInputControllerTopBarFocusActive]) {
+    self.awaitingSecondVerticalPress = NO;
+    if ([self.host browserRemoteInputControllerPresentedViewController] != nil ||
+        [self.host browserRemoteInputControllerTopBarFocusActive] ||
+        [self.host browserRemoteInputControllerTabOverviewVisible]) {
         return;
     }
-    if ([self.host browserRemoteInputControllerTabOverviewVisible]) {
-        [self.host browserRemoteInputControllerDismissTabOverview];
+
+    CGFloat direction = self.pendingVerticalPressType == UIPressTypeDownArrow ? 1.0 : -1.0;
+    UIScrollView *scrollView = [self.host browserRemoteInputControllerActiveScrollView];
+    CGFloat pageStep = scrollView == nil ? 150.0 : MAX(120.0, CGRectGetHeight(scrollView.bounds) * 0.275);
+    [self stopManualScrollInertia];
+    [self applyManualScrollDelta:CGPointMake(0, direction * pageStep)];
+    [self.host browserRemoteInputControllerPersistSession];
+}
+
+- (void)handleVerticalPressEnded:(UIPressType)pressType {
+    CFTimeInterval now = CACurrentMediaTime();
+    if (self.awaitingSecondVerticalPress &&
+        self.pendingVerticalPressType == pressType &&
+        (now - self.lastVerticalPressTimestamp) < 0.35) {
+        self.awaitingSecondVerticalPress = NO;
+        [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(handleDeferredVerticalPressAction) object:nil];
+        if (pressType == UIPressTypeUpArrow) {
+            [self.host browserRemoteInputControllerHandleBrowserFullscreenPress];
+        } else {
+            [self.host browserRemoteInputControllerHandleTabOverviewPress];
+        }
         return;
     }
-    [self.host browserRemoteInputControllerHandleAdvancedMenuPress];
+
+    if (self.awaitingSecondVerticalPress) {
+        [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(handleDeferredVerticalPressAction) object:nil];
+        [self handleDeferredVerticalPressAction];
+    }
+
+    self.awaitingSecondVerticalPress = YES;
+    self.pendingVerticalPressType = pressType;
+    self.lastVerticalPressTimestamp = now;
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(handleDeferredVerticalPressAction) object:nil];
+    [self performSelector:@selector(handleDeferredVerticalPressAction) withObject:nil afterDelay:0.35];
 }
 
 - (void)handleManualScrollPan:(UIPanGestureRecognizer *)gestureRecognizer {
@@ -299,6 +387,16 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     if (press == nil) {
         return NO;
     }
+    if (self.awaitingSecondHorizontalPress &&
+        press.type != UIPressTypeLeftArrow && press.type != UIPressTypeRightArrow) {
+        self.awaitingSecondHorizontalPress = NO;
+        [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(handleDeferredHorizontalPressAction) object:nil];
+    }
+    if (self.awaitingSecondVerticalPress &&
+        press.type != UIPressTypeUpArrow && press.type != UIPressTypeDownArrow) {
+        self.awaitingSecondVerticalPress = NO;
+        [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(handleDeferredVerticalPressAction) object:nil];
+    }
 
     if (press.type == UIPressTypeMenu || press.type == UIPressTypePlayPause || press.type == UIPressTypeSelect) {
         NSLog(@"[InputTrace][Root] pressesEnded type=%@ phase=%@ presented=%@ tabOverview=%@",
@@ -350,12 +448,6 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
         return YES;
     }
 
-    if (press.type == UIPressTypeUpArrow &&
-        [self.host browserRemoteInputControllerCanActivateTopBarFocus]) {
-        [self.host browserRemoteInputControllerActivateTopBarFocus];
-        return YES;
-    }
-
     if ([self.host browserRemoteInputControllerTabOverviewVisible]) {
         if (press.type == UIPressTypeMenu || press.type == UIPressTypePlayPause) {
             [self.host browserRemoteInputControllerDismissTabOverview];
@@ -373,6 +465,18 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     }
     if (press.type == UIPressTypePlayPause) {
         [self.host browserRemoteInputControllerHandlePlayPausePress];
+        return YES;
+    }
+    if (press.type == UIPressTypeRightArrow) {
+        [self handleHorizontalPressEnded:press.type];
+        return YES;
+    }
+    if (press.type == UIPressTypeLeftArrow) {
+        [self handleHorizontalPressEnded:press.type];
+        return YES;
+    }
+    if (press.type == UIPressTypeUpArrow || press.type == UIPressTypeDownArrow) {
+        [self handleVerticalPressEnded:press.type];
         return YES;
     }
     return NO;
@@ -436,10 +540,7 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
             break;
         }
         if (self.cursorModeEnabled) {
-            NSString *containsLink = [self.host browserRemoteInputControllerHoverStateAtCursorPoint:self.cursorView.frame.origin];
-            if ([containsLink isEqualToString:@"true"]) {
-                self.cursorView.image = BrowserPointerCursor();
-            }
+            [self requestHoverStateAtPoint:self.cursorView.frame.origin];
         }
         break;
     }

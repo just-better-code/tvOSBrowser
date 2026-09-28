@@ -31,12 +31,22 @@ static void BrowserEnsureWebKitRuntimeLoaded(void) {
     });
 }
 
-static void BrowserPumpRunLoopUntil(BOOL *done) {
+static BOOL BrowserPumpRunLoopUntil(BOOL *done) {
+    static BOOL isPumpingRunLoop = NO;
+    if (*done) {
+        return YES;
+    }
+    if (isPumpingRunLoop) {
+        return NO;
+    }
+    isPumpingRunLoop = YES;
     while (!*done) {
         @autoreleasepool {
             [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
         }
     }
+    isPumpingRunLoop = NO;
+    return YES;
 }
 
 static NSString *BrowserStringFromJavaScriptResult(id result) {
@@ -445,7 +455,177 @@ static NSString *BrowserYouTubeRequestCaptureScript(void) {
     "})();";
 }
 
-static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
+static NSString *BrowserFrameClickBridgeScript(NSString *secret) {
+    return [NSString stringWithFormat:
+            @"(function(){"
+                "if (window.__browserTVFrameClick) { return; }"
+                "var secret = '%@';"
+                "var fullscreenTarget = null;"
+                "var fullscreenTargetStyle = '';"
+                "var fullscreenFrame = null;"
+                "var fullscreenFrameStyle = '';"
+                "var lastActiveFrame = null;"
+                "function notifyFullscreenChange() {"
+                    "try { document.dispatchEvent(new Event('fullscreenchange')); } catch (error) {}"
+                    "try { document.dispatchEvent(new Event('webkitfullscreenchange')); } catch (error) {}"
+                "}"
+                "function sendFullscreenToParent(action) {"
+                    "if (window.parent !== window) {"
+                        "window.parent.postMessage({browserTVFrameFullscreen: secret, action: action}, '*');"
+                    "}"
+                "}"
+                "function enterFullscreen(element) {"
+                    "if (!element || fullscreenTarget) { return; }"
+                    "fullscreenTarget = element;"
+                    "fullscreenTargetStyle = element.style.cssText;"
+                    "element.style.cssText += ';position:fixed!important;left:0!important;top:0!important;width:100vw!important;height:100vh!important;max-width:none!important;max-height:none!important;z-index:2147483647!important;background:#000!important';"
+                    "sendFullscreenToParent('enter');"
+                    "notifyFullscreenChange();"
+                "}"
+                "function exitFullscreen() {"
+                    "if (!fullscreenTarget) { return false; }"
+                    "fullscreenTarget.style.cssText = fullscreenTargetStyle;"
+                    "fullscreenTarget = null;"
+                    "fullscreenTargetStyle = '';"
+                    "sendFullscreenToParent('exit');"
+                    "notifyFullscreenChange();"
+                    "return true;"
+                "}"
+                "function toggleVideo() {"
+                    "var frame = fullscreenFrame || (lastActiveFrame && lastActiveFrame.isConnected ? lastActiveFrame : null);"
+                    "if (frame && frame.contentWindow) {"
+                        "frame.contentWindow.postMessage({browserTVFullscreenCommand: secret, action: 'toggle'}, '*');"
+                        "return true;"
+                    "}"
+                    "var videos = document.querySelectorAll('video');"
+                    "var video = null;"
+                    "var bestArea = 0;"
+                    "for (var i = 0; i < videos.length; i++) {"
+                        "if (!videos[i].paused && !videos[i].ended) { video = videos[i]; break; }"
+                        "var rect = videos[i].getBoundingClientRect();"
+                        "var area = Math.max(0, Math.min(rect.right, innerWidth) - Math.max(rect.left, 0)) * Math.max(0, Math.min(rect.bottom, innerHeight) - Math.max(rect.top, 0));"
+                        "if (area > bestArea) { bestArea = area; video = videos[i]; }"
+                    "}"
+                    "if (video) {"
+                        "if (video.paused) { var result = video.play(); if (result && result.catch) { result.catch(function(){}); } }"
+                        "else { video.pause(); }"
+                        "return true;"
+                    "}"
+                    "return false;"
+                "}"
+                "function frameForSource(source) {"
+                    "var frames = document.querySelectorAll('iframe');"
+                    "for (var i = 0; i < frames.length; i++) { if (frames[i].contentWindow === source) { return frames[i]; } }"
+                    "return null;"
+                "}"
+                "function isFullscreenButton(element) {"
+                    "if (!element || !document.querySelector('video')) { return false; }"
+                    "var label = [element.id || '', element.className || '', element.getAttribute('aria-label') || '', element.getAttribute('title') || '', element.getAttribute('data-plyr') || ''].join(' ').toLowerCase();"
+                    "return /full.?screen|expand|maximize|enlarge|розгорнути|повн.*екран/.test(label);"
+                "}"
+                "function videoContainer(element) {"
+                    "var video = document.querySelector('video');"
+                    "var candidate = element;"
+                    "while (candidate && candidate !== document.body) {"
+                        "if (candidate !== video && candidate.querySelector && candidate.querySelector('video')) { return candidate; }"
+                        "candidate = candidate.parentElement;"
+                    "}"
+                    "return (video && video.parentElement) || element;"
+                "}"
+                "function clickAt(x, y) {"
+                    "if (!isFinite(x) || !isFinite(y)) { return false; }"
+                    "var element = document.elementFromPoint(x, y);"
+                    "if (!element) { return false; }"
+                    "if (element.tagName === 'IFRAME' && element.contentWindow) {"
+                        "lastActiveFrame = element;"
+                        "var rect = element.getBoundingClientRect();"
+                        "var scaleX = rect.width ? element.offsetWidth / rect.width : 1;"
+                        "var scaleY = rect.height ? element.offsetHeight / rect.height : 1;"
+                        "element.contentWindow.postMessage({browserTVFrameClick: secret, x: (x - rect.left) * scaleX - element.clientLeft, y: (y - rect.top) * scaleY - element.clientTop}, '*');"
+                        "return true;"
+                    "}"
+                    "var target = element.closest ? (element.closest('a, button, input, label, select, [role=button], [onclick], [tabindex]') || element) : element;"
+                    "if (isFullscreenButton(target) || isFullscreenButton(element)) {"
+                        "if (!exitFullscreen()) { enterFullscreen(videoContainer(target)); }"
+                        "return true;"
+                    "}"
+                    "try { if (target.focus) { target.focus(); } } catch (error) {}"
+                    "function dispatch(type, constructorName) {"
+                        "try {"
+                            "var Constructor = window[constructorName];"
+                            "if (Constructor) {"
+                                "target.dispatchEvent(new Constructor(type, {bubbles:true, cancelable:true, composed:true, view:window, clientX:x, clientY:y, screenX:x, screenY:y, button:0, buttons:1, pointerType:'mouse'}));"
+                                "return;"
+                            "}"
+                        "} catch (error) {}"
+                        "var event = document.createEvent('MouseEvents');"
+                        "event.initMouseEvent(type, true, true, window, 1, x, y, x, y, false, false, false, false, 0, null);"
+                        "target.dispatchEvent(event);"
+                    "}"
+                    "dispatch('pointerdown', 'PointerEvent');"
+                    "dispatch('mousedown', 'MouseEvent');"
+                    "dispatch('pointerup', 'PointerEvent');"
+                    "dispatch('mouseup', 'MouseEvent');"
+                    "if (typeof target.click === 'function') { target.click(); }"
+                    "else { dispatch('click', 'MouseEvent'); }"
+                    "return true;"
+                "}"
+                "window.__browserTVFrameClick = clickAt;"
+                "window.__browserTVExitFullscreen = function() {"
+                    "if (exitFullscreen()) { return true; }"
+                    "if (fullscreenFrame && fullscreenFrame.contentWindow) {"
+                        "fullscreenFrame.contentWindow.postMessage({browserTVFullscreenCommand: secret, action: 'exit'}, '*');"
+                        "return true;"
+                    "}"
+                    "return false;"
+                "};"
+                "window.__browserTVToggleVideo = toggleVideo;"
+                "function fullscreenElement() { return fullscreenTarget || fullscreenFrame; }"
+                "try { Object.defineProperty(document, 'fullscreenElement', {configurable:true, get:fullscreenElement}); } catch (error) {}"
+                "try { Object.defineProperty(document, 'webkitFullscreenElement', {configurable:true, get:fullscreenElement}); } catch (error) {}"
+                "try { Object.defineProperty(document, 'webkitIsFullScreen', {configurable:true, get:function() { return !!fullscreenElement(); }}); } catch (error) {}"
+                "function overrideMethod(object, name, implementation) {"
+                    "try { Object.defineProperty(object, name, {configurable:true, writable:true, value:implementation}); } catch (error) {}"
+                "}"
+                "if (window.Element && Element.prototype) {"
+                    "overrideMethod(Element.prototype, 'requestFullscreen', function() { enterFullscreen(this); return Promise.resolve(); });"
+                    "overrideMethod(Element.prototype, 'webkitRequestFullscreen', function() { enterFullscreen(this); });"
+                    "overrideMethod(Element.prototype, 'webkitRequestFullScreen', function() { enterFullscreen(this); });"
+                "}"
+                "if (window.HTMLVideoElement && HTMLVideoElement.prototype) {"
+                    "overrideMethod(HTMLVideoElement.prototype, 'webkitEnterFullscreen', function() { enterFullscreen(videoContainer(this)); });"
+                    "overrideMethod(HTMLVideoElement.prototype, 'webkitEnterFullScreen', function() { enterFullscreen(videoContainer(this)); });"
+                "}"
+                "overrideMethod(document, 'exitFullscreen', function() { exitFullscreen(); return Promise.resolve(); });"
+                "overrideMethod(document, 'webkitExitFullscreen', exitFullscreen);"
+                "overrideMethod(document, 'webkitCancelFullScreen', exitFullscreen);"
+                "window.addEventListener('message', function(event) {"
+                    "var data = event.data;"
+                    "if (!data) { return; }"
+                    "if (event.source === window.parent && data.browserTVFrameClick === secret) {"
+                        "clickAt(Number(data.x), Number(data.y));"
+                    "} else if (event.source === window.parent && data.browserTVFullscreenCommand === secret) {"
+                        "if (data.action === 'exit') { window.__browserTVExitFullscreen(); }"
+                        "if (data.action === 'toggle') { toggleVideo(); }"
+                    "} else if (data.browserTVFrameFullscreen === secret) {"
+                        "var frame = frameForSource(event.source);"
+                        "if (!frame) { return; }"
+                        "if (data.action === 'enter') {"
+                            "fullscreenFrame = frame;"
+                            "fullscreenFrameStyle = frame.style.cssText;"
+                            "frame.style.cssText += ';position:fixed!important;left:0!important;top:0!important;width:100vw!important;height:100vh!important;max-width:none!important;max-height:none!important;z-index:2147483647!important;background:#000!important';"
+                        "} else if (data.action === 'exit' && fullscreenFrame === frame) {"
+                            "frame.style.cssText = fullscreenFrameStyle;"
+                            "fullscreenFrame = null;"
+                            "fullscreenFrameStyle = '';"
+                        "}"
+                        "sendFullscreenToParent(data.action);"
+                    "}"
+                "});"
+            "})();", secret];
+}
+
+static void BrowserInstallUserScripts(id configuration) {
     if (configuration == nil) {
         return;
     }
@@ -480,6 +660,13 @@ static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
     userScript = ((id (*)(id, SEL, id, NSInteger, BOOL))objc_msgSend)(userScript, userScriptInitializer, BrowserYouTubeRequestCaptureScript(), 0, NO);
     if (userScript != nil) {
         ((void (*)(id, SEL, id))objc_msgSend)(userContentController, addUserScriptSelector, userScript);
+    }
+
+    NSString *frameClickSecret = [NSUUID UUID].UUIDString;
+    id frameClickScript = ((id (*)(id, SEL))objc_msgSend)((id)userScriptClass, @selector(alloc));
+    frameClickScript = ((id (*)(id, SEL, id, NSInteger, BOOL))objc_msgSend)(frameClickScript, userScriptInitializer, BrowserFrameClickBridgeScript(frameClickSecret), 0, NO);
+    if (frameClickScript != nil) {
+        ((void (*)(id, SEL, id))objc_msgSend)(userContentController, addUserScriptSelector, frameClickScript);
     }
 }
 
@@ -534,7 +721,7 @@ static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
         ((void (*)(id, SEL, BOOL))objc_msgSend)(configuration, allowsInlineMediaPlaybackSelector, allowsInlineMediaPlayback);
     }
     BrowserConfigurePrivateMediaPreferences(configuration);
-    BrowserInstallYouTubeCaptureUserScript(configuration);
+    BrowserInstallUserScripts(configuration);
 
     id webViewObject = ((id (*)(id, SEL))objc_msgSend)((id)webViewClass, @selector(alloc));
     SEL initializer = NSSelectorFromString(@"initWithFrame:configuration:");
@@ -672,12 +859,30 @@ static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
         evaluationError = error;
         finished = YES;
     });
-    BrowserPumpRunLoopUntil(&finished);
+    if (!BrowserPumpRunLoopUntil(&finished)) {
+        return nil;
+    }
 
     if (evaluationError != nil) {
         return nil;
     }
     return BrowserStringFromJavaScriptResult(evaluationResult);
+}
+
+- (void)evaluateJavaScript:(NSString *)script completion:(void (^)(NSString *result))completion {
+    SEL selector = NSSelectorFromString(@"evaluateJavaScript:completionHandler:");
+    if (script.length == 0 || self.runtimeWebView == nil || ![self.runtimeWebView respondsToSelector:selector]) {
+        if (completion != nil) {
+            completion(nil);
+        }
+        return;
+    }
+
+    ((void (*)(id, SEL, id, id))objc_msgSend)(self.runtimeWebView, selector, script, ^(id result, NSError *error) {
+        if (completion != nil) {
+            completion(error == nil ? BrowserStringFromJavaScriptResult(result) : nil);
+        }
+    });
 }
 
 - (void)pauseAllMediaPlayback {
@@ -1036,7 +1241,9 @@ windowFeatures:(id)windowFeatures {
         cookies = fetchedCookies;
         finished = YES;
     });
-    BrowserPumpRunLoopUntil(&finished);
+    if (!BrowserPumpRunLoopUntil(&finished)) {
+        return NSHTTPCookieStorage.sharedHTTPCookieStorage.cookies ?: @[];
+    }
     return cookies ?: @[];
 }
 

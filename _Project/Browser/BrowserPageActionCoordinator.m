@@ -38,10 +38,6 @@ static UIColor *BrowserPageActionTextColor(void) {
     return self;
 }
 
-- (NSString *)hoverStateAtDOMPoint:(CGPoint)point webView:(BrowserWebView *)webView {
-    return [self.domInteractionService evaluateHoverStateJavaScriptAtPoint:point webView:webView];
-}
-
 - (BOOL)handleTargetBlankLinkAtDOMPoint:(CGPoint)point webView:(BrowserWebView *)webView {
     NSDictionary *linkInfo = [self.domInteractionService linkInfoAtDOMPoint:point webView:webView];
     NSString *href = [linkInfo[@"href"] isKindOfClass:[NSString class]] ? linkInfo[@"href"] : @"";
@@ -193,7 +189,11 @@ static UIColor *BrowserPageActionTextColor(void) {
                                                                                                 "return type;"];
     [self.domInteractionService evaluateResolvedElementJavaScriptAtPoint:point
                                                                  webView:webView
-                                                                    body:@"var target = editableElement || interactiveElement || resolvedElement;"
+                                                                    body:@"var frame = document.elementFromPoint(x, y);"
+                                                                         "if (frame && frame.tagName === 'IFRAME' && typeof window.__browserTVFrameClick === 'function') {"
+                                                                             "return window.__browserTVFrameClick(x, y) ? 'true' : 'false';"
+                                                                         "}"
+                                                                         "var target = editableElement || interactiveElement || resolvedElement;"
                                                                          "if (!target) { return 'false'; }"
                                                                          "try { if (target.focus) { target.focus(); } } catch (error) {}"
                                                                          "function dispatchPointerLikeEvent(type, constructorName) {"
