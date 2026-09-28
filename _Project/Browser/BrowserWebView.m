@@ -856,7 +856,6 @@ static void BrowserLoadAdBlockRuleList(BrowserAdBlockRuleListCompletion completi
     self.userAgent = userAgent;
     self.pageZoomFactor = 1.0;
     self.textZoomFactor = 1.0;
-    self.scalesPageToFit = NO;
 
     Class configurationClass = NSClassFromString(kBrowserWebViewConfigurationClassName);
     Class webViewClass = NSClassFromString(kBrowserWebViewClassName);
@@ -1273,11 +1272,6 @@ static void BrowserLoadAdBlockRuleList(BrowserAdBlockRuleListCompletion completi
     }
 }
 
-- (void)setScalesPageToFit:(BOOL)scalesPageToFit {
-    _scalesPageToFit = scalesPageToFit;
-    [self applyPageScalingIfNeeded];
-}
-
 - (void)setPageZoomFactor:(CGFloat)pageZoomFactor {
     CGFloat nextFactor = MIN(2.0, MAX(0.5, pageZoomFactor));
     if (fabs(_pageZoomFactor - nextFactor) < 0.001) {
@@ -1323,13 +1317,6 @@ static void BrowserLoadAdBlockRuleList(BrowserAdBlockRuleListCompletion completi
     }
 
     CGFloat zoomValue = self.pageZoomFactor;
-    if (self.scalesPageToFit) {
-        CGFloat contentWidth = scrollView.contentSize.width;
-        CGFloat boundsWidth = CGRectGetWidth(scrollView.bounds);
-        if (contentWidth > 1.0 && boundsWidth > 1.0) {
-            zoomValue = MIN(1.0, MAX(0.25, boundsWidth / contentWidth));
-        }
-    }
 
     if (fabs(self.lastAppliedPageZoom - zoomValue) < 0.001) {
         return;

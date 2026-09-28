@@ -24,6 +24,11 @@
 
 @implementation BrowserHistoryCell
 
+- (void)layoutSubviews {
+    [super layoutSubviews];
+    self.contentView.frame = CGRectInset(self.bounds, 0.0, 7.0);
+}
+
 - (void)refreshAppearance {
     BOOL focused = self.isFocused;
     self.contentView.backgroundColor = focused ? [UIColor colorWithWhite:0.95 alpha:0.94]
@@ -31,7 +36,7 @@
     self.textLabel.textColor = focused ? [UIColor colorWithRed:0.10 green:0.15 blue:0.24 alpha:1.0] : UIColor.whiteColor;
     self.detailTextLabel.textColor = focused ? [UIColor colorWithRed:0.29 green:0.34 blue:0.43 alpha:1.0]
                                              : [UIColor colorWithWhite:1.0 alpha:0.68];
-    self.accessoryView.tintColor = self.checked
+    self.imageView.tintColor = self.checked
         ? (focused ? [UIColor colorWithRed:0.13 green:0.34 blue:0.75 alpha:1.0]
                    : [UIColor colorWithRed:0.58 green:0.74 blue:1.0 alpha:1.0])
         : (focused ? [UIColor colorWithRed:0.32 green:0.38 blue:0.48 alpha:1.0]
@@ -52,9 +57,12 @@
 @property (nonatomic, strong) NSMutableIndexSet *selectedIndexes;
 @property (nonatomic, strong) UITableView *tableView;
 @property (nonatomic, strong) UIButton *selectAllButton;
+@property (nonatomic, strong) UIButton *openButton;
 @property (nonatomic, strong) UIButton *deleteButton;
+@property (nonatomic, strong) UIButton *clearAllButton;
 @property (nonatomic, strong) UIButton *doneButton;
 @property (nonatomic, strong) UILabel *countLabel;
+@property (nonatomic, strong) NSDateFormatter *visitDateFormatter;
 @property (nonatomic, strong) CAGradientLayer *backgroundGradient;
 
 @end
@@ -105,6 +113,10 @@
     [self.view.layer addSublayer:gradient];
     self.backgroundGradient = gradient;
     self.entries = [[BrowserHistoryStore sharedStore] allVisits];
+    NSDateFormatter *dateFormatter = [NSDateFormatter new];
+    dateFormatter.dateStyle = NSDateFormatterShortStyle;
+    dateFormatter.timeStyle = NSDateFormatterShortStyle;
+    self.visitDateFormatter = dateFormatter;
 
     UILabel *eyebrow = [self label:@"BROWSER" size:23.0 weight:UIFontWeightBold
                               color:[UIColor colorWithRed:0.58 green:0.72 blue:1.0 alpha:1.0]];
@@ -131,7 +143,7 @@
     table.translatesAutoresizingMaskIntoConstraints = NO;
     table.dataSource = self;
     table.delegate = self;
-    table.rowHeight = 90.0;
+    table.rowHeight = 112.0;
     table.backgroundColor = UIColor.clearColor;
     table.showsVerticalScrollIndicator = YES;
     [self.view addSubview:table];
@@ -139,15 +151,23 @@
 
     UIButton *selectAll = [self button:@"Select All" color:[UIColor colorWithWhite:1.0 alpha:0.16]
                                  selector:@selector(selectAllPressed)];
-    UIButton *remove = [self button:@"Delete Selected" color:[UIColor colorWithRed:0.65 green:0.24 blue:0.33 alpha:0.72]
+    UIButton *open = [self button:@"Open" color:[UIColor colorWithRed:0.28 green:0.50 blue:0.92 alpha:0.65]
+                            selector:@selector(openPressed)];
+    UIButton *remove = [self button:@"Delete" color:[UIColor colorWithRed:0.65 green:0.24 blue:0.33 alpha:0.72]
                               selector:@selector(deletePressed)];
+    UIButton *clearAll = [self button:@"Clear All" color:[UIColor colorWithRed:0.65 green:0.24 blue:0.33 alpha:0.72]
+                                selector:@selector(clearAllPressed)];
     UIButton *done = [self button:@"Done" color:[UIColor colorWithRed:0.28 green:0.50 blue:0.92 alpha:0.65]
                             selector:@selector(donePressed)];
     [self.view addSubview:selectAll];
+    [self.view addSubview:open];
     [self.view addSubview:remove];
+    [self.view addSubview:clearAll];
     [self.view addSubview:done];
     self.selectAllButton = selectAll;
+    self.openButton = open;
     self.deleteButton = remove;
+    self.clearAllButton = clearAll;
     self.doneButton = done;
 
     [NSLayoutConstraint activateConstraints:@[
@@ -159,23 +179,31 @@
         [countLabel.topAnchor constraintEqualToAnchor:heading.bottomAnchor constant:6.0],
         [table.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:110.0],
         [table.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-110.0],
-        [table.topAnchor constraintEqualToAnchor:countLabel.bottomAnchor constant:34.0],
-        [table.bottomAnchor constraintEqualToAnchor:selectAll.topAnchor constant:-28.0],
+        [table.topAnchor constraintEqualToAnchor:selectAll.bottomAnchor constant:30.0],
+        [table.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-70.0],
         [glassPanel.leadingAnchor constraintEqualToAnchor:table.leadingAnchor constant:-14.0],
         [glassPanel.trailingAnchor constraintEqualToAnchor:table.trailingAnchor constant:14.0],
         [glassPanel.topAnchor constraintEqualToAnchor:table.topAnchor constant:-14.0],
         [glassPanel.bottomAnchor constraintEqualToAnchor:table.bottomAnchor constant:14.0],
         [selectAll.leadingAnchor constraintEqualToAnchor:table.leadingAnchor],
-        [selectAll.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-70.0],
-        [selectAll.widthAnchor constraintEqualToConstant:245.0],
+        [selectAll.topAnchor constraintEqualToAnchor:countLabel.bottomAnchor constant:28.0],
+        [selectAll.widthAnchor constraintEqualToConstant:220.0],
         [selectAll.heightAnchor constraintEqualToConstant:68.0],
-        [remove.leadingAnchor constraintEqualToAnchor:selectAll.trailingAnchor constant:20.0],
+        [open.leadingAnchor constraintEqualToAnchor:selectAll.trailingAnchor constant:16.0],
+        [open.centerYAnchor constraintEqualToAnchor:selectAll.centerYAnchor],
+        [open.widthAnchor constraintEqualToConstant:230.0],
+        [open.heightAnchor constraintEqualToConstant:68.0],
+        [remove.leadingAnchor constraintEqualToAnchor:open.trailingAnchor constant:16.0],
         [remove.centerYAnchor constraintEqualToAnchor:selectAll.centerYAnchor],
-        [remove.widthAnchor constraintEqualToConstant:295.0],
+        [remove.widthAnchor constraintEqualToConstant:265.0],
         [remove.heightAnchor constraintEqualToConstant:68.0],
+        [clearAll.leadingAnchor constraintEqualToAnchor:remove.trailingAnchor constant:16.0],
+        [clearAll.centerYAnchor constraintEqualToAnchor:selectAll.centerYAnchor],
+        [clearAll.widthAnchor constraintEqualToConstant:205.0],
+        [clearAll.heightAnchor constraintEqualToConstant:68.0],
         [done.trailingAnchor constraintEqualToAnchor:table.trailingAnchor],
         [done.centerYAnchor constraintEqualToAnchor:selectAll.centerYAnchor],
-        [done.widthAnchor constraintEqualToConstant:200.0],
+        [done.widthAnchor constraintEqualToConstant:180.0],
         [done.heightAnchor constraintEqualToConstant:68.0],
     ]];
     [self updateActions];
@@ -187,12 +215,18 @@
 }
 
 - (void)updateActions {
-    self.countLabel.text = [NSString stringWithFormat:@"%lu visited pages · %lu selected",
+    self.countLabel.text = [NSString stringWithFormat:@"%lu visits · %lu selected · Select a row to mark it · Play/Pause for actions",
                             (unsigned long)self.entries.count, (unsigned long)self.selectedIndexes.count];
+    self.openButton.enabled = self.selectedIndexes.count == 1;
+    self.openButton.alpha = self.openButton.enabled ? 1.0 : 0.45;
     self.deleteButton.enabled = self.selectedIndexes.count > 0;
     self.deleteButton.alpha = self.deleteButton.enabled ? 1.0 : 0.45;
+    self.clearAllButton.enabled = self.entries.count > 0;
+    self.clearAllButton.alpha = self.clearAllButton.enabled ? 1.0 : 0.45;
+    self.selectAllButton.enabled = self.entries.count > 0;
+    self.selectAllButton.alpha = self.selectAllButton.enabled ? 1.0 : 0.45;
     [self.selectAllButton setTitle:self.selectedIndexes.count == self.entries.count && self.entries.count > 0
-                                    ? @"Deselect All" : @"Select All" forState:UIControlStateNormal];
+                                    ? @"Deselect" : @"Select All" forState:UIControlStateNormal];
 }
 
 - (NSInteger)tableView:(__unused UITableView *)tableView numberOfRowsInSection:(__unused NSInteger)section {
@@ -209,21 +243,31 @@
         cell.contentView.layer.cornerRadius = 18.0;
         cell.contentView.layer.masksToBounds = YES;
         cell.textLabel.font = [UIFont systemFontOfSize:28.0 weight:UIFontWeightMedium];
+        cell.textLabel.numberOfLines = 1;
+        cell.textLabel.lineBreakMode = NSLineBreakByTruncatingTail;
         cell.detailTextLabel.font = [UIFont systemFontOfSize:20.0 weight:UIFontWeightRegular];
+        cell.detailTextLabel.numberOfLines = 1;
+        cell.detailTextLabel.lineBreakMode = NSLineBreakByTruncatingMiddle;
     }
     NSDictionary *entry = self.entries[(NSUInteger)indexPath.row];
     NSString *URLString = entry[@"url"] ?: @"";
     NSString *title = entry[@"title"] ?: @"";
     cell.textLabel.text = title.length > 0 ? title : URLString;
-    cell.detailTextLabel.text = URLString;
-    UIImageView *check = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:
-        [self.selectedIndexes containsIndex:(NSUInteger)indexPath.row] ? @"checkmark.square.fill" : @"square"]];
-    check.contentMode = UIViewContentModeScaleAspectFit;
-    check.frame = CGRectMake(0.0, 0.0, 38.0, 38.0);
-    cell.accessoryView = check;
+    NSNumber *visitedAt = entry[@"visitedAt"];
+    NSString *visited = visitedAt != nil
+        ? [self.visitDateFormatter stringFromDate:[NSDate dateWithTimeIntervalSince1970:visitedAt.doubleValue]] : @"";
+    cell.detailTextLabel.text = visited.length > 0
+        ? [NSString stringWithFormat:@"%@  ·  %@", visited, URLString] : URLString;
+    UIImageSymbolConfiguration *symbolConfiguration = [UIImageSymbolConfiguration configurationWithPointSize:34.0
+                                                                                                       weight:UIImageSymbolWeightMedium];
+    cell.imageView.image = [UIImage systemImageNamed:
+        [self.selectedIndexes containsIndex:(NSUInteger)indexPath.row] ? @"checkmark.circle.fill" : @"circle"
+                          withConfiguration:symbolConfiguration];
     cell.checked = [self.selectedIndexes containsIndex:(NSUInteger)indexPath.row];
     [cell refreshAppearance];
+    cell.accessibilityLabel = [NSString stringWithFormat:@"%@, %@", cell.textLabel.text, URLString];
     cell.accessibilityValue = [self.selectedIndexes containsIndex:(NSUInteger)indexPath.row] ? @"Selected" : @"Not selected";
+    cell.accessibilityHint = @"Press Select to select or deselect this visit";
     return cell;
 }
 
@@ -248,6 +292,27 @@
     [self updateActions];
 }
 
+- (void)openPressed {
+    if (self.selectedIndexes.count != 1) return;
+    NSUInteger index = self.selectedIndexes.firstIndex;
+    if (index >= self.entries.count) return;
+    NSString *URLString = self.entries[index][@"url"];
+    NSURL *URL = [NSURL URLWithString:URLString];
+    if (URL.host.length == 0 || ![@[@"http", @"https"] containsObject:URL.scheme.lowercaseString]) return;
+    void (^openURLString)(NSString *) = self.openURLString;
+    [self dismissViewControllerAnimated:YES completion:^{
+        if (openURLString != nil) openURLString(URLString);
+    }];
+}
+
+- (void)reloadAfterDeletion {
+    self.entries = [[BrowserHistoryStore sharedStore] allVisits];
+    [self.selectedIndexes removeAllIndexes];
+    [self.tableView reloadData];
+    [self updateActions];
+    if (self.historyDidChange != nil) self.historyDidChange();
+}
+
 - (void)deletePressed {
     if (self.selectedIndexes.count == 0) {
         return;
@@ -257,13 +322,46 @@
         if (index < self.entries.count) [identifiers addObject:self.entries[index][@"id"]];
     }];
     [[BrowserHistoryStore sharedStore] deleteVisitsWithIdentifiers:identifiers];
-    self.entries = [[BrowserHistoryStore sharedStore] allVisits];
-    [self.selectedIndexes removeAllIndexes];
-    [self.tableView reloadData];
-    [self updateActions];
-    if (self.historyDidChange != nil) {
-        self.historyDidChange();
+    [self reloadAfterDeletion];
+}
+
+- (void)clearAllPressed {
+    if (self.entries.count == 0) return;
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Clear all history?"
+                                                                   message:@"This removes every saved visit. Favorites stay saved."
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+    __weak typeof(self) weakSelf = self;
+    [alert addAction:[UIAlertAction actionWithTitle:@"Clear All History"
+                                              style:UIAlertActionStyleDestructive
+                                            handler:^(__unused UIAlertAction *action) {
+        [[BrowserHistoryStore sharedStore] deleteAllVisits];
+        [weakSelf reloadAfterDeletion];
+    }]];
+    [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+    [self presentViewController:alert animated:YES completion:nil];
+}
+
+- (void)presentActions {
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"History Actions"
+                                                                   message:@"Select visits with the remote's center button."
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+    __weak typeof(self) weakSelf = self;
+    if (self.selectedIndexes.count == 1) {
+        [alert addAction:[UIAlertAction actionWithTitle:@"Open Selected" style:UIAlertActionStyleDefault
+                                            handler:^(__unused UIAlertAction *action) { [weakSelf openPressed]; }]];
     }
+    [alert addAction:[UIAlertAction actionWithTitle:@"Select All" style:UIAlertActionStyleDefault
+                                        handler:^(__unused UIAlertAction *action) { [weakSelf selectAllPressed]; }]];
+    if (self.selectedIndexes.count > 0) {
+        [alert addAction:[UIAlertAction actionWithTitle:@"Delete Selected" style:UIAlertActionStyleDestructive
+                                            handler:^(__unused UIAlertAction *action) { [weakSelf deletePressed]; }]];
+    }
+    [alert addAction:[UIAlertAction actionWithTitle:@"Clear All" style:UIAlertActionStyleDestructive
+                                        handler:^(__unused UIAlertAction *action) {
+        dispatch_async(dispatch_get_main_queue(), ^{ [weakSelf clearAllPressed]; });
+    }]];
+    [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+    [self presentViewController:alert animated:YES completion:nil];
 }
 
 - (void)donePressed {
@@ -278,6 +376,10 @@
     for (UIPress *press in presses) {
         if (press.type == UIPressTypeMenu) {
             [self donePressed];
+            return;
+        }
+        if (press.type == UIPressTypePlayPause) {
+            [self presentActions];
             return;
         }
     }

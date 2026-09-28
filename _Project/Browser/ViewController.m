@@ -462,6 +462,13 @@ static UIColor *kTextColor(void) {
     [self.tabCoordinator createNewTabLoadingHomePage:NO];
 }
 
+- (void)browserOpenHistoryURLString:(NSString *)URLString {
+    NSURLRequest *request = [self.navigationService requestForURLString:URLString];
+    if (request != nil) {
+        [self.webview loadRequest:request];
+    }
+}
+
 - (void)browserUpdateTextFontSize {
     [self updateTextFontSize];
 }
