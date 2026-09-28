@@ -23,6 +23,8 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
 @interface BrowserAdvancedMenuItem : NSObject
 
 @property (nonatomic, copy) NSString *title;
+@property (nonatomic, copy) NSString *tileTitle;
+@property (nonatomic, copy) NSString *tileSymbolName;
 @property (nonatomic) UIAlertActionStyle style;
 @property (nonatomic, copy) BrowserAdvancedMenuItemHandler handler;
 @property (nonatomic, copy) BrowserAdvancedMenuToggleStateProvider toggleStateProvider;
@@ -59,6 +61,117 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
 
 @end
 
+@interface BrowserAdvancedMenuTileCell : UICollectionViewCell
+
+@property (nonatomic) UIImageView *symbolView;
+@property (nonatomic) UILabel *titleLabel;
+@property (nonatomic) UILabel *stateLabel;
+@property (nonatomic) BOOL destructive;
+@property (nonatomic) BOOL toggle;
+
+- (void)configureWithItem:(BrowserAdvancedMenuItem *)item;
+
+@end
+
+@implementation BrowserAdvancedMenuTileCell
+
+- (instancetype)initWithFrame:(CGRect)frame {
+    self = [super initWithFrame:frame];
+    if (self) {
+        self.backgroundColor = UIColor.clearColor;
+        self.contentView.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.13];
+        self.contentView.layer.cornerRadius = 18.0;
+        self.contentView.layer.masksToBounds = YES;
+
+        UIImageView *symbolView = [UIImageView new];
+        symbolView.translatesAutoresizingMaskIntoConstraints = NO;
+        symbolView.contentMode = UIViewContentModeScaleAspectFit;
+        [self.contentView addSubview:symbolView];
+        self.symbolView = symbolView;
+
+        UILabel *titleLabel = [UILabel new];
+        titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
+        titleLabel.font = [UIFont systemFontOfSize:24.0 weight:UIFontWeightMedium];
+        titleLabel.numberOfLines = 2;
+        titleLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+        [self.contentView addSubview:titleLabel];
+        self.titleLabel = titleLabel;
+
+        UILabel *stateLabel = [UILabel new];
+        stateLabel.translatesAutoresizingMaskIntoConstraints = NO;
+        stateLabel.font = [UIFont systemFontOfSize:17.0 weight:UIFontWeightSemibold];
+        stateLabel.textAlignment = NSTextAlignmentCenter;
+        stateLabel.layer.cornerRadius = 14.0;
+        stateLabel.layer.masksToBounds = YES;
+        [self.contentView addSubview:stateLabel];
+        self.stateLabel = stateLabel;
+
+        [NSLayoutConstraint activateConstraints:@[
+            [symbolView.leadingAnchor constraintEqualToAnchor:self.contentView.leadingAnchor constant:20.0],
+            [symbolView.topAnchor constraintEqualToAnchor:self.contentView.topAnchor constant:18.0],
+            [symbolView.widthAnchor constraintEqualToConstant:40.0],
+            [symbolView.heightAnchor constraintEqualToConstant:40.0],
+            [titleLabel.leadingAnchor constraintEqualToAnchor:self.contentView.leadingAnchor constant:20.0],
+            [titleLabel.trailingAnchor constraintEqualToAnchor:self.contentView.trailingAnchor constant:-16.0],
+            [titleLabel.bottomAnchor constraintEqualToAnchor:self.contentView.bottomAnchor constant:-17.0],
+            [stateLabel.trailingAnchor constraintEqualToAnchor:self.contentView.trailingAnchor constant:-16.0],
+            [stateLabel.topAnchor constraintEqualToAnchor:self.contentView.topAnchor constant:18.0],
+            [stateLabel.widthAnchor constraintEqualToConstant:52.0],
+            [stateLabel.heightAnchor constraintEqualToConstant:28.0],
+        ]];
+    }
+    return self;
+}
+
+- (void)configureWithItem:(BrowserAdvancedMenuItem *)item {
+    self.destructive = item.style == UIAlertActionStyleDestructive;
+    self.toggle = item.toggleStateProvider != nil;
+    self.titleLabel.text = item.tileTitle.length > 0 ? item.tileTitle : item.title;
+    UIImageSymbolConfiguration *configuration = [UIImageSymbolConfiguration configurationWithPointSize:37.0
+                                                                                                 weight:UIImageSymbolWeightMedium];
+    UIImage *symbol = [UIImage systemImageNamed:item.tileSymbolName ?: @"square.grid.2x2"
+                             withConfiguration:configuration];
+    if (symbol == nil) {
+        symbol = [UIImage systemImageNamed:@"square.grid.2x2" withConfiguration:configuration];
+    }
+    self.symbolView.image = [symbol imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+    self.stateLabel.hidden = !self.toggle;
+    if (self.toggle) {
+        BOOL isOn = item.toggleStateProvider();
+        self.stateLabel.text = isOn ? @"ON" : @"OFF";
+        self.stateLabel.backgroundColor = isOn ? [UIColor colorWithRed:0.20 green:0.72 blue:0.42 alpha:0.95]
+                                                   : [UIColor colorWithWhite:0.42 alpha:0.65];
+        self.accessibilityValue = isOn ? @"On" : @"Off";
+    } else {
+        self.accessibilityValue = nil;
+    }
+    self.accessibilityLabel = item.title;
+    [self updateAppearance];
+}
+
+- (void)updateAppearance {
+    BOOL focused = self.isFocused;
+    self.contentView.backgroundColor = focused ? [UIColor colorWithWhite:1.0 alpha:0.96]
+                                               : [UIColor colorWithWhite:1.0 alpha:0.13];
+    UIColor *foreground = self.destructive ? (focused ? [UIColor colorWithRed:0.65 green:0.10 blue:0.16 alpha:1.0]
+                                                    : [UIColor colorWithRed:1.0 green:0.48 blue:0.50 alpha:1.0])
+                                            : (focused ? UIColor.blackColor : UIColor.whiteColor);
+    self.symbolView.tintColor = foreground;
+    self.titleLabel.textColor = foreground;
+    self.stateLabel.textColor = UIColor.whiteColor;
+    self.layer.zPosition = focused ? 1.0 : 0.0;
+}
+
+- (void)didUpdateFocusInContext:(UIFocusUpdateContext *)context
+       withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
+    [super didUpdateFocusInContext:context withAnimationCoordinator:coordinator];
+    [coordinator addCoordinatedAnimations:^{
+        [self updateAppearance];
+    } completion:nil];
+}
+
+@end
+
 @implementation BrowserAdvancedMenuSection
 
 + (instancetype)sectionWithTitle:(NSString *)title items:(NSArray<BrowserAdvancedMenuItem *> *)items {
@@ -70,7 +183,7 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
 
 @end
 
-@interface BrowserAdvancedMenuViewController : UIViewController <UITableViewDataSource, UITableViewDelegate>
+@interface BrowserAdvancedMenuViewController : UIViewController <UICollectionViewDataSource, UICollectionViewDelegateFlowLayout>
 
 @property (nonatomic, copy) NSString *addressText;
 @property (nonatomic, copy) BrowserAdvancedMenuItemHandler addressHandler;
@@ -90,7 +203,7 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
 @property (nonatomic, copy) NSString *footerText;
 @property (nonatomic) UIView *dimView;
 @property (nonatomic) UIVisualEffectView *panelView;
-@property (nonatomic) UITableView *tableView;
+@property (nonatomic) UICollectionView *tileView;
 @property (nonatomic) NSLayoutConstraint *panelTrailingConstraint;
 @property (nonatomic) CGFloat panelWidth;
 @property (nonatomic) BOOL didAnimateIn;
@@ -190,18 +303,13 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
     [addressButton addSubview:addressLabel];
 
     UIStackView *navigationToolbar = [UIStackView new];
-    UIStackView *quickToolbar = [UIStackView new];
-    for (UIStackView *row in @[navigationToolbar, quickToolbar]) {
-        row.translatesAutoresizingMaskIntoConstraints = NO;
-        row.axis = UILayoutConstraintAxisHorizontal;
-        row.alignment = UIStackViewAlignmentFill;
-        row.distribution = row == navigationToolbar ? UIStackViewDistributionFill : UIStackViewDistributionFillEqually;
-        row.spacing = 8.0;
-        [panelView.contentView addSubview:row];
-    }
-    NSArray<NSString *> *toolbarSymbols = @[@"house.fill", @"arrow.clockwise", @"plus", @"square.on.square",
-                                            @"star", @"clock.arrow.circlepath",
-                                            @"minus.magnifyingglass", @"", @"plus.magnifyingglass"];
+    navigationToolbar.translatesAutoresizingMaskIntoConstraints = NO;
+    navigationToolbar.axis = UILayoutConstraintAxisHorizontal;
+    navigationToolbar.alignment = UIStackViewAlignmentFill;
+    navigationToolbar.distribution = UIStackViewDistributionFill;
+    navigationToolbar.spacing = 8.0;
+    [panelView.contentView addSubview:navigationToolbar];
+    NSArray<NSString *> *toolbarSymbols = @[@"house.fill", @"arrow.clockwise", @"plus", @"square.on.square"];
     NSMutableArray<UIButton *> *toolbarButtons = [NSMutableArray arrayWithCapacity:self.toolbarItems.count];
     [self.toolbarItems enumerateObjectsUsingBlock:^(BrowserAdvancedMenuItem *item, NSUInteger index, __unused BOOL *stop) {
         UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
@@ -211,53 +319,31 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
             ? [UIColor colorWithRed:0.20 green:0.54 blue:0.90 alpha:0.72]
             : [UIColor colorWithWhite:1.0 alpha:0.12];
         button.layer.cornerRadius = 12.0;
-        NSString *symbolName = index < toolbarSymbols.count ? toolbarSymbols[index] : @"";
-        if (symbolName.length > 0) {
-            UIImageSymbolConfiguration *symbolConfiguration = [UIImageSymbolConfiguration configurationWithPointSize:34.0
-                                                                                                               weight:UIImageSymbolWeightMedium];
-            UIImage *symbol = [UIImage systemImageNamed:symbolName withConfiguration:symbolConfiguration];
-            UIImageView *iconView = [[UIImageView alloc] initWithImage:[symbol imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
-            iconView.translatesAutoresizingMaskIntoConstraints = NO;
-            iconView.tag = 9797;
-            iconView.contentMode = UIViewContentModeScaleAspectFit;
-            iconView.tintColor = UIColor.whiteColor;
-            iconView.alpha = item.enabled ? 1.0 : 0.35;
-            iconView.userInteractionEnabled = NO;
-            [button addSubview:iconView];
-            [NSLayoutConstraint activateConstraints:@[
-                [iconView.centerXAnchor constraintEqualToAnchor:button.centerXAnchor],
-                [iconView.centerYAnchor constraintEqualToAnchor:button.centerYAnchor],
-                [iconView.widthAnchor constraintEqualToConstant:42.0],
-                [iconView.heightAnchor constraintEqualToConstant:42.0],
-            ]];
-        } else {
-            UILabel *iconLabel = [UILabel new];
-            iconLabel.translatesAutoresizingMaskIntoConstraints = NO;
-            iconLabel.tag = 9797;
-            iconLabel.text = @"1:1";
-            iconLabel.font = [UIFont systemFontOfSize:34.0 weight:UIFontWeightSemibold];
-            iconLabel.textColor = UIColor.whiteColor;
-            iconLabel.textAlignment = NSTextAlignmentCenter;
-            iconLabel.userInteractionEnabled = NO;
-            [button addSubview:iconLabel];
-            [NSLayoutConstraint activateConstraints:@[
-                [iconLabel.centerXAnchor constraintEqualToAnchor:button.centerXAnchor],
-                [iconLabel.centerYAnchor constraintEqualToAnchor:button.centerYAnchor],
-                [iconLabel.leadingAnchor constraintGreaterThanOrEqualToAnchor:button.leadingAnchor constant:4.0],
-                [iconLabel.trailingAnchor constraintLessThanOrEqualToAnchor:button.trailingAnchor constant:-4.0],
-            ]];
-        }
+        UIImageSymbolConfiguration *symbolConfiguration = [UIImageSymbolConfiguration configurationWithPointSize:34.0
+                                                                                                           weight:UIImageSymbolWeightMedium];
+        UIImage *symbol = [UIImage systemImageNamed:toolbarSymbols[index] withConfiguration:symbolConfiguration];
+        UIImageView *iconView = [[UIImageView alloc] initWithImage:[symbol imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
+        iconView.translatesAutoresizingMaskIntoConstraints = NO;
+        iconView.tag = 9797;
+        iconView.contentMode = UIViewContentModeScaleAspectFit;
+        iconView.tintColor = UIColor.whiteColor;
+        iconView.alpha = item.enabled ? 1.0 : 0.35;
+        iconView.userInteractionEnabled = NO;
+        [button addSubview:iconView];
+        [NSLayoutConstraint activateConstraints:@[
+            [iconView.centerXAnchor constraintEqualToAnchor:button.centerXAnchor],
+            [iconView.centerYAnchor constraintEqualToAnchor:button.centerYAnchor],
+            [iconView.widthAnchor constraintEqualToConstant:42.0],
+            [iconView.heightAnchor constraintEqualToConstant:42.0],
+        ]];
         button.accessibilityLabel = item.title;
         button.accessibilityValue = item.toggleStateProvider != nil ? (item.toggleStateProvider() ? @"On" : @"Off") : nil;
         [button addTarget:self action:@selector(toolbarButtonPressed:) forControlEvents:UIControlEventPrimaryActionTriggered];
-        UIStackView *row = index < kBrowserNavigationToolbarItemCount ? navigationToolbar : quickToolbar;
         if (index == kBrowserNavigationToolbarItemCount - 2) {
             [navigationToolbar addArrangedSubview:addressButton];
         }
-        [row addArrangedSubview:button];
-        if (row == navigationToolbar) {
-            [button.widthAnchor constraintEqualToConstant:58.0].active = YES;
-        }
+        [navigationToolbar addArrangedSubview:button];
+        [button.widthAnchor constraintEqualToConstant:58.0].active = YES;
         [toolbarButtons addObject:button];
     }];
     self.toolbarButtons = toolbarButtons;
@@ -266,15 +352,6 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
     toolbarSeparator.translatesAutoresizingMaskIntoConstraints = NO;
     toolbarSeparator.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.24];
     [panelView.contentView addSubview:toolbarSeparator];
-
-    UIView *separator = [UIView new];
-    separator.translatesAutoresizingMaskIntoConstraints = NO;
-    if (@available(tvOS 13.0, *)) {
-        separator.backgroundColor = UIColor.separatorColor;
-    } else {
-        separator.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.2];
-    }
-    [panelView.contentView addSubview:separator];
 
     UILabel *footerLabel = [UILabel new];
     footerLabel.translatesAutoresizingMaskIntoConstraints = NO;
@@ -288,30 +365,30 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
     }
     [panelView.contentView addSubview:footerLabel];
 
-    UITableView *tableView = [[UITableView alloc] initWithFrame:CGRectZero style:UITableViewStylePlain];
-    tableView.translatesAutoresizingMaskIntoConstraints = NO;
-    tableView.dataSource = self;
-    tableView.delegate = self;
-    tableView.rowHeight = 68.0;
-    tableView.backgroundColor = UIColor.clearColor;
-    tableView.preservesSuperviewLayoutMargins = NO;
-    tableView.layoutMargins = UIEdgeInsetsZero;
+    UICollectionViewFlowLayout *tileLayout = [UICollectionViewFlowLayout new];
+    tileLayout.itemSize = CGSizeMake((self.panelWidth - 32.0 - 40.0 - 12.0) / 2.0, 132.0);
+    tileLayout.minimumInteritemSpacing = 12.0;
+    tileLayout.minimumLineSpacing = 14.0;
+    tileLayout.sectionInset = UIEdgeInsetsMake(4.0, 20.0, 22.0, 20.0);
+    tileLayout.headerReferenceSize = CGSizeMake(self.panelWidth - 32.0, 48.0);
+
+    UICollectionView *tileView = [[UICollectionView alloc] initWithFrame:CGRectZero collectionViewLayout:tileLayout];
+    tileView.translatesAutoresizingMaskIntoConstraints = NO;
+    tileView.dataSource = self;
+    tileView.delegate = self;
+    tileView.backgroundColor = UIColor.clearColor;
+    tileView.remembersLastFocusedIndexPath = YES;
+    tileView.showsVerticalScrollIndicator = NO;
+    tileView.contentInset = UIEdgeInsetsZero;
     if (@available(tvOS 11.0, *)) {
-        tableView.directionalLayoutMargins = NSDirectionalEdgeInsetsZero;
-        tableView.insetsLayoutMarginsFromSafeArea = NO;
+        tileView.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
     }
-    tableView.cellLayoutMarginsFollowReadableWidth = NO;
-    tableView.clipsToBounds = NO;
-    tableView.layer.cornerRadius = 0.0;
-    tableView.remembersLastFocusedIndexPath = YES;
-    tableView.contentInset = UIEdgeInsetsZero;
-    tableView.showsVerticalScrollIndicator = NO;
-    if (@available(tvOS 11.0, *)) {
-        tableView.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
-        tableView.insetsContentViewsToSafeArea = NO;
-    }
-    [panelView.contentView addSubview:tableView];
-    self.tableView = tableView;
+    [tileView registerClass:BrowserAdvancedMenuTileCell.class forCellWithReuseIdentifier:@"MenuTile"];
+    [tileView registerClass:UICollectionReusableView.class
+        forSupplementaryViewOfKind:UICollectionElementKindSectionHeader
+               withReuseIdentifier:@"MenuSectionHeader"];
+    [panelView.contentView addSubview:tileView];
+    self.tileView = tileView;
 
     self.panelTrailingConstraint = [panelView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor
                                                                              constant:self.panelWidth + 32.0];
@@ -347,20 +424,10 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
         [toolbarSeparator.topAnchor constraintEqualToAnchor:navigationToolbar.bottomAnchor constant:14.0],
         [toolbarSeparator.heightAnchor constraintEqualToConstant:1.0],
 
-        [quickToolbar.leadingAnchor constraintEqualToAnchor:panelView.leadingAnchor constant:24.0],
-        [quickToolbar.trailingAnchor constraintEqualToAnchor:panelView.trailingAnchor constant:-24.0],
-        [quickToolbar.topAnchor constraintEqualToAnchor:toolbarSeparator.bottomAnchor constant:14.0],
-        [quickToolbar.heightAnchor constraintEqualToConstant:64.0],
-
-        [separator.leadingAnchor constraintEqualToAnchor:panelView.leadingAnchor constant:20.0],
-        [separator.trailingAnchor constraintEqualToAnchor:panelView.trailingAnchor constant:-20.0],
-        [separator.topAnchor constraintEqualToAnchor:quickToolbar.bottomAnchor constant:16.0],
-        [separator.heightAnchor constraintEqualToConstant:1.0],
-
-        [tableView.topAnchor constraintEqualToAnchor:separator.bottomAnchor constant:12.0],
-        [tableView.leadingAnchor constraintEqualToAnchor:panelView.leadingAnchor constant:16.0],
-        [tableView.trailingAnchor constraintEqualToAnchor:panelView.trailingAnchor constant:-16.0],
-        [tableView.bottomAnchor constraintEqualToAnchor:footerLabel.topAnchor constant:-8.0],
+        [tileView.topAnchor constraintEqualToAnchor:toolbarSeparator.bottomAnchor constant:12.0],
+        [tileView.leadingAnchor constraintEqualToAnchor:panelView.leadingAnchor constant:16.0],
+        [tileView.trailingAnchor constraintEqualToAnchor:panelView.trailingAnchor constant:-16.0],
+        [tileView.bottomAnchor constraintEqualToAnchor:footerLabel.topAnchor constant:-8.0],
 
         [footerLabel.leadingAnchor constraintEqualToAnchor:panelView.leadingAnchor constant:24.0],
         [footerLabel.trailingAnchor constraintEqualToAnchor:panelView.trailingAnchor constant:-24.0],
@@ -434,165 +501,78 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
     }];
 }
 
-- (NSInteger)numberOfSectionsInTableView:(__unused UITableView *)tableView {
+- (NSInteger)numberOfSectionsInCollectionView:(__unused UICollectionView *)collectionView {
     return (NSInteger)self.sections.count;
 }
 
-- (NSInteger)tableView:(__unused UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
-    if (section < 0 || section >= (NSInteger)self.sections.count) {
-        return 0;
-    }
+- (NSInteger)collectionView:(__unused UICollectionView *)collectionView
+     numberOfItemsInSection:(NSInteger)section {
     return (NSInteger)self.sections[(NSUInteger)section].items.count;
 }
 
-- (NSString *)tableView:(__unused UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
-    if (section < 0 || section >= (NSInteger)self.sections.count) {
-        return nil;
-    }
-    return self.sections[(NSUInteger)section].title;
+- (CGSize)collectionView:(__unused UICollectionView *)collectionView
+                  layout:(__unused UICollectionViewLayout *)collectionViewLayout
+  sizeForItemAtIndexPath:(NSIndexPath *)indexPath {
+    CGFloat availableWidth = self.panelWidth - 32.0 - 40.0;
+    BOOL isZoomRow = indexPath.section == 0 && indexPath.item < 3;
+    CGFloat width = isZoomRow ? floor((availableWidth - 24.0) / 3.0) - 1.0
+                              : floor((availableWidth - 12.0) / 2.0) - 1.0;
+    return CGSizeMake(width, 132.0);
 }
 
-- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
-    static NSString * const kCellIdentifier = @"BrowserAdvancedMenuCell";
-    static NSInteger const kMenuTitleLabelTag = 9191;
-    static NSInteger const kMenuFocusBackgroundTag = 9292;
-    static NSInteger const kMenuToggleTrackTag = 9393;
-    static NSInteger const kMenuToggleThumbTag = 9494;
-    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:kCellIdentifier];
-    if (cell == nil) {
-        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:kCellIdentifier];
-        cell.backgroundColor = UIColor.clearColor;
-        cell.contentView.backgroundColor = UIColor.clearColor;
-        cell.clipsToBounds = NO;
-        cell.contentView.clipsToBounds = NO;
-        cell.preservesSuperviewLayoutMargins = NO;
-        cell.layoutMargins = UIEdgeInsetsZero;
-        cell.selectionStyle = UITableViewCellSelectionStyleNone;
-        if ([cell respondsToSelector:@selector(setFocusStyle:)]) {
-            [cell setValue:@(1) forKey:@"focusStyle"]; // UITableViewCellFocusStyleCustom
-        }
-
-        UIView *focusBackgroundView = [UIView new];
-        focusBackgroundView.translatesAutoresizingMaskIntoConstraints = NO;
-        focusBackgroundView.tag = kMenuFocusBackgroundTag;
-        focusBackgroundView.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.18];
-        focusBackgroundView.layer.cornerRadius = 12.0;
-        focusBackgroundView.alpha = 0.0;
-        [cell.contentView addSubview:focusBackgroundView];
-
-        UILabel *titleLabel = [UILabel new];
-        titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
-        titleLabel.tag = kMenuTitleLabelTag;
-        titleLabel.font = [UIFont systemFontOfSize:31.0 weight:UIFontWeightRegular];
-        titleLabel.textAlignment = NSTextAlignmentLeft;
-        titleLabel.numberOfLines = 1;
-        [cell.contentView addSubview:titleLabel];
-
-        UIView *toggleTrack = [UIView new];
-        toggleTrack.translatesAutoresizingMaskIntoConstraints = NO;
-        toggleTrack.tag = kMenuToggleTrackTag;
-        toggleTrack.layer.cornerRadius = 18.0;
-        [cell.contentView addSubview:toggleTrack];
-
-        UIView *toggleThumb = [UIView new];
-        toggleThumb.translatesAutoresizingMaskIntoConstraints = NO;
-        toggleThumb.tag = kMenuToggleThumbTag;
-        toggleThumb.backgroundColor = UIColor.whiteColor;
-        toggleThumb.layer.cornerRadius = 14.0;
-        [toggleTrack addSubview:toggleThumb];
-
-        [NSLayoutConstraint activateConstraints:@[
-            [focusBackgroundView.leadingAnchor constraintEqualToAnchor:cell.contentView.leadingAnchor constant:0.0],
-            [focusBackgroundView.trailingAnchor constraintEqualToAnchor:cell.contentView.trailingAnchor constant:0.0],
-            [focusBackgroundView.topAnchor constraintEqualToAnchor:cell.contentView.topAnchor constant:2.0],
-            [focusBackgroundView.bottomAnchor constraintEqualToAnchor:cell.contentView.bottomAnchor constant:-2.0],
-
-            [titleLabel.leadingAnchor constraintEqualToAnchor:cell.contentView.leadingAnchor constant:24.0],
-            [titleLabel.trailingAnchor constraintEqualToAnchor:cell.contentView.trailingAnchor constant:-24.0],
-            [titleLabel.centerYAnchor constraintEqualToAnchor:cell.contentView.centerYAnchor],
-
-            [toggleTrack.trailingAnchor constraintEqualToAnchor:cell.contentView.trailingAnchor constant:-24.0],
-            [toggleTrack.centerYAnchor constraintEqualToAnchor:cell.contentView.centerYAnchor],
-            [toggleTrack.widthAnchor constraintEqualToConstant:66.0],
-            [toggleTrack.heightAnchor constraintEqualToConstant:36.0],
-            [toggleThumb.leadingAnchor constraintEqualToAnchor:toggleTrack.leadingAnchor constant:4.0],
-            [toggleThumb.centerYAnchor constraintEqualToAnchor:toggleTrack.centerYAnchor],
-            [toggleThumb.widthAnchor constraintEqualToConstant:28.0],
-            [toggleThumb.heightAnchor constraintEqualToConstant:28.0],
-        ]];
-    }
-
-    BrowserAdvancedMenuSection *section = self.sections[(NSUInteger)indexPath.section];
-    BrowserAdvancedMenuItem *item = section.items[(NSUInteger)indexPath.row];
-    UILabel *titleLabel = (UILabel *)[cell.contentView viewWithTag:kMenuTitleLabelTag];
-    UIView *focusBackgroundView = [cell.contentView viewWithTag:kMenuFocusBackgroundTag];
-    UIView *toggleTrack = [cell.contentView viewWithTag:kMenuToggleTrackTag];
-    UIView *toggleThumb = [toggleTrack viewWithTag:kMenuToggleThumbTag];
-    titleLabel.text = item.title;
-    UIColor *titleColor = nil;
-    if (item.style == UIAlertActionStyleDestructive) {
-        titleColor = UIColor.redColor;
-    } else if (@available(tvOS 13.0, *)) {
-        titleColor = UIColor.labelColor;
-    } else {
-        titleColor = UIColor.whiteColor;
-    }
-    titleLabel.textColor = titleColor;
-    BOOL isToggle = item.toggleStateProvider != nil;
-    BOOL isOn = isToggle && item.toggleStateProvider();
-    toggleTrack.hidden = !isToggle;
-    toggleTrack.backgroundColor = isOn ? [UIColor colorWithRed:0.20 green:0.74 blue:0.39 alpha:1.0]
-                                      : [UIColor colorWithWhite:0.45 alpha:0.75];
-    toggleThumb.transform = CGAffineTransformMakeTranslation(isOn ? 30.0 : 0.0, 0.0);
-    cell.accessibilityValue = isToggle ? (isOn ? @"On" : @"Off") : nil;
-    focusBackgroundView.alpha = cell.isFocused ? 1.0 : 0.0;
+- (UICollectionViewCell *)collectionView:(UICollectionView *)collectionView
+                  cellForItemAtIndexPath:(NSIndexPath *)indexPath {
+    BrowserAdvancedMenuTileCell *cell = [collectionView dequeueReusableCellWithReuseIdentifier:@"MenuTile"
+                                                                                    forIndexPath:indexPath];
+    BrowserAdvancedMenuItem *item = self.sections[(NSUInteger)indexPath.section].items[(NSUInteger)indexPath.item];
+    [cell configureWithItem:item];
     return cell;
 }
 
-- (void)tableView:(UITableView *)tableView
-didUpdateFocusInContext:(UITableViewFocusUpdateContext *)context
-withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
-    NSIndexPath *previousIndexPath = context.previouslyFocusedIndexPath;
-    NSIndexPath *nextIndexPath = context.nextFocusedIndexPath;
-
-    UITableViewCell *previousCell = previousIndexPath ? [tableView cellForRowAtIndexPath:previousIndexPath] : nil;
-    UITableViewCell *nextCell = nextIndexPath ? [tableView cellForRowAtIndexPath:nextIndexPath] : nil;
-
-    [coordinator addCoordinatedAnimations:^{
-        UIView *previousFocusBackground = [previousCell.contentView viewWithTag:9292];
-        previousFocusBackground.alpha = 0.0;
-
-        UIView *nextFocusBackground = [nextCell.contentView viewWithTag:9292];
-        nextFocusBackground.alpha = 1.0;
-    } completion:nil];
+- (UICollectionReusableView *)collectionView:(UICollectionView *)collectionView
+           viewForSupplementaryElementOfKind:(NSString *)kind
+                                 atIndexPath:(NSIndexPath *)indexPath {
+    UICollectionReusableView *header = [collectionView dequeueReusableSupplementaryViewOfKind:kind
+                                                                           withReuseIdentifier:@"MenuSectionHeader"
+                                                                                  forIndexPath:indexPath];
+    UILabel *titleLabel = [header viewWithTag:9191];
+    if (titleLabel == nil) {
+        titleLabel = [UILabel new];
+        titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
+        titleLabel.tag = 9191;
+        titleLabel.font = [UIFont systemFontOfSize:21.0 weight:UIFontWeightSemibold];
+        titleLabel.textColor = [UIColor colorWithWhite:1.0 alpha:0.72];
+        [header addSubview:titleLabel];
+        [NSLayoutConstraint activateConstraints:@[
+            [titleLabel.leadingAnchor constraintEqualToAnchor:header.leadingAnchor constant:20.0],
+            [titleLabel.trailingAnchor constraintEqualToAnchor:header.trailingAnchor constant:-20.0],
+            [titleLabel.bottomAnchor constraintEqualToAnchor:header.bottomAnchor constant:-4.0],
+        ]];
+    }
+    titleLabel.text = self.sections[(NSUInteger)indexPath.section].title.uppercaseString;
+    return header;
 }
 
-- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
-    [tableView deselectRowAtIndexPath:indexPath animated:YES];
-    BrowserAdvancedMenuSection *section = self.sections[(NSUInteger)indexPath.section];
-    BrowserAdvancedMenuItem *item = section.items[(NSUInteger)indexPath.row];
+- (BOOL)collectionView:(__unused UICollectionView *)collectionView
+ canFocusItemAtIndexPath:(NSIndexPath *)indexPath {
+    return self.sections[(NSUInteger)indexPath.section].items[(NSUInteger)indexPath.item].enabled;
+}
+
+- (void)collectionView:(UICollectionView *)collectionView didSelectItemAtIndexPath:(NSIndexPath *)indexPath {
+    [collectionView deselectItemAtIndexPath:indexPath animated:YES];
+    BrowserAdvancedMenuItem *item = self.sections[(NSUInteger)indexPath.section].items[(NSUInteger)indexPath.item];
     BrowserAdvancedMenuItemHandler handler = item.handler;
-    if (item.toggleStateProvider != nil) {
+    if (item.toggleStateProvider != nil || item.keepsMenuOpen) {
         if (handler != nil) {
             handler();
         }
-        UITableViewCell *cell = [tableView cellForRowAtIndexPath:indexPath];
-        UIView *toggleTrack = [cell.contentView viewWithTag:9393];
-        UIView *toggleThumb = [toggleTrack viewWithTag:9494];
-        BOOL isOn = item.toggleStateProvider();
-        [UIView animateWithDuration:0.18 animations:^{
-            toggleTrack.backgroundColor = isOn ? [UIColor colorWithRed:0.20 green:0.74 blue:0.39 alpha:1.0]
-                                               : [UIColor colorWithWhite:0.45 alpha:0.75];
-            toggleThumb.transform = CGAffineTransformMakeTranslation(isOn ? 30.0 : 0.0, 0.0);
-        }];
-        cell.accessibilityValue = isOn ? @"On" : @"Off";
+        if (item.toggleStateProvider != nil) {
+            BrowserAdvancedMenuTileCell *cell = (BrowserAdvancedMenuTileCell *)[collectionView cellForItemAtIndexPath:indexPath];
+            [cell configureWithItem:item];
+        }
         return;
     }
-    [self dismissMenuWithCompletion:^{
-        if (handler != nil) {
-            handler();
-        }
-    }];
+    [self dismissMenuWithCompletion:handler];
 }
 
 - (void)toolbarButtonPressed:(UIButton *)button {
@@ -625,9 +605,9 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
 
 - (NSArray<id<UIFocusEnvironment>> *)preferredFocusEnvironments {
     if (self.toolbarButtons.count >= kBrowserNavigationToolbarItemCount) {
-        UIButton *tabsButton = self.toolbarButtons[kBrowserNavigationToolbarItemCount - 1];
-        if (tabsButton.enabled) {
-            return @[tabsButton];
+        UIButton *newTabButton = self.toolbarButtons[kBrowserNavigationToolbarItemCount - 2];
+        if (newTabButton.enabled) {
+            return @[newTabButton];
         }
     }
     if (self.addressButton.enabled) {
@@ -638,7 +618,7 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
             return @[button];
         }
     }
-    return @[self.tableView];
+    return @[self.tileView];
 }
 
 - (void)didUpdateFocusInContext:(UIFocusUpdateContext *)context
@@ -823,6 +803,9 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     controller.historyDidChange = ^{
         [weakSelf.host browserRefreshNewTabPageSelectingGroup:@"history" index:0];
     };
+    controller.openURLString = ^(NSString *URLString) {
+        [weakSelf.host browserOpenHistoryURLString:URLString];
+    };
     [self.host browserPresentViewController:controller];
 }
 
@@ -891,19 +874,6 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     [self.host browserBringCursorToFront];
 }
 
-- (void)setPageScalingEnabled:(BOOL)enabled {
-    self.preferencesStore.scalePagesToFit = enabled;
-    if (enabled) {
-        self.preferencesStore.pageZoomPercent = 100;
-        self.host.browserWebView.pageZoomFactor = 1.0;
-    }
-    [[self.host browserWebView] setScalesPageToFit:enabled];
-    if (enabled) {
-        [[self.host browserWebView] setContentMode:UIViewContentModeScaleAspectFit];
-    }
-    [[self.host browserWebView] reload];
-}
-
 - (void)setPageZoomPercent:(NSUInteger)percent {
     BrowserWebView *webView = self.host.browserWebView;
     UIScrollView *scrollView = webView.scrollView;
@@ -912,9 +882,6 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     CGFloat centerX = scrollView.contentOffset.x + visibleWidth / 2.0;
 
     self.preferencesStore.pageZoomPercent = percent;
-    self.preferencesStore.scalePagesToFit = NO;
-    webView.scalesPageToFit = NO;
-    webView.contentMode = UIViewContentModeScaleToFill;
     webView.pageZoomFactor = self.preferencesStore.pageZoomPercent / 100.0;
     self.host.browserTextFontSize = self.preferencesStore.pageZoomPercent;
     [self.host browserUpdateTextFontSize];
@@ -1173,18 +1140,6 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     return item;
 }
 
-- (BrowserAdvancedMenuItem *)pageScalingMenuItem {
-    BrowserAdvancedMenuItem *item = [self advancedMenuItemWithTitle:@"Scale Pages to Fit"
-                                                               style:UIAlertActionStyleDefault
-                                                             handler:^{
-        [self setPageScalingEnabled:!self.preferencesStore.scalePagesToFit];
-    }];
-    item.toggleStateProvider = ^BOOL {
-        return self.preferencesStore.scalePagesToFit;
-    };
-    return item;
-}
-
 - (BrowserAdvancedMenuItem *)cursorMagnifierToggleMenuItem {
     BrowserAdvancedMenuItem *item = [self advancedMenuItemWithTitle:@"Cursor Magnifier"
                                                                style:UIAlertActionStyleDefault
@@ -1257,6 +1212,34 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
                                                                handler:^{
         [self.host browserShowTabOverview];
     }];
+    return @[homeItem, reloadItem, newTabItem, tabsItem];
+}
+
+- (BrowserAdvancedMenuItem *)tileItem:(BrowserAdvancedMenuItem *)item
+                                title:(NSString *)title
+                               symbol:(NSString *)symbol {
+    item.tileTitle = title;
+    item.tileSymbolName = symbol;
+    return item;
+}
+
+- (void)presentDebugOptions {
+    UIAlertController *menu = [self browserAlertControllerWithTitle:@"Debug" message:nil];
+    [menu addAction:[self browserActionWithTitle:@"Media Diagnostics"
+                                       style:UIAlertActionStyleDefault
+                                     handler:^(__unused UIAlertAction *action) {
+        [self presentMediaDiagnostics];
+    }]];
+    [menu addAction:[self browserActionWithTitle:@"Inspect WebKit Media Prefs"
+                                       style:UIAlertActionStyleDefault
+                                     handler:^(__unused UIAlertAction *action) {
+        [self presentWebKitRuntimeMediaPreferences];
+    }]];
+    [menu addAction:[self browserCancelAction]];
+    [self.host browserPresentViewController:menu];
+}
+
+- (NSArray<BrowserAdvancedMenuSection *> *)advancedMenuSections {
     BrowserAdvancedMenuItem *addFavoriteItem = [self advancedMenuItemWithTitle:@"Add to Favorites"
                                                                          style:UIAlertActionStyleDefault
                                                                        handler:^{
@@ -1285,20 +1268,10 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     zoomOutItem.keepsMenuOpen = YES;
     zoomResetItem.keepsMenuOpen = YES;
     zoomInItem.keepsMenuOpen = YES;
-    return @[homeItem, reloadItem, newTabItem, tabsItem,
-             addFavoriteItem, historyItem, zoomOutItem, zoomResetItem, zoomInItem];
-}
-
-- (NSArray<BrowserAdvancedMenuSection *> *)advancedMenuSections {
-    BrowserAdvancedMenuItem *mediaDiagnosticsItem = [self advancedMenuItemWithTitle:@"Media Diagnostics"
-                                                                               style:UIAlertActionStyleDefault
-                                                                             handler:^{
-        [self presentMediaDiagnostics];
-    }];
-    BrowserAdvancedMenuItem *webkitMediaPrefsItem = [self advancedMenuItemWithTitle:@"Inspect WebKit Media Prefs"
-                                                                                style:UIAlertActionStyleDefault
-                                                                              handler:^{
-        [self presentWebKitRuntimeMediaPreferences];
+    BrowserAdvancedMenuItem *debugItem = [self advancedMenuItemWithTitle:@"Debug"
+                                                                   style:UIAlertActionStyleDefault
+                                                                 handler:^{
+        [self presentDebugOptions];
     }];
     BrowserAdvancedMenuItem *clearCacheItem = [self advancedMenuItemWithTitle:@"Clear Cache"
                                                                          style:UIAlertActionStyleDestructive
@@ -1312,36 +1285,27 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     }];
 
     return @[
-        [BrowserAdvancedMenuSection sectionWithTitle:@"Privacy"
+        [BrowserAdvancedMenuSection sectionWithTitle:@"Quick Actions"
                                                items:@[
-            [self adBlockToggleMenuItem],
+            [self tileItem:zoomOutItem title:@"Zoom Out" symbol:@"minus.magnifyingglass"],
+            [self tileItem:zoomResetItem title:@"Reset Zoom" symbol:@"arrow.counterclockwise"],
+            [self tileItem:zoomInItem title:@"Zoom In" symbol:@"plus.magnifyingglass"],
+            [self tileItem:addFavoriteItem title:@"Add Favorite" symbol:@"star.fill"],
+            [self tileItem:historyItem title:@"History" symbol:@"clock.arrow.circlepath"],
         ]],
-        [BrowserAdvancedMenuSection sectionWithTitle:@"Appearance"
+        [BrowserAdvancedMenuSection sectionWithTitle:@"Settings"
                                                items:@[
-            [self cursorMagnifierToggleMenuItem],
-            [self pageScalingMenuItem],
+            [self tileItem:[self adBlockToggleMenuItem] title:@"Ad Block" symbol:@"hand.raised.fill"],
+            [self tileItem:[self cursorMagnifierToggleMenuItem] title:@"Magnifier" symbol:@"magnifyingglass"],
+            [self tileItem:[self fullscreenVideoPlaybackToggleMenuItem] title:@"Full Screen Player" symbol:@"play.rectangle.fill"],
+            [self tileItem:[self userAgentModeMenuItem] title:@"Mobile Site" symbol:@"iphone"],
         ]],
-        [BrowserAdvancedMenuSection sectionWithTitle:@"Video Playback"
+        [BrowserAdvancedMenuSection sectionWithTitle:@"Tools"
                                                items:@[
-            [self fullscreenVideoPlaybackToggleMenuItem],
-        ]],
-        [BrowserAdvancedMenuSection sectionWithTitle:@"Compatibility"
-                                               items:@[
-            [self userAgentModeMenuItem],
-        ]],
-        [BrowserAdvancedMenuSection sectionWithTitle:@"Diagnostics"
-                                               items:@[
-            mediaDiagnosticsItem,
-            webkitMediaPrefsItem,
-        ]],
-        [BrowserAdvancedMenuSection sectionWithTitle:@"Maintenance"
-                                               items:@[
-            clearCacheItem,
-            clearCookiesItem,
-        ]],
-        [BrowserAdvancedMenuSection sectionWithTitle:@"Help"
-                                               items:@[
-            [self usageGuideMenuItem],
+            [self tileItem:debugItem title:@"Debug" symbol:@"ladybug"],
+            [self tileItem:[self usageGuideMenuItem] title:@"User Guide" symbol:@"book.closed.fill"],
+            [self tileItem:clearCacheItem title:@"Clear Cache" symbol:@"externaldrive"],
+            [self tileItem:clearCookiesItem title:@"Clear Cookies" symbol:@"trash"],
         ]],
     ];
 }

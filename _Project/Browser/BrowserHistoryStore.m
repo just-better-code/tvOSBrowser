@@ -7,6 +7,36 @@
 
 @implementation BrowserHistoryStore
 
+- (BOOL)copyLegacyDatabaseIntoOpenDatabaseAtPath:(NSString *)destinationPath {
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+    for (NSNumber *kind in @[@(NSCachesDirectory), @(NSDocumentDirectory)]) {
+        NSURL *directory = [[fileManager URLsForDirectory:kind.unsignedIntegerValue
+                                               inDomains:NSUserDomainMask] firstObject];
+        NSString *sourcePath = [[directory URLByAppendingPathComponent:@"BrowserHistory.sqlite"] path];
+        if (sourcePath.length == 0 || [sourcePath isEqualToString:destinationPath] ||
+            ![fileManager fileExistsAtPath:sourcePath]) continue;
+
+        sqlite3 *source = NULL;
+        int openResult = sqlite3_open_v2(sourcePath.UTF8String, &source, SQLITE_OPEN_READONLY, NULL);
+        if (openResult != SQLITE_OK) {
+            NSLog(@"[History] Cannot read legacy database %@: %s", sourcePath, source ? sqlite3_errmsg(source) : "open failed");
+            if (source != NULL) sqlite3_close(source);
+            continue;
+        }
+        sqlite3_backup *backup = sqlite3_backup_init(self.database, "main", source, "main");
+        int copyResult = backup != NULL ? sqlite3_backup_step(backup, -1) : sqlite3_errcode(self.database);
+        int finishResult = backup != NULL ? sqlite3_backup_finish(backup) : copyResult;
+        sqlite3_close(source);
+        if (copyResult == SQLITE_DONE && finishResult == SQLITE_OK) {
+            NSLog(@"[History] Moved saved database from %@ to %@", sourcePath, destinationPath);
+            return YES;
+        }
+        NSLog(@"[History] Cannot move database from %@: %s", sourcePath, sqlite3_errmsg(self.database));
+        return NO;
+    }
+    return YES;
+}
+
 + (instancetype)sharedStore {
     static BrowserHistoryStore *store;
     static dispatch_once_t onceToken;
@@ -17,7 +47,7 @@
 - (instancetype)init {
     self = [super init];
     if (self) {
-        NSArray<NSNumber *> *directoryKinds = @[@(NSCachesDirectory), @(NSDocumentDirectory), @(NSApplicationSupportDirectory)];
+        NSArray<NSNumber *> *directoryKinds = @[@(NSApplicationSupportDirectory), @(NSDocumentDirectory), @(NSCachesDirectory)];
         for (NSNumber *kind in directoryKinds) {
             NSURL *directory = [[[NSFileManager defaultManager] URLsForDirectory:kind.unsignedIntegerValue
                                                                         inDomains:NSUserDomainMask] firstObject];
@@ -29,7 +59,14 @@
                 continue;
             }
             NSString *path = [[directory URLByAppendingPathComponent:@"BrowserHistory.sqlite"] path];
+            BOOL existingDatabase = [[NSFileManager defaultManager] fileExistsAtPath:path];
             if (sqlite3_open(path.UTF8String, &_database) == SQLITE_OK) {
+                if (!existingDatabase && ![self copyLegacyDatabaseIntoOpenDatabaseAtPath:path]) {
+                    sqlite3_close(_database);
+                    _database = NULL;
+                    [[NSFileManager defaultManager] removeItemAtPath:path error:nil];
+                    continue;
+                }
                 break;
             }
             NSLog(@"[History] Cannot open %@: %s", path, sqlite3_errmsg(_database));
@@ -151,10 +188,12 @@
     while (sqlite3_step(statement) == SQLITE_ROW) {
         const char *url = (const char *)sqlite3_column_text(statement, 1);
         const char *title = (const char *)sqlite3_column_text(statement, 2);
-        [records addObject:@{@"id": @(sqlite3_column_int64(statement, 0)),
-                             @"url": url ? [NSString stringWithUTF8String:url] : @"",
-                             @"title": title ? [NSString stringWithUTF8String:title] : @"",
-                             @"count": @(sqlite3_column_int64(statement, 3))}];
+        NSMutableDictionary *record = [@{@"id": @(sqlite3_column_int64(statement, 0)),
+                                         @"url": url ? [NSString stringWithUTF8String:url] : @"",
+                                         @"title": title ? [NSString stringWithUTF8String:title] : @"",
+                                         @"count": @(sqlite3_column_int64(statement, 3))} mutableCopy];
+        if (sqlite3_column_count(statement) > 4) record[@"visitedAt"] = @(sqlite3_column_double(statement, 4));
+        [records addObject:record];
     }
     sqlite3_finalize(statement);
     return records;
@@ -168,7 +207,7 @@
 }
 
 - (NSArray<NSDictionary *> *)allVisits {
-    return [self recordsForSQL:"SELECT id,url,title,1 FROM visits ORDER BY visited_at DESC,id DESC" limit:0];
+    return [self recordsForSQL:"SELECT id,url,title,1,visited_at FROM visits ORDER BY visited_at DESC,id DESC" limit:0];
 }
 
 - (void)deleteVisitsWithIdentifiers:(NSArray<NSNumber *> *)identifiers {
@@ -195,6 +234,15 @@
     sqlite3_bind_text(statement, 1, URLString.UTF8String, -1, SQLITE_TRANSIENT);
     sqlite3_step(statement);
     sqlite3_finalize(statement);
+    [self syncHistoryBackup];
+}
+
+- (void)deleteAllVisits {
+    if (self.database == NULL) return;
+    if (sqlite3_exec(self.database, "DELETE FROM visits", NULL, NULL, NULL) != SQLITE_OK) {
+        NSLog(@"[History] Cannot clear visits: %s", sqlite3_errmsg(self.database));
+        return;
+    }
     [self syncHistoryBackup];
 }
 

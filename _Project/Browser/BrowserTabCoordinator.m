@@ -272,11 +272,9 @@ static NSString *BrowserNewTabSectionHTML(NSArray *entries, BOOL favorites, NSUI
     [scrollView.panGestureRecognizer addTarget:self action:@selector(handleWebViewPanGesture:)];
     scrollView.scrollEnabled = NO;
 
-    BOOL shouldScalePagesToFit = self.preferencesStore.scalePagesToFit;
-    webView.scalesPageToFit = shouldScalePagesToFit;
     webView.pageZoomFactor = self.preferencesStore.pageZoomPercent / 100.0;
     webView.textZoomFactor = self.preferencesStore.textFontSize / 100.0;
-    webView.contentMode = shouldScalePagesToFit ? UIViewContentModeScaleAspectFit : UIViewContentModeScaleToFill;
+    webView.contentMode = UIViewContentModeScaleToFill;
     webView.userInteractionEnabled = NO;
     return webView;
 }
@@ -288,7 +286,6 @@ static NSString *BrowserNewTabSectionHTML(NSArray *entries, BOOL favorites, NSUI
         return;
     }
 
-    self.activeWebView.scalesPageToFit = self.preferencesStore.scalePagesToFit;
     self.activeWebView.pageZoomFactor = self.preferencesStore.pageZoomPercent / 100.0;
     self.activeWebView.textZoomFactor = self.preferencesStore.textFontSize / 100.0;
 

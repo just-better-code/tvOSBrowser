@@ -25,6 +25,7 @@
 - (void)browserSetAdBlockEnabled:(BOOL)enabled;
 - (void)browserRefreshNewTabPageSelectingGroup:(NSString *)group index:(NSUInteger)index;
 - (void)browserShowNewTabPageSelectingGroup:(NSString *)group;
+- (void)browserOpenHistoryURLString:(NSString *)URLString;
 
 @end
 

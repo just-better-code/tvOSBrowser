@@ -22,7 +22,6 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly, getter=canGoBack) BOOL canGoBack;
 @property (nonatomic, readonly, getter=canGoForward) BOOL canGoForward;
 @property (nonatomic, readonly, getter=isLoading) BOOL loading;
-@property (nonatomic) BOOL scalesPageToFit;
 @property (nonatomic) CGFloat pageZoomFactor;
 @property (nonatomic) CGFloat textZoomFactor;
 @property (nonatomic, readonly) BOOL adBlockEnabled;
