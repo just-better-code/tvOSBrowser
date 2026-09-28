@@ -15,7 +15,7 @@ static UIColor *MenuTextColor(void) {
 
 static NSString * const kBrowserMediaDiagnosticsLogPrefix = @"[MediaDiagnostics]";
 static NSString * const kBrowserWebKitMediaPrefsLogPrefix = @"[WebKitMediaPrefs]";
-static NSUInteger const kBrowserNavigationToolbarItemCount = 5;
+static NSUInteger const kBrowserNavigationToolbarItemCount = 4;
 
 typedef void (^BrowserAdvancedMenuItemHandler)(void);
 typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
@@ -86,7 +86,6 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
 @property (nonatomic, copy) NSArray<BrowserAdvancedMenuItem *> *toolbarItems;
 @property (nonatomic, copy) NSArray<UIButton *> *toolbarButtons;
 @property (nonatomic) UIButton *addressButton;
-@property (nonatomic) UIStackView *historyToolbar;
 @property (nonatomic, copy) NSArray<BrowserAdvancedMenuSection *> *sections;
 @property (nonatomic, copy) NSString *footerText;
 @property (nonatomic) UIView *dimView;
@@ -196,20 +195,12 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
         row.translatesAutoresizingMaskIntoConstraints = NO;
         row.axis = UILayoutConstraintAxisHorizontal;
         row.alignment = UIStackViewAlignmentFill;
-        row.distribution = row == navigationToolbar ? UIStackViewDistributionEqualSpacing : UIStackViewDistributionFillEqually;
+        row.distribution = row == navigationToolbar ? UIStackViewDistributionFill : UIStackViewDistributionFillEqually;
         row.spacing = 8.0;
         [panelView.contentView addSubview:row];
     }
-    UIStackView *historyToolbar = [UIStackView new];
-    historyToolbar.translatesAutoresizingMaskIntoConstraints = NO;
-    historyToolbar.axis = UILayoutConstraintAxisHorizontal;
-    historyToolbar.alignment = UIStackViewAlignmentFill;
-    historyToolbar.distribution = UIStackViewDistributionFillEqually;
-    historyToolbar.spacing = 0.0;
-    [historyToolbar.widthAnchor constraintEqualToConstant:96.0].active = YES;
-    self.historyToolbar = historyToolbar;
-    NSArray<NSString *> *toolbarSymbols = @[@"house.fill", @"chevron.left", @"chevron.right", @"arrow.clockwise",
-                                            @"square.on.square", @"star", @"clock.arrow.circlepath",
+    NSArray<NSString *> *toolbarSymbols = @[@"house.fill", @"arrow.clockwise", @"plus", @"square.on.square",
+                                            @"star", @"clock.arrow.circlepath",
                                             @"minus.magnifyingglass", @"", @"plus.magnifyingglass"];
     NSMutableArray<UIButton *> *toolbarButtons = [NSMutableArray arrayWithCapacity:self.toolbarItems.count];
     [self.toolbarItems enumerateObjectsUsingBlock:^(BrowserAdvancedMenuItem *item, NSUInteger index, __unused BOOL *stop) {
@@ -220,11 +211,6 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
             ? [UIColor colorWithRed:0.20 green:0.54 blue:0.90 alpha:0.72]
             : [UIColor colorWithWhite:1.0 alpha:0.12];
         button.layer.cornerRadius = 12.0;
-        if (index == 1) {
-            button.layer.maskedCorners = kCALayerMinXMinYCorner | kCALayerMinXMaxYCorner;
-        } else if (index == 2) {
-            button.layer.maskedCorners = kCALayerMaxXMinYCorner | kCALayerMaxXMaxYCorner;
-        }
         NSString *symbolName = index < toolbarSymbols.count ? toolbarSymbols[index] : @"";
         if (symbolName.length > 0) {
             UIImageSymbolConfiguration *symbolConfiguration = [UIImageSymbolConfiguration configurationWithPointSize:34.0
@@ -268,32 +254,13 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
         if (index == kBrowserNavigationToolbarItemCount - 2) {
             [navigationToolbar addArrangedSubview:addressButton];
         }
-        if (index == 1) {
-            [navigationToolbar addArrangedSubview:historyToolbar];
-        }
-        if (index == 1 || index == 2) {
-            [historyToolbar addArrangedSubview:button];
-        } else {
-            [row addArrangedSubview:button];
-        }
-        if (row == navigationToolbar && index != 1 && index != 2) {
+        [row addArrangedSubview:button];
+        if (row == navigationToolbar) {
             [button.widthAnchor constraintEqualToConstant:58.0].active = YES;
         }
         [toolbarButtons addObject:button];
     }];
     self.toolbarButtons = toolbarButtons;
-
-    UIView *historyDivider = [UIView new];
-    historyDivider.translatesAutoresizingMaskIntoConstraints = NO;
-    historyDivider.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.28];
-    historyDivider.userInteractionEnabled = NO;
-    [historyToolbar addSubview:historyDivider];
-    [NSLayoutConstraint activateConstraints:@[
-        [historyDivider.centerXAnchor constraintEqualToAnchor:historyToolbar.centerXAnchor],
-        [historyDivider.centerYAnchor constraintEqualToAnchor:historyToolbar.centerYAnchor],
-        [historyDivider.widthAnchor constraintEqualToConstant:1.0],
-        [historyDivider.heightAnchor constraintEqualToConstant:36.0],
-    ]];
 
     UIView *toolbarSeparator = [UIView new];
     toolbarSeparator.translatesAutoresizingMaskIntoConstraints = NO;
@@ -349,7 +316,6 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
     self.panelTrailingConstraint = [panelView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor
                                                                              constant:self.panelWidth + 32.0];
 
-    CGFloat addressWidth = MIN(240.0, MAX(120.0, self.panelWidth - 48.0 - 58.0 * 3.0 - 96.0 - 32.0));
     NSMutableArray<NSLayoutConstraint *> *constraints = [NSMutableArray arrayWithArray:@[
         [dimView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
         [dimView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
@@ -362,7 +328,7 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
         self.panelTrailingConstraint,
 
         [addressButton.heightAnchor constraintEqualToConstant:64.0],
-        [addressButton.widthAnchor constraintEqualToConstant:addressWidth],
+        [addressButton.widthAnchor constraintGreaterThanOrEqualToConstant:120.0],
         [addressIcon.leadingAnchor constraintEqualToAnchor:addressButton.leadingAnchor constant:18.0],
         [addressIcon.centerYAnchor constraintEqualToAnchor:addressButton.centerYAnchor],
         [addressIcon.widthAnchor constraintEqualToConstant:32.0],
@@ -693,16 +659,10 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     }
     if ([self.toolbarButtons containsObject:(UIButton *)previousView]) {
         previousView.layer.zPosition = 0.0;
-        if (previousView.superview == self.historyToolbar) {
-            self.historyToolbar.layer.zPosition = 0.0;
-        }
     }
     if ([self.toolbarButtons containsObject:(UIButton *)nextView]) {
         [nextView.superview bringSubviewToFront:nextView];
         nextView.layer.zPosition = 1.0;
-        if (nextView.superview == self.historyToolbar) {
-            self.historyToolbar.layer.zPosition = 1.0;
-        }
     }
     [coordinator addCoordinatedAnimations:^{
         if ([self.toolbarButtons containsObject:(UIButton *)previousView]) {
@@ -1277,15 +1237,6 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
 }
 
 - (NSArray<BrowserAdvancedMenuItem *> *)advancedMenuToolbarItems {
-    BrowserAdvancedMenuItem *backItem = [self advancedMenuItemWithTitle:@"Back"
-                                                                  style:UIAlertActionStyleDefault
-                                                                handler:^{
-        BrowserWebView *webView = self.host.browserWebView;
-        if (webView.canGoBack) {
-            [webView goBack];
-        }
-    }];
-    backItem.enabled = self.host.browserWebView.canGoBack;
     BrowserAdvancedMenuItem *homeItem = [self advancedMenuItemWithTitle:@"Home"
                                                                   style:UIAlertActionStyleDefault
                                                                 handler:^{
@@ -1296,15 +1247,11 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
                                                                  handler:^{
         [self.host.browserWebView reload];
     }];
-    BrowserAdvancedMenuItem *forwardItem = [self advancedMenuItemWithTitle:@"Forward"
+    BrowserAdvancedMenuItem *newTabItem = [self advancedMenuItemWithTitle:@"New Tab"
                                                                      style:UIAlertActionStyleDefault
                                                                    handler:^{
-        BrowserWebView *webView = self.host.browserWebView;
-        if (webView.canGoForward) {
-            [webView goForward];
-        }
+        [self.host browserCreateNewTab];
     }];
-    forwardItem.enabled = self.host.browserWebView.canGoForward;
     BrowserAdvancedMenuItem *tabsItem = [self advancedMenuItemWithTitle:@"Tabs"
                                                                  style:UIAlertActionStyleDefault
                                                                handler:^{
@@ -1338,7 +1285,7 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     zoomOutItem.keepsMenuOpen = YES;
     zoomResetItem.keepsMenuOpen = YES;
     zoomInItem.keepsMenuOpen = YES;
-    return @[homeItem, backItem, forwardItem, reloadItem, tabsItem,
+    return @[homeItem, reloadItem, newTabItem, tabsItem,
              addFavoriteItem, historyItem, zoomOutItem, zoomResetItem, zoomInItem];
 }
 

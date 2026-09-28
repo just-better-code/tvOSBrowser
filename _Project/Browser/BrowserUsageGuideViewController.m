@@ -140,7 +140,7 @@
     [remote addSubview:back];
     [remote addSubview:play];
 
-    UILabel *footnote = [self labelWithText:@"Menu: close view or show tabs\nPlay/Pause: control video"
+    UILabel *footnote = [self labelWithText:@"Back: open or close the menu\nPlay/Pause: video · select on New Tab"
                                       size:21.0 weight:UIFontWeightMedium
                                      color:[UIColor colorWithWhite:1.0 alpha:0.62]];
     footnote.textAlignment = NSTextAlignmentCenter;
@@ -208,12 +208,12 @@
     [content addSubview:remotePanel];
 
     NSArray<NSDictionary<NSString *, NSString *> *> *tips = @[
-        @{@"symbol": @"cursorarrow.motionlines", @"title": @"Point & click", @"gesture": @"Touchpad · Center", @"detail": @"Slide to move the pointer. Press to select."},
+        @{@"symbol": @"cursorarrow.motionlines", @"title": @"Point & click", @"gesture": @"Touchpad · Center", @"detail": @"Slide to move the pointer. Press Center to click."},
         @{@"symbol": @"arrow.up.and.down", @"title": @"Scroll", @"gesture": @"Up / Down", @"detail": @"Tap for a step. Hold to glide faster."},
-        @{@"symbol": @"arrow.left.arrow.right", @"title": @"Browse history", @"gesture": @"Left / Right", @"detail": @"Move back or forward one page."},
-        @{@"symbol": @"square.on.square", @"title": @"Your tabs", @"gesture": @"Double Left", @"detail": @"See open tabs. Double Up closes one."},
-        @{@"symbol": @"slider.horizontal.3", @"title": @"Quick menu", @"gesture": @"Double Right", @"detail": @"Address, favorites, zoom, and more."},
-        @{@"symbol": @"magnifyingglass.circle", @"title": @"Magnifier", @"gesture": @"Hold Center", @"detail": @"Toggle the lens for small details."},
+        @{@"symbol": @"arrow.left.arrow.right", @"title": @"Go back & forward", @"gesture": @"Left / Right", @"detail": @"Move through pages in the current tab."},
+        @{@"symbol": @"square.on.square", @"title": @"Your tabs", @"gesture": @"Double Left", @"detail": @"Choose a tab or +. Double Up closes a tab."},
+        @{@"symbol": @"slider.horizontal.3", @"title": @"Quick menu", @"gesture": @"Back", @"detail": @"Back opens it; Back again closes it. Address, zoom, history."},
+        @{@"symbol": @"magnifyingglass.circle", @"title": @"Magnifier", @"gesture": @"Hold Center", @"detail": @"Toggle the lens for small details, even at the screen edge."},
     ];
     NSArray<UIColor *> *colors = @[
         [UIColor colorWithRed:0.52 green:0.71 blue:1.0 alpha:1.0],

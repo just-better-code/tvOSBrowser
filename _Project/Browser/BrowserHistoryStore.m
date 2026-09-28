@@ -67,8 +67,11 @@
 
 - (void)migrateLegacyHistory {
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-    NSArray *legacy = [defaults arrayForKey:@"HISTORY"];
-    if ([self allVisits].count > 0 || legacy.count == 0) {
+    NSArray *snapshot = [defaults arrayForKey:@"HISTORY_BACKUP_V2"];
+    NSArray *legacy = snapshot ?: [defaults arrayForKey:@"HISTORY"];
+    NSUInteger storedCount = [self allVisits].count;
+    if (storedCount > 0 || legacy.count == 0) {
+        NSLog(@"[History] Opened %lu saved visits; backup has %lu", (unsigned long)storedCount, (unsigned long)legacy.count);
         [self syncHistoryBackup];
         return;
     }
@@ -86,21 +89,42 @@
         if (url.length == 0) continue;
         sqlite3_bind_text(statement, 1, url.UTF8String, -1, SQLITE_TRANSIENT);
         sqlite3_bind_text(statement, 2, title.UTF8String, -1, SQLITE_TRANSIENT);
-        sqlite3_bind_double(statement, 3, time++);
+        NSTimeInterval visitedAt = entry.count > 2 && [entry[2] isKindOfClass:NSNumber.class]
+            ? [entry[2] doubleValue] : time;
+        sqlite3_bind_double(statement, 3, visitedAt);
+        time += 1;
         success = sqlite3_step(statement) == SQLITE_DONE;
         sqlite3_reset(statement);
         sqlite3_clear_bindings(statement);
     }
     sqlite3_finalize(statement);
-    if (sqlite3_exec(self.database, success ? "COMMIT" : "ROLLBACK", NULL, NULL, NULL) == SQLITE_OK && success)
+    if (sqlite3_exec(self.database, success ? "COMMIT" : "ROLLBACK", NULL, NULL, NULL) == SQLITE_OK && success) {
+        NSLog(@"[History] Restored %lu visits from preferences", (unsigned long)legacy.count);
         [self syncHistoryBackup];
+    }
 }
 
 - (void)syncHistoryBackup {
-    NSArray *recent = [self recordsForSQL:"SELECT id,url,title,1 FROM visits ORDER BY visited_at DESC,id DESC LIMIT 200" limit:0];
-    NSMutableArray *backup = [NSMutableArray arrayWithCapacity:recent.count];
-    for (NSDictionary *entry in recent) [backup addObject:@[entry[@"url"], entry[@"title"]]];
-    [[NSUserDefaults standardUserDefaults] setObject:backup forKey:@"HISTORY"];
+    if (self.database == NULL) return;
+    sqlite3_stmt *statement = NULL;
+    if (sqlite3_prepare_v2(self.database,
+            "SELECT url,title,visited_at FROM visits ORDER BY visited_at DESC,id DESC LIMIT 2000",
+            -1, &statement, NULL) != SQLITE_OK) return;
+    NSMutableArray *snapshot = [NSMutableArray array];
+    NSMutableArray *backup = [NSMutableArray arrayWithCapacity:200];
+    while (sqlite3_step(statement) == SQLITE_ROW) {
+        const char *url = (const char *)sqlite3_column_text(statement, 0);
+        const char *title = (const char *)sqlite3_column_text(statement, 1);
+        NSString *URLString = url ? [NSString stringWithUTF8String:url] : @"";
+        NSString *pageTitle = title ? [NSString stringWithUTF8String:title] : @"";
+        [snapshot addObject:@[URLString, pageTitle, @(sqlite3_column_double(statement, 2))]];
+        if (backup.count < 200) [backup addObject:@[URLString, pageTitle]];
+    }
+    sqlite3_finalize(statement);
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    [defaults setObject:snapshot forKey:@"HISTORY_BACKUP_V2"];
+    [defaults setObject:backup forKey:@"HISTORY"];
+    [defaults synchronize];
 }
 
 - (void)recordURLString:(NSString *)URLString title:(NSString *)title {

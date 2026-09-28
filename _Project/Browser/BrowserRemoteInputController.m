@@ -20,7 +20,6 @@ static UIImage *BrowserPointerCursor(void) {
 
 static NSTimeInterval const kBrowserCursorIdleDelay = 3.0;
 static CGFloat const kBrowserMagnifierDiameter = 384.0;
-static CGFloat const kBrowserMagnifierCursorEdgeInset = 32.0;
 static NSTimeInterval const kBrowserSelectHoldDelay = 0.65;
 static NSTimeInterval const kBrowserVerticalHoldDelay = 0.38;
 static CGFloat const kBrowserVerticalHoldInitialSpeed = 560.0;
@@ -160,14 +159,6 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     self.magnifierImageView.image = nil;
     self.magnifierView.hidden = YES;
     if (magnifierEnabled) {
-        CGFloat viewWidth = CGRectGetWidth(self.rootView.bounds);
-        CGFloat viewHeight = CGRectGetHeight(self.rootView.bounds);
-        if (viewWidth > kBrowserMagnifierCursorEdgeInset && viewHeight > kBrowserMagnifierCursorEdgeInset) {
-            CGRect cursorFrame = self.cursorView.frame;
-            cursorFrame.origin.x = MIN(cursorFrame.origin.x, viewWidth - kBrowserMagnifierCursorEdgeInset);
-            cursorFrame.origin.y = MIN(cursorFrame.origin.y, viewHeight - kBrowserMagnifierCursorEdgeInset);
-            self.cursorView.frame = cursorFrame;
-        }
         [self noteCursorActivity];
         [self updateMagnifierAtPoint:self.cursorView.frame.origin];
         __weak typeof(self) weakSelf = self;
@@ -520,17 +511,21 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 }
 
 - (void)handleHorizontalPressEnded:(UIPressType)pressType {
+    if (pressType == UIPressTypeRightArrow) {
+        if (self.awaitingSecondHorizontalPress) {
+            [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(handleDeferredHorizontalPressAction) object:nil];
+            [self handleDeferredHorizontalPressAction];
+        }
+        [self.host browserRemoteInputControllerHandleHistoryForwardPress];
+        return;
+    }
     CFTimeInterval now = CACurrentMediaTime();
     if (self.awaitingSecondHorizontalPress &&
         self.pendingHorizontalPressType == pressType &&
         (now - self.lastHorizontalPressTimestamp) < 0.35) {
         self.awaitingSecondHorizontalPress = NO;
         [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(handleDeferredHorizontalPressAction) object:nil];
-        if (pressType == UIPressTypeLeftArrow) {
-            [self.host browserRemoteInputControllerHandleTabOverviewPress];
-        } else {
-            [self.host browserRemoteInputControllerHandleAdvancedMenuPress];
-        }
+        [self.host browserRemoteInputControllerHandleTabOverviewPress];
         return;
     }
 
@@ -934,7 +929,7 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
             yDiff *= cursorSensitivity;
             CGRect rect = self.cursorView.frame;
 
-            CGFloat cursorEdgeInset = self.magnifierEnabled ? kBrowserMagnifierCursorEdgeInset : 1.0;
+            CGFloat cursorEdgeInset = 1.0;
             CGFloat maximumCursorX = MAX(0.0, CGRectGetWidth(self.rootView.bounds) - cursorEdgeInset);
             CGFloat maximumCursorY = MAX(0.0, CGRectGetHeight(self.rootView.bounds) - cursorEdgeInset);
             rect.origin.x = MIN(MAX(rect.origin.x + xDiff, 0.0), maximumCursorX);
