@@ -14,12 +14,15 @@ static NSString * const kBrowserMediaDiagnosticsLogPrefix = @"[MediaDiagnostics]
 static NSString * const kBrowserWebKitMediaPrefsLogPrefix = @"[WebKitMediaPrefs]";
 
 typedef void (^BrowserAdvancedMenuItemHandler)(void);
+typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
 
 @interface BrowserAdvancedMenuItem : NSObject
 
 @property (nonatomic, copy) NSString *title;
 @property (nonatomic) UIAlertActionStyle style;
 @property (nonatomic, copy) BrowserAdvancedMenuItemHandler handler;
+@property (nonatomic, copy) BrowserAdvancedMenuToggleStateProvider toggleStateProvider;
+@property (nonatomic) BOOL enabled;
 
 + (instancetype)itemWithTitle:(NSString *)title
                         style:(UIAlertActionStyle)style
@@ -36,6 +39,7 @@ typedef void (^BrowserAdvancedMenuItemHandler)(void);
     item.title = title ?: @"";
     item.style = style;
     item.handler = handler;
+    item.enabled = YES;
     return item;
 }
 
@@ -63,15 +67,16 @@ typedef void (^BrowserAdvancedMenuItemHandler)(void);
 
 @interface BrowserAdvancedMenuViewController : UIViewController <UITableViewDataSource, UITableViewDelegate>
 
-- (instancetype)initWithTitle:(NSString *)title
-                     sections:(NSArray<BrowserAdvancedMenuSection *> *)sections
+- (instancetype)initWithToolbarItems:(NSArray<BrowserAdvancedMenuItem *> *)toolbarItems
+                           sections:(NSArray<BrowserAdvancedMenuSection *> *)sections
                    footerText:(NSString *)footerText;
 
 @end
 
 @interface BrowserAdvancedMenuViewController ()
 
-@property (nonatomic, copy) NSString *menuTitle;
+@property (nonatomic, copy) NSArray<BrowserAdvancedMenuItem *> *toolbarItems;
+@property (nonatomic, copy) NSArray<UIButton *> *toolbarButtons;
 @property (nonatomic, copy) NSArray<BrowserAdvancedMenuSection *> *sections;
 @property (nonatomic, copy) NSString *footerText;
 @property (nonatomic) UIView *dimView;
@@ -98,12 +103,12 @@ typedef void (^BrowserAdvancedMenuItemHandler)(void);
     return [UIBlurEffect effectWithStyle:UIBlurEffectStyleLight];
 }
 
-- (instancetype)initWithTitle:(NSString *)title
-                     sections:(NSArray<BrowserAdvancedMenuSection *> *)sections
+- (instancetype)initWithToolbarItems:(NSArray<BrowserAdvancedMenuItem *> *)toolbarItems
+                           sections:(NSArray<BrowserAdvancedMenuSection *> *)sections
                    footerText:(NSString *)footerText {
     self = [super initWithNibName:nil bundle:nil];
     if (self) {
-        _menuTitle = [title copy] ?: @"Menu";
+        _toolbarItems = [toolbarItems copy] ?: @[];
         _sections = [sections copy] ?: @[];
         _footerText = [footerText copy] ?: @"";
         self.modalPresentationStyle = UIModalPresentationOverCurrentContext;
@@ -144,17 +149,64 @@ typedef void (^BrowserAdvancedMenuItemHandler)(void);
         [panelView.contentView addSubview:panelTint];
     }
 
-    UILabel *titleLabel = [UILabel new];
-    titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    titleLabel.text = self.menuTitle;
-    titleLabel.font = [UIFont boldSystemFontOfSize:34.0];
-    titleLabel.textAlignment = NSTextAlignmentLeft;
-    if (@available(tvOS 13.0, *)) {
-        titleLabel.textColor = UIColor.labelColor;
-    } else {
-        titleLabel.textColor = UIColor.whiteColor;
-    }
-    [panelView.contentView addSubview:titleLabel];
+    UIStackView *toolbar = [UIStackView new];
+    toolbar.translatesAutoresizingMaskIntoConstraints = NO;
+    toolbar.axis = UILayoutConstraintAxisHorizontal;
+    toolbar.alignment = UIStackViewAlignmentFill;
+    toolbar.distribution = UIStackViewDistributionFillEqually;
+    toolbar.spacing = 8.0;
+    NSArray<NSString *> *toolbarSymbols = @[@"chevron.left", @"house.fill", @"chevron.right",
+                                            @"minus.magnifyingglass", @"", @"plus.magnifyingglass"];
+    NSMutableArray<UIButton *> *toolbarButtons = [NSMutableArray arrayWithCapacity:self.toolbarItems.count];
+    [self.toolbarItems enumerateObjectsUsingBlock:^(BrowserAdvancedMenuItem *item, NSUInteger index, __unused BOOL *stop) {
+        UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
+        button.tag = 10000 + (NSInteger)index;
+        button.enabled = item.enabled;
+        button.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.12];
+        button.layer.cornerRadius = 12.0;
+        NSString *symbolName = index < toolbarSymbols.count ? toolbarSymbols[index] : @"";
+        if (symbolName.length > 0) {
+            UIImageSymbolConfiguration *symbolConfiguration = [UIImageSymbolConfiguration configurationWithPointSize:34.0
+                                                                                                               weight:UIImageSymbolWeightMedium];
+            UIImage *symbol = [UIImage systemImageNamed:symbolName withConfiguration:symbolConfiguration];
+            UIImageView *iconView = [[UIImageView alloc] initWithImage:[symbol imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
+            iconView.translatesAutoresizingMaskIntoConstraints = NO;
+            iconView.tag = 9797;
+            iconView.contentMode = UIViewContentModeScaleAspectFit;
+            iconView.tintColor = UIColor.whiteColor;
+            iconView.alpha = item.enabled ? 1.0 : 0.35;
+            iconView.userInteractionEnabled = NO;
+            [button addSubview:iconView];
+            [NSLayoutConstraint activateConstraints:@[
+                [iconView.centerXAnchor constraintEqualToAnchor:button.centerXAnchor],
+                [iconView.centerYAnchor constraintEqualToAnchor:button.centerYAnchor],
+                [iconView.widthAnchor constraintEqualToConstant:42.0],
+                [iconView.heightAnchor constraintEqualToConstant:42.0],
+            ]];
+        } else {
+            UILabel *iconLabel = [UILabel new];
+            iconLabel.translatesAutoresizingMaskIntoConstraints = NO;
+            iconLabel.tag = 9797;
+            iconLabel.text = @"1:1";
+            iconLabel.font = [UIFont systemFontOfSize:34.0 weight:UIFontWeightSemibold];
+            iconLabel.textColor = UIColor.whiteColor;
+            iconLabel.textAlignment = NSTextAlignmentCenter;
+            iconLabel.userInteractionEnabled = NO;
+            [button addSubview:iconLabel];
+            [NSLayoutConstraint activateConstraints:@[
+                [iconLabel.centerXAnchor constraintEqualToAnchor:button.centerXAnchor],
+                [iconLabel.centerYAnchor constraintEqualToAnchor:button.centerYAnchor],
+                [iconLabel.leadingAnchor constraintGreaterThanOrEqualToAnchor:button.leadingAnchor constant:4.0],
+                [iconLabel.trailingAnchor constraintLessThanOrEqualToAnchor:button.trailingAnchor constant:-4.0],
+            ]];
+        }
+        button.accessibilityLabel = item.title;
+        [button addTarget:self action:@selector(toolbarButtonPressed:) forControlEvents:UIControlEventPrimaryActionTriggered];
+        [toolbar addArrangedSubview:button];
+        [toolbarButtons addObject:button];
+    }];
+    self.toolbarButtons = toolbarButtons;
+    [panelView.contentView addSubview:toolbar];
 
     UIView *separator = [UIView new];
     separator.translatesAutoresizingMaskIntoConstraints = NO;
@@ -216,13 +268,14 @@ typedef void (^BrowserAdvancedMenuItemHandler)(void);
         [panelView.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-16.0],
         self.panelTrailingConstraint,
 
-        [titleLabel.leadingAnchor constraintEqualToAnchor:panelView.leadingAnchor constant:32.0],
-        [titleLabel.trailingAnchor constraintEqualToAnchor:panelView.trailingAnchor constant:-32.0],
-        [titleLabel.topAnchor constraintEqualToAnchor:panelView.topAnchor constant:26.0],
+        [toolbar.leadingAnchor constraintEqualToAnchor:panelView.leadingAnchor constant:24.0],
+        [toolbar.trailingAnchor constraintEqualToAnchor:panelView.trailingAnchor constant:-24.0],
+        [toolbar.topAnchor constraintEqualToAnchor:panelView.topAnchor constant:24.0],
+        [toolbar.heightAnchor constraintEqualToConstant:64.0],
 
         [separator.leadingAnchor constraintEqualToAnchor:panelView.leadingAnchor constant:20.0],
         [separator.trailingAnchor constraintEqualToAnchor:panelView.trailingAnchor constant:-20.0],
-        [separator.topAnchor constraintEqualToAnchor:titleLabel.bottomAnchor constant:20.0],
+        [separator.topAnchor constraintEqualToAnchor:toolbar.bottomAnchor constant:16.0],
         [separator.heightAnchor constraintEqualToConstant:1.0],
 
         [tableView.topAnchor constraintEqualToAnchor:separator.bottomAnchor constant:12.0],
@@ -324,6 +377,8 @@ typedef void (^BrowserAdvancedMenuItemHandler)(void);
     static NSString * const kCellIdentifier = @"BrowserAdvancedMenuCell";
     static NSInteger const kMenuTitleLabelTag = 9191;
     static NSInteger const kMenuFocusBackgroundTag = 9292;
+    static NSInteger const kMenuToggleTrackTag = 9393;
+    static NSInteger const kMenuToggleThumbTag = 9494;
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:kCellIdentifier];
     if (cell == nil) {
         cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:kCellIdentifier];
@@ -354,6 +409,19 @@ typedef void (^BrowserAdvancedMenuItemHandler)(void);
         titleLabel.numberOfLines = 1;
         [cell.contentView addSubview:titleLabel];
 
+        UIView *toggleTrack = [UIView new];
+        toggleTrack.translatesAutoresizingMaskIntoConstraints = NO;
+        toggleTrack.tag = kMenuToggleTrackTag;
+        toggleTrack.layer.cornerRadius = 18.0;
+        [cell.contentView addSubview:toggleTrack];
+
+        UIView *toggleThumb = [UIView new];
+        toggleThumb.translatesAutoresizingMaskIntoConstraints = NO;
+        toggleThumb.tag = kMenuToggleThumbTag;
+        toggleThumb.backgroundColor = UIColor.whiteColor;
+        toggleThumb.layer.cornerRadius = 14.0;
+        [toggleTrack addSubview:toggleThumb];
+
         [NSLayoutConstraint activateConstraints:@[
             [focusBackgroundView.leadingAnchor constraintEqualToAnchor:cell.contentView.leadingAnchor constant:0.0],
             [focusBackgroundView.trailingAnchor constraintEqualToAnchor:cell.contentView.trailingAnchor constant:0.0],
@@ -363,6 +431,15 @@ typedef void (^BrowserAdvancedMenuItemHandler)(void);
             [titleLabel.leadingAnchor constraintEqualToAnchor:cell.contentView.leadingAnchor constant:24.0],
             [titleLabel.trailingAnchor constraintEqualToAnchor:cell.contentView.trailingAnchor constant:-24.0],
             [titleLabel.centerYAnchor constraintEqualToAnchor:cell.contentView.centerYAnchor],
+
+            [toggleTrack.trailingAnchor constraintEqualToAnchor:cell.contentView.trailingAnchor constant:-24.0],
+            [toggleTrack.centerYAnchor constraintEqualToAnchor:cell.contentView.centerYAnchor],
+            [toggleTrack.widthAnchor constraintEqualToConstant:66.0],
+            [toggleTrack.heightAnchor constraintEqualToConstant:36.0],
+            [toggleThumb.leadingAnchor constraintEqualToAnchor:toggleTrack.leadingAnchor constant:4.0],
+            [toggleThumb.centerYAnchor constraintEqualToAnchor:toggleTrack.centerYAnchor],
+            [toggleThumb.widthAnchor constraintEqualToConstant:28.0],
+            [toggleThumb.heightAnchor constraintEqualToConstant:28.0],
         ]];
     }
 
@@ -370,6 +447,8 @@ typedef void (^BrowserAdvancedMenuItemHandler)(void);
     BrowserAdvancedMenuItem *item = section.items[(NSUInteger)indexPath.row];
     UILabel *titleLabel = (UILabel *)[cell.contentView viewWithTag:kMenuTitleLabelTag];
     UIView *focusBackgroundView = [cell.contentView viewWithTag:kMenuFocusBackgroundTag];
+    UIView *toggleTrack = [cell.contentView viewWithTag:kMenuToggleTrackTag];
+    UIView *toggleThumb = [toggleTrack viewWithTag:kMenuToggleThumbTag];
     titleLabel.text = item.title;
     UIColor *titleColor = nil;
     if (item.style == UIAlertActionStyleDestructive) {
@@ -380,6 +459,13 @@ typedef void (^BrowserAdvancedMenuItemHandler)(void);
         titleColor = UIColor.whiteColor;
     }
     titleLabel.textColor = titleColor;
+    BOOL isToggle = item.toggleStateProvider != nil;
+    BOOL isOn = isToggle && item.toggleStateProvider();
+    toggleTrack.hidden = !isToggle;
+    toggleTrack.backgroundColor = isOn ? [UIColor colorWithRed:0.20 green:0.74 blue:0.39 alpha:1.0]
+                                      : [UIColor colorWithWhite:0.45 alpha:0.75];
+    toggleThumb.transform = CGAffineTransformMakeTranslation(isOn ? 30.0 : 0.0, 0.0);
+    cell.accessibilityValue = isToggle ? (isOn ? @"On" : @"Off") : nil;
     focusBackgroundView.alpha = cell.isFocused ? 1.0 : 0.0;
     return cell;
 }
@@ -407,6 +493,22 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     BrowserAdvancedMenuSection *section = self.sections[(NSUInteger)indexPath.section];
     BrowserAdvancedMenuItem *item = section.items[(NSUInteger)indexPath.row];
     BrowserAdvancedMenuItemHandler handler = item.handler;
+    if (item.toggleStateProvider != nil) {
+        if (handler != nil) {
+            handler();
+        }
+        UITableViewCell *cell = [tableView cellForRowAtIndexPath:indexPath];
+        UIView *toggleTrack = [cell.contentView viewWithTag:9393];
+        UIView *toggleThumb = [toggleTrack viewWithTag:9494];
+        BOOL isOn = item.toggleStateProvider();
+        [UIView animateWithDuration:0.18 animations:^{
+            toggleTrack.backgroundColor = isOn ? [UIColor colorWithRed:0.20 green:0.74 blue:0.39 alpha:1.0]
+                                               : [UIColor colorWithWhite:0.45 alpha:0.75];
+            toggleThumb.transform = CGAffineTransformMakeTranslation(isOn ? 30.0 : 0.0, 0.0);
+        }];
+        cell.accessibilityValue = isOn ? @"On" : @"Off";
+        return;
+    }
     [self dismissMenuWithCompletion:^{
         if (handler != nil) {
             handler();
@@ -414,8 +516,60 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     }];
 }
 
+- (void)toolbarButtonPressed:(UIButton *)button {
+    NSInteger index = button.tag - 10000;
+    if (index < 0 || index >= (NSInteger)self.toolbarItems.count) {
+        return;
+    }
+    BrowserAdvancedMenuItem *item = self.toolbarItems[(NSUInteger)index];
+    if (!item.enabled || item.handler == nil) {
+        return;
+    }
+    if (index < 3) {
+        [self dismissMenuWithCompletion:item.handler];
+    } else {
+        item.handler();
+    }
+}
+
 - (NSArray<id<UIFocusEnvironment>> *)preferredFocusEnvironments {
+    for (UIButton *button in self.toolbarButtons) {
+        if (button.enabled) {
+            return @[button];
+        }
+    }
     return @[self.tableView];
+}
+
+- (void)didUpdateFocusInContext:(UIFocusUpdateContext *)context
+       withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
+    [super didUpdateFocusInContext:context withAnimationCoordinator:coordinator];
+    UIView *previousView = context.previouslyFocusedView;
+    UIView *nextView = context.nextFocusedView;
+    if ([self.toolbarButtons containsObject:(UIButton *)previousView]) {
+        previousView.layer.zPosition = 0.0;
+    }
+    if ([self.toolbarButtons containsObject:(UIButton *)nextView]) {
+        [nextView.superview bringSubviewToFront:nextView];
+        nextView.layer.zPosition = 1.0;
+    }
+    [coordinator addCoordinatedAnimations:^{
+        if ([self.toolbarButtons containsObject:(UIButton *)previousView]) {
+            [self setToolbarIconColor:UIColor.whiteColor forButton:(UIButton *)previousView];
+        }
+        if ([self.toolbarButtons containsObject:(UIButton *)nextView]) {
+            [self setToolbarIconColor:UIColor.blackColor forButton:(UIButton *)nextView];
+        }
+    } completion:nil];
+}
+
+- (void)setToolbarIconColor:(UIColor *)color forButton:(UIButton *)button {
+    UIView *icon = [button viewWithTag:9797];
+    if ([icon isKindOfClass:[UIImageView class]]) {
+        ((UIImageView *)icon).tintColor = color;
+    } else if ([icon isKindOfClass:[UILabel class]]) {
+        ((UILabel *)icon).textColor = color;
+    }
 }
 
 - (void)pressesEnded:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
@@ -450,9 +604,9 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
 }
 
 - (void)showAdvancedMenu {
-    BrowserAdvancedMenuViewController *menuViewController = [[BrowserAdvancedMenuViewController alloc] initWithTitle:@"tvOS Browser"
-                                                                                                            sections:[self advancedMenuSections]
-                                                                                                          footerText:[self advancedMenuFooterText]];
+    BrowserAdvancedMenuViewController *menuViewController = [[BrowserAdvancedMenuViewController alloc] initWithToolbarItems:[self advancedMenuToolbarItems]
+                                                                                                                     sections:[self advancedMenuSections]
+                                                                                                                   footerText:[self advancedMenuFooterText]];
     [self.host browserPresentViewController:menuViewController];
 }
 
@@ -546,6 +700,9 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     NSString *pageTitle = [[self.host browserWebView] title];
     NSURLRequest *request = [[self.host browserWebView] request];
     NSString *currentURL = request.URL.absoluteString ?: @"";
+    if (![self stringHasVisibleContent:currentURL]) {
+        return;
+    }
     UIAlertController *alertController = [self browserAlertControllerWithTitle:@"Name New Favorite"
                                                                        message:currentURL];
     __weak typeof(self) weakSelf = self;
@@ -572,7 +729,14 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
         if (favorites == nil) {
             favorites = [NSMutableArray array];
         }
-        [favorites addObject:favoriteEntry];
+        NSUInteger existingIndex = [favorites indexOfObjectPassingTest:^BOOL(id entry, NSUInteger index, BOOL *stop) {
+            return [entry isKindOfClass:[NSArray class]] && [entry count] > 0 && [entry[0] isEqualToString:currentURL];
+        }];
+        if (existingIndex != NSNotFound) {
+            [favorites replaceObjectAtIndex:existingIndex withObject:favoriteEntry];
+        } else {
+            [favorites addObject:favoriteEntry];
+        }
         [weakSelf saveFavoritesArray:favorites];
     }]];
     [alertController addAction:[self browserCancelAction]];
@@ -667,11 +831,51 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
 
 - (void)setPageScalingEnabled:(BOOL)enabled {
     self.preferencesStore.scalePagesToFit = enabled;
+    if (enabled) {
+        self.preferencesStore.pageZoomPercent = 100;
+        self.host.browserWebView.pageZoomFactor = 1.0;
+    }
     [[self.host browserWebView] setScalesPageToFit:enabled];
     if (enabled) {
         [[self.host browserWebView] setContentMode:UIViewContentModeScaleAspectFit];
     }
     [[self.host browserWebView] reload];
+}
+
+- (void)setPageZoomPercent:(NSUInteger)percent {
+    BrowserWebView *webView = self.host.browserWebView;
+    UIScrollView *scrollView = webView.scrollView;
+    CGFloat previousZoom = self.preferencesStore.pageZoomPercent / 100.0;
+    CGFloat visibleWidth = CGRectGetWidth(scrollView.bounds);
+    CGFloat centerX = scrollView.contentOffset.x + visibleWidth / 2.0;
+
+    self.preferencesStore.pageZoomPercent = percent;
+    self.preferencesStore.scalePagesToFit = NO;
+    webView.scalesPageToFit = NO;
+    webView.contentMode = UIViewContentModeScaleToFill;
+    webView.pageZoomFactor = self.preferencesStore.pageZoomPercent / 100.0;
+    self.host.browserTextFontSize = self.preferencesStore.pageZoomPercent;
+    [self.host browserUpdateTextFontSize];
+
+    // WebKit updates its scrollable width after applying page and text zoom.
+    // Keep the point previously at the screen center in the same place.
+    CGFloat targetCenterX = centerX * (percent / 100.0) / MAX(previousZoom, 0.01);
+    __weak typeof(self) weakSelf = self;
+    __weak BrowserWebView *weakWebView = webView;
+    for (NSNumber *delay in @[@0.0, @0.2, @0.7]) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            BrowserWebView *currentWebView = weakWebView;
+            if (currentWebView == nil || weakSelf.host.browserWebView != currentWebView ||
+                weakSelf.preferencesStore.pageZoomPercent != percent) {
+                return;
+            }
+            UIScrollView *currentScrollView = currentWebView.scrollView;
+            CGFloat width = CGRectGetWidth(currentScrollView.bounds);
+            CGFloat maximumX = MAX(0.0, currentScrollView.contentSize.width - width);
+            CGFloat targetX = MIN(MAX(targetCenterX - width / 2.0, 0.0), maximumX);
+            [currentScrollView setContentOffset:CGPointMake(targetX, currentScrollView.contentOffset.y) animated:NO];
+        });
+    }
 }
 
 - (void)clearCacheAndReload {
@@ -867,44 +1071,26 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
 }
 
 - (BrowserAdvancedMenuItem *)topNavigationVisibilityMenuItem {
-    NSString *title = self.host.browserTopMenuShowing ? @"Hide Top Navigation bar" : @"Show Top Navigation bar";
-    return [self advancedMenuItemWithTitle:title
-                                     style:UIAlertActionStyleDefault
-                                   handler:^{
+    BrowserAdvancedMenuItem *item = [self advancedMenuItemWithTitle:@"Browser Fullscreen"
+                                                               style:UIAlertActionStyleDefault
+                                                             handler:^{
         if (self.host.browserTopMenuShowing) {
-            UIAlertController *alertController = [self browserAlertControllerWithTitle:@"Hide Top Navigation bar?"
-                                                                               message:@"You can still open the Advanced Menu by pressing Right on the remote."];
-            [alertController addAction:[self browserActionWithTitle:@"Cancel"
-                                                              style:UIAlertActionStyleCancel
-                                                            handler:nil]];
-            [alertController addAction:[self browserActionWithTitle:@"Hide Bar"
-                                                              style:UIAlertActionStyleDestructive
-                                                            handler:^(__unused UIAlertAction *action) {
-                [self.host browserHideTopNav];
-            }]];
-            [self.host browserPresentViewController:alertController];
+            [self.host browserHideTopNav];
         } else {
             [self.host browserShowTopNav];
         }
     }];
+    item.toggleStateProvider = ^BOOL {
+        return !self.host.browserTopMenuShowing;
+    };
+    return item;
 }
 
-- (BrowserAdvancedMenuItem *)homePageMenuItem {
-    return [self advancedMenuItemWithTitle:@"Go To Home Page"
+- (BrowserAdvancedMenuItem *)addCurrentPageToFavoritesMenuItem {
+    return [self advancedMenuItemWithTitle:@"Add to Favorites"
                                      style:UIAlertActionStyleDefault
                                    handler:^{
-        [self.host browserLoadHomePage];
-    }];
-}
-
-- (BrowserAdvancedMenuItem *)setCurrentPageAsHomePageMenuItem {
-    return [self advancedMenuItemWithTitle:@"Set Current Page As Home Page"
-                                     style:UIAlertActionStyleDefault
-                                   handler:^{
-        NSURLRequest *request = [[self.host browserWebView] request];
-        if (request != nil && [self stringHasVisibleContent:request.URL.absoluteString]) {
-            self.preferencesStore.homePageURLString = request.URL.absoluteString;
-        }
+        [self presentAddFavoritePrompt];
     }];
 }
 
@@ -1019,40 +1205,65 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
 }
 
 - (BrowserAdvancedMenuItem *)adBlockToggleMenuItem {
-    BOOL enabled = self.preferencesStore.adBlockEnabled;
-    NSString *status = self.host.browserWebView.adBlockStatus;
-    NSString *title = enabled ? @"Ad Block: On (turn off)" : @"Ad Block: Off (turn on)";
-    if (enabled && [status isEqualToString:@"unavailable"]) {
-        title = @"Ad Block: Unavailable (turn off)";
-    }
-    return [self advancedMenuItemWithTitle:title
-                                     style:UIAlertActionStyleDefault
-                                   handler:^{
-        BOOL newValue = !enabled;
+    BrowserAdvancedMenuItem *item = [self advancedMenuItemWithTitle:@"Ad Block"
+                                                               style:UIAlertActionStyleDefault
+                                                             handler:^{
+        BOOL enabled = self.preferencesStore.adBlockEnabled;
+        BOOL removalUnavailable = [self.host.browserWebView.adBlockStatus isEqualToString:@"removal-unavailable"];
+        BOOL newValue = removalUnavailable ? NO : !enabled;
         self.preferencesStore.adBlockEnabled = newValue;
         [self.host browserSetAdBlockEnabled:newValue];
     }];
+    item.toggleStateProvider = ^BOOL {
+        return self.preferencesStore.adBlockEnabled ||
+            [self.host.browserWebView.adBlockStatus isEqualToString:@"removal-unavailable"];
+    };
+    return item;
+}
+
+- (NSArray<BrowserAdvancedMenuItem *> *)advancedMenuToolbarItems {
+    BrowserAdvancedMenuItem *backItem = [self advancedMenuItemWithTitle:@"Back"
+                                                                  style:UIAlertActionStyleDefault
+                                                                handler:^{
+        BrowserWebView *webView = self.host.browserWebView;
+        if (webView.canGoBack) {
+            [webView goBack];
+        }
+    }];
+    backItem.enabled = self.host.browserWebView.canGoBack;
+    BrowserAdvancedMenuItem *homeItem = [self advancedMenuItemWithTitle:@"Home"
+                                                                  style:UIAlertActionStyleDefault
+                                                                handler:^{
+        [self.host browserLoadHomePage];
+    }];
+    BrowserAdvancedMenuItem *forwardItem = [self advancedMenuItemWithTitle:@"Forward"
+                                                                     style:UIAlertActionStyleDefault
+                                                                   handler:^{
+        BrowserWebView *webView = self.host.browserWebView;
+        if (webView.canGoForward) {
+            [webView goForward];
+        }
+    }];
+    forwardItem.enabled = self.host.browserWebView.canGoForward;
+    BrowserAdvancedMenuItem *zoomOutItem = [self advancedMenuItemWithTitle:@"Zoom Out"
+                                                                    style:UIAlertActionStyleDefault
+                                                                  handler:^{
+        [self setPageZoomPercent:self.preferencesStore.pageZoomPercent - 10];
+    }];
+    BrowserAdvancedMenuItem *zoomResetItem = [self advancedMenuItemWithTitle:@"Reset Zoom"
+                                                                      style:UIAlertActionStyleDefault
+                                                                    handler:^{
+        [self setPageZoomPercent:100];
+    }];
+    BrowserAdvancedMenuItem *zoomInItem = [self advancedMenuItemWithTitle:@"Zoom In"
+                                                                   style:UIAlertActionStyleDefault
+                                                                 handler:^{
+        [self setPageZoomPercent:self.preferencesStore.pageZoomPercent + 10];
+    }];
+    return @[backItem, homeItem, forwardItem, zoomOutItem, zoomResetItem, zoomInItem];
 }
 
 - (NSArray<BrowserAdvancedMenuSection *> *)advancedMenuSections {
-    BrowserAdvancedMenuItem *increaseFontSizeItem = [self advancedMenuItemWithTitle:@"Increase Font Size"
-                                                                               style:UIAlertActionStyleDefault
-                                                                             handler:^{
-        self.host.browserTextFontSize += 5;
-        [self.host browserUpdateTextFontSize];
-    }];
-    BrowserAdvancedMenuItem *decreaseFontSizeItem = [self advancedMenuItemWithTitle:@"Decrease Font Size"
-                                                                               style:UIAlertActionStyleDefault
-                                                                             handler:^{
-        self.host.browserTextFontSize -= 5;
-        [self.host browserUpdateTextFontSize];
-    }];
-    BrowserAdvancedMenuItem *resetFontSizeItem = [self advancedMenuItemWithTitle:@"Reset Font Size"
-                                                                            style:UIAlertActionStyleDefault
-                                                                          handler:^{
-        self.host.browserTextFontSize = 100;
-        [self.host browserUpdateTextFontSize];
-    }];
     BrowserAdvancedMenuItem *mediaDiagnosticsItem = [self advancedMenuItemWithTitle:@"Media Diagnostics"
                                                                                style:UIAlertActionStyleDefault
                                                                              handler:^{
@@ -1077,9 +1288,9 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     return @[
         [BrowserAdvancedMenuSection sectionWithTitle:@"Navigation"
                                                items:@[
-            [self homePageMenuItem],
+            [self adBlockToggleMenuItem],
             [self reloadPageMenuItem],
-            [self setCurrentPageAsHomePageMenuItem],
+            [self addCurrentPageToFavoritesMenuItem],
             [self favoritesMenuItem],
             [self historyMenuItem],
             [self showTabsMenuItem],
@@ -1089,9 +1300,6 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
                                                items:@[
             [self topNavigationVisibilityMenuItem],
             [self pageScalingMenuItem],
-            increaseFontSizeItem,
-            decreaseFontSizeItem,
-            resetFontSizeItem,
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Video Playback"
                                                items:@[
@@ -1103,7 +1311,6 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Diagnostics"
                                                items:@[
-            [self adBlockToggleMenuItem],
             mediaDiagnosticsItem,
             webkitMediaPrefsItem,
         ]],

@@ -90,7 +90,7 @@ static NSUInteger const kMaximumHistoryCount = 100;
 
 - (BOOL)shouldIgnoreLoadError:(NSError *)error {
     NSInteger errorCode = error.code;
-    return errorCode == 999 || errorCode == 204;
+    return errorCode == NSURLErrorCancelled || errorCode == 204;
 }
 
 - (NSURLRequest *)requestForURLString:(NSString *)URLString {

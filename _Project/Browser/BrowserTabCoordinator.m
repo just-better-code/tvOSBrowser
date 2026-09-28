@@ -211,6 +211,8 @@ static CGFloat const kThumbnailStagingOffset = 4096.0;
 
     BOOL shouldScalePagesToFit = self.preferencesStore.scalePagesToFit;
     webView.scalesPageToFit = shouldScalePagesToFit;
+    webView.pageZoomFactor = self.preferencesStore.pageZoomPercent / 100.0;
+    webView.textZoomFactor = self.preferencesStore.textFontSize / 100.0;
     webView.contentMode = shouldScalePagesToFit ? UIViewContentModeScaleAspectFit : UIViewContentModeScaleToFill;
     webView.userInteractionEnabled = NO;
     return webView;
@@ -222,6 +224,10 @@ static CGFloat const kThumbnailStagingOffset = 4096.0;
         self.topMenuView.URLLabel.text = @"";
         return;
     }
+
+    self.activeWebView.scalesPageToFit = self.preferencesStore.scalePagesToFit;
+    self.activeWebView.pageZoomFactor = self.preferencesStore.pageZoomPercent / 100.0;
+    self.activeWebView.textZoomFactor = self.preferencesStore.textFontSize / 100.0;
 
     NSURLRequest *request = self.activeWebView.request;
     NSString *currentURL = tab.URLString.length > 0 ? tab.URLString : request.URL.absoluteString;
@@ -408,15 +414,18 @@ static CGFloat const kThumbnailStagingOffset = 4096.0;
         return;
     }
 
-    [self prepareWebViewLayoutForSnapshot:webView];
-    UIGraphicsBeginImageContextWithOptions(webView.bounds.size, YES, 0.0);
-    [webView drawViewHierarchyInRect:webView.bounds afterScreenUpdates:NO];
-    UIImage *snapshotImage = UIGraphicsGetImageFromCurrentImageContext();
-    UIGraphicsEndImageContext();
-
-    if (snapshotImage != nil) {
-        tab.snapshotImage = snapshotImage;
-    }
+    __weak typeof(self) weakSelf = self;
+    [webView captureSnapshotWithCompletion:^(UIImage *snapshotImage) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            BrowserTabCoordinator *strongSelf = weakSelf;
+            if (strongSelf == nil || snapshotImage == nil ||
+                strongSelf.webViewsByTabIdentifier[tab.identifier] != webView) {
+                return;
+            }
+            tab.snapshotImage = snapshotImage;
+            [strongSelf.host browserTabCoordinatorSnapshotDidUpdateForTab:tab];
+        });
+    }];
 }
 
 - (void)captureSnapshotForCurrentTab {
@@ -647,7 +656,7 @@ static CGFloat const kThumbnailStagingOffset = 4096.0;
         [self.topMenuView.loadingSpinner stopAnimating];
     }
 
-    NSString *theTitle = [webView stringByEvaluatingJavaScriptFromString:@"document.title"];
+    NSString *theTitle = [webView title];
     NSURLRequest *request = [webView request];
     NSString *currentURL = request.URL.absoluteString ?: @"";
     [self.navigationService updateTab:tab withPageTitle:theTitle currentURLString:currentURL];

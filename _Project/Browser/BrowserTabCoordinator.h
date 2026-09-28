@@ -17,6 +17,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)browserTabCoordinatorUpdateTextFontSize;
 - (BOOL)browserTabCoordinatorIsCursorModeEnabled;
 - (BOOL)browserTabCoordinatorIsTabOverviewVisible;
+- (void)browserTabCoordinatorSnapshotDidUpdateForTab:(BrowserTabViewModel *)tab;
 
 @end
 

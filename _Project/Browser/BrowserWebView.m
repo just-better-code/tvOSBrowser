@@ -10,7 +10,7 @@ static NSString * const kBrowserWebsiteDataStoreClassName = @"WKWebsiteDataStore
 static NSString * const kBrowserUserContentControllerClassName = @"WKUserContentController";
 static NSString * const kBrowserUserScriptClassName = @"WKUserScript";
 static NSString * const kBrowserAdBlockEnabledDefaultsKey = @"AdBlockEnabled";
-static NSString * const kBrowserAdBlockRuleListIdentifier = @"BrowserAdBlock-v1";
+static NSString * const kBrowserAdBlockRuleListIdentifier = @"BrowserAdBlock-v3";
 
 static void BrowserEnsureWebKitRuntimeLoaded(void) {
     static dispatch_once_t onceToken;
@@ -42,13 +42,17 @@ static BOOL BrowserPumpRunLoopUntil(BOOL *done) {
         return NO;
     }
     isPumpingRunLoop = YES;
-    while (!*done) {
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:2.0];
+    while (!*done && [deadline timeIntervalSinceNow] > 0.0) {
         @autoreleasepool {
             [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
         }
     }
     isPumpingRunLoop = NO;
-    return YES;
+    if (!*done) {
+        NSLog(@"[WebKit] timed out waiting for a synchronous callback");
+    }
+    return *done;
 }
 
 static NSString *BrowserStringFromJavaScriptResult(id result) {
@@ -788,6 +792,8 @@ static void BrowserLoadAdBlockRuleList(BrowserAdBlockRuleListCompletion completi
 @property (nonatomic, strong) id appliedAdBlockRuleList;
 @property (nonatomic, readwrite) BOOL adBlockEnabled;
 @property (nonatomic, readwrite, copy) NSString *adBlockStatus;
+@property (nonatomic) CGFloat lastAppliedPageZoom;
+@property (nonatomic) CGFloat lastAppliedTextZoom;
 
 @end
 
@@ -818,6 +824,8 @@ static void BrowserLoadAdBlockRuleList(BrowserAdBlockRuleListCompletion completi
 
     self.backgroundColor = UIColor.blackColor;
     self.userAgent = userAgent;
+    self.pageZoomFactor = 1.0;
+    self.textZoomFactor = 1.0;
     self.scalesPageToFit = NO;
 
     Class configurationClass = NSClassFromString(kBrowserWebViewConfigurationClassName);
@@ -871,8 +879,17 @@ static void BrowserLoadAdBlockRuleList(BrowserAdBlockRuleListCompletion completi
     if (!enabled) {
         id ruleList = self.appliedAdBlockRuleList;
         SEL removeSelector = NSSelectorFromString(@"removeContentRuleList:");
-        if (ruleList != nil && [self.userContentController respondsToSelector:removeSelector]) {
-            ((void (*)(id, SEL, id))objc_msgSend)(self.userContentController, removeSelector, ruleList);
+        SEL removeAllSelector = NSSelectorFromString(@"removeAllContentRuleLists");
+        if (ruleList != nil) {
+            if ([self.userContentController respondsToSelector:removeAllSelector]) {
+                ((void (*)(id, SEL))objc_msgSend)(self.userContentController, removeAllSelector);
+            } else if ([self.userContentController respondsToSelector:removeSelector]) {
+                ((void (*)(id, SEL, id))objc_msgSend)(self.userContentController, removeSelector, ruleList);
+            } else {
+                self.adBlockStatus = @"removal-unavailable";
+                NSLog(@"[AdBlock] cannot remove content rules from this WebKit view");
+                return;
+            }
             self.appliedAdBlockRuleList = nil;
             if (self.request != nil) {
                 [self reload];
@@ -902,7 +919,6 @@ static void BrowserLoadAdBlockRuleList(BrowserAdBlockRuleListCompletion completi
         ((void (*)(id, SEL, id))objc_msgSend)(strongSelf.userContentController, addSelector, ruleList);
         strongSelf.appliedAdBlockRuleList = ruleList;
         strongSelf.adBlockStatus = @"on";
-        NSLog(@"[AdBlock] content rules installed");
         if (strongSelf.request != nil) {
             [strongSelf reload];
         }
@@ -1205,7 +1221,7 @@ static void BrowserLoadAdBlockRuleList(BrowserAdBlockRuleListCompletion completi
 }
 
 - (void)installYouTubeRequestCaptureHook {
-    [self stringByEvaluatingJavaScriptFromString:BrowserYouTubeRequestCaptureScript()];
+    [self evaluateJavaScript:BrowserYouTubeRequestCaptureScript() completion:^(__unused NSString *result) {}];
 }
 
 - (void)setUserAgent:(NSString *)userAgent {
@@ -1221,6 +1237,40 @@ static void BrowserLoadAdBlockRuleList(BrowserAdBlockRuleListCompletion completi
     [self applyPageScalingIfNeeded];
 }
 
+- (void)setPageZoomFactor:(CGFloat)pageZoomFactor {
+    CGFloat nextFactor = MIN(2.0, MAX(0.5, pageZoomFactor));
+    if (fabs(_pageZoomFactor - nextFactor) < 0.001) {
+        return;
+    }
+    _pageZoomFactor = nextFactor;
+    [self applyPageScalingIfNeeded];
+}
+
+- (void)setTextZoomFactor:(CGFloat)textZoomFactor {
+    CGFloat nextFactor = MIN(2.0, MAX(0.5, textZoomFactor));
+    if (fabs(_textZoomFactor - nextFactor) < 0.001) {
+        return;
+    }
+    _textZoomFactor = nextFactor;
+    [self applyTextZoomIfNeeded];
+}
+
+- (void)applyTextZoomIfNeeded {
+    if (self.runtimeWebView == nil || fabs(self.lastAppliedTextZoom - self.textZoomFactor) < 0.001) {
+        return;
+    }
+    SEL setter = NSSelectorFromString(@"_setTextZoomFactor:");
+    SEL supportQuery = NSSelectorFromString(@"_supportsTextZoom");
+    BOOL hasSetter = [self.runtimeWebView respondsToSelector:setter];
+    BOOL supportsTextZoom = ![self.runtimeWebView respondsToSelector:supportQuery] ||
+        ((BOOL (*)(id, SEL))objc_msgSend)(self.runtimeWebView, supportQuery);
+    if (!hasSetter || !supportsTextZoom) {
+        return;
+    }
+    self.lastAppliedTextZoom = self.textZoomFactor;
+    ((void (*)(id, SEL, double))objc_msgSend)(self.runtimeWebView, setter, self.textZoomFactor);
+}
+
 - (void)applyPageScalingIfNeeded {
     if (self.runtimeWebView == nil) {
         return;
@@ -1231,7 +1281,7 @@ static void BrowserLoadAdBlockRuleList(BrowserAdBlockRuleListCompletion completi
         return;
     }
 
-    CGFloat zoomValue = 1.0;
+    CGFloat zoomValue = self.pageZoomFactor;
     if (self.scalesPageToFit) {
         CGFloat contentWidth = scrollView.contentSize.width;
         CGFloat boundsWidth = CGRectGetWidth(scrollView.bounds);
@@ -1240,16 +1290,30 @@ static void BrowserLoadAdBlockRuleList(BrowserAdBlockRuleListCompletion completi
         }
     }
 
+    if (fabs(self.lastAppliedPageZoom - zoomValue) < 0.001) {
+        return;
+    }
+    self.lastAppliedPageZoom = zoomValue;
+
     SEL pageZoomSelector = NSSelectorFromString(@"setPageZoom:");
     if ([self.runtimeWebView respondsToSelector:pageZoomSelector]) {
         ((void (*)(id, SEL, double))objc_msgSend)(self.runtimeWebView, pageZoomSelector, zoomValue);
+    }
+}
+
+- (void)captureSnapshotWithCompletion:(void (^)(UIImage *snapshot))completion {
+    SEL selector = NSSelectorFromString(@"takeSnapshotWithConfiguration:completionHandler:");
+    if (self.runtimeWebView == nil || ![self.runtimeWebView respondsToSelector:selector]) {
+        if (completion != nil) {
+            completion(nil);
+        }
         return;
     }
-
-    NSString *script = zoomValue == 1.0
-        ? @"document.documentElement.style.zoom=''; document.body.style.zoom='';"
-        : [NSString stringWithFormat:@"document.documentElement.style.zoom='%0.4f'; document.body.style.zoom='%0.4f';", zoomValue, zoomValue];
-    [self stringByEvaluatingJavaScriptFromString:script];
+    ((void (*)(id, SEL, id, id))objc_msgSend)(self.runtimeWebView, selector, nil, ^(UIImage *snapshot, NSError *error) {
+        if (completion != nil) {
+            completion(error == nil ? snapshot : nil);
+        }
+    });
 }
 
 - (void)webView:(id)webView didStartProvisionalNavigation:(id)navigation {
@@ -1264,7 +1328,10 @@ static void BrowserLoadAdBlockRuleList(BrowserAdBlockRuleListCompletion completi
     self.lastTitle = [self title];
     self.lastRequest = [self request];
     [self installYouTubeRequestCaptureHook];
+    self.lastAppliedPageZoom = 0.0;
+    self.lastAppliedTextZoom = 0.0;
     [self applyPageScalingIfNeeded];
+    [self applyTextZoomIfNeeded];
     if ([self.delegate respondsToSelector:@selector(webViewDidFinishLoad:)]) {
         [self.delegate webViewDidFinishLoad:self];
     }

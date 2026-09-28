@@ -4,6 +4,7 @@ static NSString * const kUserAgentDefaultsKey = @"UserAgent";
 static NSString * const kMobileModeDefaultsKey = @"MobileMode";
 static NSString * const kShowTopNavigationBarDefaultsKey = @"ShowTopNavigationBar";
 static NSString * const kTextFontSizeDefaultsKey = @"TextFontSize";
+static NSString * const kPageZoomPercentDefaultsKey = @"PageZoomPercent";
 static NSString * const kEnableFullscreenVideoPlaybackDefaultsKey = @"EnableFullscreenVideoPlayback";
 static NSString * const kAdBlockEnabledDefaultsKey = @"AdBlockEnabled";
 static NSString * const kScalePagesToFitDefaultsKey = @"ScalePagesToFit";
@@ -80,6 +81,17 @@ static NSUInteger const kMaximumTextFontSize = 200;
     textFontSize = MIN(kMaximumTextFontSize, MAX(kMinimumTextFontSize, textFontSize));
     [[self defaults] setObject:@(textFontSize) forKey:kTextFontSizeDefaultsKey];
     [[self defaults] synchronize];
+}
+
+- (NSUInteger)pageZoomPercent {
+    NSNumber *storedValue = [[self defaults] objectForKey:kPageZoomPercentDefaultsKey];
+    NSUInteger value = storedValue == nil ? 100 : storedValue.unsignedIntegerValue;
+    return MIN((NSUInteger)200, MAX((NSUInteger)50, value));
+}
+
+- (void)setPageZoomPercent:(NSUInteger)pageZoomPercent {
+    NSUInteger value = MIN((NSUInteger)200, MAX((NSUInteger)50, pageZoomPercent));
+    [[self defaults] setObject:@(value) forKey:kPageZoomPercentDefaultsKey];
 }
 
 - (BOOL)fullscreenVideoPlaybackEnabled {

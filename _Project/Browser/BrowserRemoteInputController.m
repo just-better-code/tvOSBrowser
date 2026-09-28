@@ -58,9 +58,6 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 @property (nonatomic) BOOL awaitingSecondHorizontalPress;
 @property (nonatomic) UIPressType pendingHorizontalPressType;
 @property (nonatomic) CFTimeInterval lastHorizontalPressTimestamp;
-@property (nonatomic) BOOL awaitingSecondVerticalPress;
-@property (nonatomic) UIPressType pendingVerticalPressType;
-@property (nonatomic) CFTimeInterval lastVerticalPressTimestamp;
 @property (nonatomic) BOOL primaryActionInProgress;
 @property (nonatomic) BOOL hoverRequestInFlight;
 @property (nonatomic) CGPoint latestHoverPoint;
@@ -262,9 +259,9 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
         return;
     }
     if (self.pendingHorizontalPressType == UIPressTypeLeftArrow) {
-        [self.host browserRemoteInputControllerHandleQuickMenuPress];
+        [self.host browserRemoteInputControllerHandleHistoryBackPress];
     } else {
-        [self.host browserRemoteInputControllerHandleAdvancedMenuPress];
+        [self.host browserRemoteInputControllerHandleHistoryForwardPress];
     }
 }
 
@@ -276,11 +273,16 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
         self.awaitingSecondHorizontalPress = NO;
         [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(handleDeferredHorizontalPressAction) object:nil];
         if (pressType == UIPressTypeLeftArrow) {
-            [self.host browserRemoteInputControllerHandleHistoryBackPress];
+            [self.host browserRemoteInputControllerHandleTabOverviewPress];
         } else {
-            [self.host browserRemoteInputControllerHandleHistoryForwardPress];
+            [self.host browserRemoteInputControllerHandleAdvancedMenuPress];
         }
         return;
+    }
+
+    if (self.awaitingSecondHorizontalPress) {
+        [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(handleDeferredHorizontalPressAction) object:nil];
+        [self handleDeferredHorizontalPressAction];
     }
 
     self.awaitingSecondHorizontalPress = YES;
@@ -290,50 +292,19 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     [self performSelector:@selector(handleDeferredHorizontalPressAction) withObject:nil afterDelay:0.35];
 }
 
-- (void)handleDeferredVerticalPressAction {
-    if (!self.awaitingSecondVerticalPress) {
-        return;
-    }
-    self.awaitingSecondVerticalPress = NO;
+- (void)handleVerticalPressEnded:(UIPressType)pressType {
     if ([self.host browserRemoteInputControllerPresentedViewController] != nil ||
         [self.host browserRemoteInputControllerTopBarFocusActive] ||
         [self.host browserRemoteInputControllerTabOverviewVisible]) {
         return;
     }
 
-    CGFloat direction = self.pendingVerticalPressType == UIPressTypeDownArrow ? 1.0 : -1.0;
+    CGFloat direction = pressType == UIPressTypeDownArrow ? 1.0 : -1.0;
     UIScrollView *scrollView = [self.host browserRemoteInputControllerActiveScrollView];
     CGFloat pageStep = scrollView == nil ? 150.0 : MAX(120.0, CGRectGetHeight(scrollView.bounds) * 0.275);
     [self stopManualScrollInertia];
     [self applyManualScrollDelta:CGPointMake(0, direction * pageStep)];
     [self.host browserRemoteInputControllerPersistSession];
-}
-
-- (void)handleVerticalPressEnded:(UIPressType)pressType {
-    CFTimeInterval now = CACurrentMediaTime();
-    if (self.awaitingSecondVerticalPress &&
-        self.pendingVerticalPressType == pressType &&
-        (now - self.lastVerticalPressTimestamp) < 0.35) {
-        self.awaitingSecondVerticalPress = NO;
-        [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(handleDeferredVerticalPressAction) object:nil];
-        if (pressType == UIPressTypeUpArrow) {
-            [self.host browserRemoteInputControllerHandleBrowserFullscreenPress];
-        } else {
-            [self.host browserRemoteInputControllerHandleTabOverviewPress];
-        }
-        return;
-    }
-
-    if (self.awaitingSecondVerticalPress) {
-        [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(handleDeferredVerticalPressAction) object:nil];
-        [self handleDeferredVerticalPressAction];
-    }
-
-    self.awaitingSecondVerticalPress = YES;
-    self.pendingVerticalPressType = pressType;
-    self.lastVerticalPressTimestamp = now;
-    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(handleDeferredVerticalPressAction) object:nil];
-    [self performSelector:@selector(handleDeferredVerticalPressAction) withObject:nil afterDelay:0.35];
 }
 
 - (void)handleManualScrollPan:(UIPanGestureRecognizer *)gestureRecognizer {
@@ -392,12 +363,6 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
         self.awaitingSecondHorizontalPress = NO;
         [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(handleDeferredHorizontalPressAction) object:nil];
     }
-    if (self.awaitingSecondVerticalPress &&
-        press.type != UIPressTypeUpArrow && press.type != UIPressTypeDownArrow) {
-        self.awaitingSecondVerticalPress = NO;
-        [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(handleDeferredVerticalPressAction) object:nil];
-    }
-
     if (press.type == UIPressTypeMenu || press.type == UIPressTypePlayPause || press.type == UIPressTypeSelect) {
         NSLog(@"[InputTrace][Root] pressesEnded type=%@ phase=%@ presented=%@ tabOverview=%@",
               BrowserPressTypeString(press.type),
