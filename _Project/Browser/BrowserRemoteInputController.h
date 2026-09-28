@@ -28,7 +28,6 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)browserRemoteInputControllerHandlePlayPausePress;
 - (void)browserRemoteInputControllerEditNewTabFavoriteUsingKeyboardSelection:(BOOL)keyboardSelection;
 - (void)browserRemoteInputControllerToggleMagnifier;
-- (void)browserRemoteInputControllerHandleAdvancedMenuPress;
 - (void)browserRemoteInputControllerHoverStateAtCursorPoint:(CGPoint)point
                                                 completion:(void (^)(BOOL isInteractive))completion;
 - (void)browserRemoteInputControllerSetWebInteractionEnabled:(BOOL)enabled;

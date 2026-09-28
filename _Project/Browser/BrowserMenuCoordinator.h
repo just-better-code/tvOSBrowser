@@ -16,6 +16,7 @@
 - (void)browserEditCurrentAddress;
 - (void)browserShowHints;
 - (void)browserShowTabOverview;
+- (void)browserCreateNewTab;
 - (void)browserUpdateTextFontSize;
 - (void)browserCaptureSnapshotForCurrentTab;
 - (void)browserRecreateActiveWebViewPreservingCurrentURL;

@@ -458,6 +458,10 @@ static UIColor *kTextColor(void) {
     [self.tabOverviewController show];
 }
 
+- (void)browserCreateNewTab {
+    [self.tabCoordinator createNewTabLoadingHomePage:NO];
+}
+
 - (void)browserUpdateTextFontSize {
     [self updateTextFontSize];
 }
@@ -663,7 +667,7 @@ static UIColor *kTextColor(void) {
     } else if (self.browserCursorMagnifierEnabled) {
         self.browserCursorMagnifierEnabled = NO;
     } else {
-        [self browserShowTabOverview];
+        [self showAdvancedMenu];
     }
 }
 
@@ -693,10 +697,6 @@ static UIColor *kTextColor(void) {
     [self.webview evaluateJavaScript:script completion:^(__unused NSString *result) {}];
 }
 
-- (void)browserRemoteInputControllerHandleAdvancedMenuPress {
-    [self showAdvancedMenu];
-}
-
 - (void)browserRemoteInputControllerHoverStateAtCursorPoint:(CGPoint)point
                                                 completion:(void (^)(BOOL))completion {
     BrowserWebView *webView = self.webview;
@@ -723,10 +723,35 @@ static UIColor *kTextColor(void) {
         return;
     }
     CGFloat cropSize = MIN(192.0, MIN(CGRectGetWidth(webView.bounds), CGRectGetHeight(webView.bounds)));
-    CGRect crop = CGRectMake(MIN(MAX(webPoint.x - cropSize / 2.0, 0.0), CGRectGetWidth(webView.bounds) - cropSize),
-                             MIN(MAX(webPoint.y - cropSize / 2.0, 0.0), CGRectGetHeight(webView.bounds) - cropSize),
-                             cropSize, cropSize);
-    [webView captureSnapshotInRect:crop width:384.0 completion:completion];
+    CGRect centeredCrop = CGRectMake(webPoint.x - cropSize / 2.0,
+                                     webPoint.y - cropSize / 2.0,
+                                     cropSize, cropSize);
+    CGRect visibleCrop = CGRectIntersection(centeredCrop, webView.bounds);
+    if (CGRectIsEmpty(visibleCrop)) {
+        completion(nil);
+        return;
+    }
+    CGFloat magnification = 384.0 / cropSize;
+    [webView captureSnapshotInRect:visibleCrop
+                            width:CGRectGetWidth(visibleCrop) * magnification
+                       completion:^(UIImage *snapshot) {
+        if (snapshot == nil) {
+            completion(nil);
+            return;
+        }
+        UIGraphicsImageRenderer *renderer = [[UIGraphicsImageRenderer alloc]
+            initWithSize:CGSizeMake(384.0, 384.0)];
+        UIImage *centeredImage = [renderer imageWithActions:^(UIGraphicsImageRendererContext *context) {
+            [[UIColor colorWithWhite:0.1 alpha:1.0] setFill];
+            UIRectFill(CGRectMake(0.0, 0.0, 384.0, 384.0));
+            CGRect imageRect = CGRectMake((CGRectGetMinX(visibleCrop) - CGRectGetMinX(centeredCrop)) * magnification,
+                                          (CGRectGetMinY(visibleCrop) - CGRectGetMinY(centeredCrop)) * magnification,
+                                          CGRectGetWidth(visibleCrop) * magnification,
+                                          CGRectGetHeight(visibleCrop) * magnification);
+            [snapshot drawInRect:imageRect];
+        }];
+        completion(centeredImage);
+    }];
 }
 
 - (void)browserRemoteInputControllerSetWebInteractionEnabled:(BOOL)enabled {
