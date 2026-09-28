@@ -20,6 +20,12 @@ static UIImage *BrowserPointerCursor(void) {
 
 static NSTimeInterval const kBrowserCursorIdleDelay = 3.0;
 static CGFloat const kBrowserMagnifierDiameter = 384.0;
+static CGFloat const kBrowserMagnifierCursorEdgeInset = 32.0;
+static NSTimeInterval const kBrowserSelectHoldDelay = 0.65;
+static NSTimeInterval const kBrowserVerticalHoldDelay = 0.38;
+static CGFloat const kBrowserVerticalHoldInitialSpeed = 560.0;
+static CGFloat const kBrowserVerticalHoldMaximumSpeed = 1460.0;
+static CFTimeInterval const kBrowserVerticalHoldAccelerationDuration = 2.4;
 
 static NSString *BrowserPressTypeString(UIPressType type) {
     switch (type) {
@@ -57,13 +63,27 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 @property (nonatomic) CGPoint manualScrollVelocity;
 @property (nonatomic) CFTimeInterval manualScrollLastTimestamp;
 @property (nonatomic) CFTimeInterval manualScrollLastMovementTimestamp;
+@property (nonatomic, weak) UIScrollView *animatedScrollView;
+@property (nonatomic) CGFloat animatedScrollTargetY;
+@property (nonatomic) CFTimeInterval lastAnimatedScrollPressTimestamp;
+@property (nonatomic) CADisplayLink *verticalHoldDisplayLink;
+@property (nonatomic) CFTimeInterval verticalHoldLastTimestamp;
+@property (nonatomic) CFTimeInterval verticalHoldStartTimestamp;
+@property (nonatomic) UIPressType heldVerticalPressType;
+@property (nonatomic) BOOL verticalPressPending;
+@property (nonatomic) BOOL verticalHoldActive;
+@property (nonatomic) NSUInteger verticalHoldGeneration;
 @property (nonatomic) CFTimeInterval lastDirectSelectPressTimestamp;
+@property (nonatomic) CFTimeInterval lastLongSelectTimestamp;
+@property (nonatomic) BOOL selectPressPending;
+@property (nonatomic) BOOL selectHoldActivated;
+@property (nonatomic) NSUInteger selectHoldGeneration;
+@property (nonatomic) BOOL selectClickHandledByGlobal;
+@property (nonatomic) BOOL selectLongPressEndedByGlobal;
 @property (nonatomic) BOOL awaitingSecondHorizontalPress;
 @property (nonatomic) UIPressType pendingHorizontalPressType;
 @property (nonatomic) CFTimeInterval lastHorizontalPressTimestamp;
 @property (nonatomic) CFTimeInterval lastTabOverviewUpPressTimestamp;
-@property (nonatomic) CFTimeInterval lastPlayPausePressTimestamp;
-@property (nonatomic) BOOL awaitingSecondPlayPausePress;
 @property (nonatomic) BOOL primaryActionInProgress;
 @property (nonatomic) BOOL hoverRequestInFlight;
 @property (nonatomic) CGPoint latestHoverPoint;
@@ -134,6 +154,14 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     self.magnifierImageView.image = nil;
     self.magnifierView.hidden = YES;
     if (magnifierEnabled) {
+        CGFloat viewWidth = CGRectGetWidth(self.rootView.bounds);
+        CGFloat viewHeight = CGRectGetHeight(self.rootView.bounds);
+        if (viewWidth > kBrowserMagnifierCursorEdgeInset && viewHeight > kBrowserMagnifierCursorEdgeInset) {
+            CGRect cursorFrame = self.cursorView.frame;
+            cursorFrame.origin.x = MIN(cursorFrame.origin.x, viewWidth - kBrowserMagnifierCursorEdgeInset);
+            cursorFrame.origin.y = MIN(cursorFrame.origin.y, viewHeight - kBrowserMagnifierCursorEdgeInset);
+            self.cursorView.frame = cursorFrame;
+        }
         [self noteCursorActivity];
         [self updateMagnifierAtPoint:self.cursorView.frame.origin];
         __weak typeof(self) weakSelf = self;
@@ -155,13 +183,8 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
         self.magnifierView.hidden = YES;
         return;
     }
-    CGFloat viewWidth = CGRectGetWidth(self.rootView.bounds);
-    CGFloat viewHeight = CGRectGetHeight(self.rootView.bounds);
-    CGFloat x = MIN(MAX(16.0, point.x - kBrowserMagnifierDiameter / 2.0),
-                    MAX(16.0, viewWidth - kBrowserMagnifierDiameter - 16.0));
-    CGFloat y = MIN(MAX(16.0, point.y - kBrowserMagnifierDiameter / 2.0),
-                    MAX(16.0, viewHeight - kBrowserMagnifierDiameter - 16.0));
-    self.magnifierView.frame = CGRectMake(x, y,
+    self.magnifierView.frame = CGRectMake(point.x - kBrowserMagnifierDiameter / 2.0,
+                                           point.y - kBrowserMagnifierDiameter / 2.0,
                                            kBrowserMagnifierDiameter, kBrowserMagnifierDiameter);
     [self.rootView bringSubviewToFront:self.magnifierView];
     [self.rootView bringSubviewToFront:self.cursorView];
@@ -298,6 +321,7 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     if (scrollView == nil) {
         return NO;
     }
+    self.animatedScrollView = nil;
 
     CGPoint contentOffset = scrollView.contentOffset;
     CGFloat maxOffsetX = MAX(0.0, scrollView.contentSize.width - CGRectGetWidth(scrollView.bounds));
@@ -359,6 +383,14 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 }
 
 - (void)handleGlobalSelectPressEndedNotification {
+    if (self.selectHoldActivated) {
+        [self endSelectHold];
+        self.selectLongPressEndedByGlobal = YES;
+        return;
+    }
+    if (CACurrentMediaTime() - self.lastLongSelectTimestamp < 0.4) {
+        return;
+    }
     if ([self.host browserRemoteInputControllerPresentedViewController] != nil) {
         return;
     }
@@ -371,7 +403,49 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
         return;
     }
 
+    [self endSelectHold];
+    self.selectClickHandledByGlobal = YES;
+    self.lastDirectSelectPressTimestamp = CACurrentMediaTime();
     [self handleSelectPressEnded];
+}
+
+- (void)beginSelectHold {
+    if (self.selectPressPending || !self.cursorModeEnabled ||
+        [self.host browserRemoteInputControllerPresentedViewController] != nil ||
+        [self.host browserRemoteInputControllerTabOverviewVisible] ||
+        [self.host browserRemoteInputControllerTopBarFocusActive]) {
+        return;
+    }
+    self.selectPressPending = YES;
+    self.selectHoldActivated = NO;
+    self.selectClickHandledByGlobal = NO;
+    self.selectLongPressEndedByGlobal = NO;
+    NSUInteger generation = ++self.selectHoldGeneration;
+    __weak typeof(self) weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kBrowserSelectHoldDelay * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (strongSelf == nil || generation != strongSelf.selectHoldGeneration ||
+            !strongSelf.selectPressPending ||
+            [strongSelf.host browserRemoteInputControllerPresentedViewController] != nil) {
+            return;
+        }
+        strongSelf.selectHoldActivated = YES;
+        strongSelf.lastLongSelectTimestamp = CACurrentMediaTime();
+        [strongSelf.host browserRemoteInputControllerToggleMagnifier];
+    });
+}
+
+- (BOOL)endSelectHold {
+    if (!self.selectPressPending) { return NO; }
+    BOOL activated = self.selectHoldActivated;
+    self.selectPressPending = NO;
+    self.selectHoldActivated = NO;
+    self.selectHoldGeneration += 1;
+    if (activated) {
+        self.lastLongSelectTimestamp = CACurrentMediaTime();
+    }
+    return activated;
 }
 
 - (void)handleSelectPressEnded {
@@ -418,31 +492,6 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     }
 }
 
-- (void)handleDeferredPlayPausePressAction {
-    if (!self.awaitingSecondPlayPausePress) { return; }
-    self.awaitingSecondPlayPausePress = NO;
-    if ([self.host browserRemoteInputControllerPresentedViewController] == nil &&
-        ![self.host browserRemoteInputControllerTopBarFocusActive]) {
-        [self.host browserRemoteInputControllerHandlePlayPausePress];
-    }
-}
-
-- (void)handlePlayPausePressEnded {
-    CFTimeInterval now = CACurrentMediaTime();
-    if (self.awaitingSecondPlayPausePress &&
-        now - self.lastPlayPausePressTimestamp < 0.35) {
-        self.awaitingSecondPlayPausePress = NO;
-        [NSObject cancelPreviousPerformRequestsWithTarget:self
-                                                  selector:@selector(handleDeferredPlayPausePressAction)
-                                                    object:nil];
-        [self.host browserRemoteInputControllerToggleMagnifier];
-        return;
-    }
-    self.awaitingSecondPlayPausePress = YES;
-    self.lastPlayPausePressTimestamp = now;
-    [self performSelector:@selector(handleDeferredPlayPausePressAction) withObject:nil afterDelay:0.35];
-}
-
 - (void)handleHorizontalPressEnded:(UIPressType)pressType {
     CFTimeInterval now = CACurrentMediaTime();
     if (self.awaitingSecondHorizontalPress &&
@@ -470,6 +519,71 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     [self performSelector:@selector(handleDeferredHorizontalPressAction) withObject:nil afterDelay:0.35];
 }
 
+- (void)stopVerticalHold {
+    self.verticalHoldGeneration += 1;
+    self.verticalPressPending = NO;
+    self.verticalHoldActive = NO;
+    self.verticalHoldLastTimestamp = 0.0;
+    self.verticalHoldStartTimestamp = 0.0;
+    [self.verticalHoldDisplayLink invalidate];
+    self.verticalHoldDisplayLink = nil;
+}
+
+- (void)handleVerticalHoldDisplayLink:(CADisplayLink *)displayLink {
+    if (!self.verticalHoldActive ||
+        [self.host browserRemoteInputControllerPresentedViewController] != nil ||
+        [self.host browserRemoteInputControllerTabOverviewVisible] ||
+        [self.host browserRemoteInputControllerNewTabVisible] ||
+        [self.host browserRemoteInputControllerTopBarFocusActive]) {
+        [self stopVerticalHold];
+        return;
+    }
+    if (self.verticalHoldLastTimestamp == 0.0) {
+        self.verticalHoldLastTimestamp = displayLink.timestamp;
+        self.verticalHoldStartTimestamp = displayLink.timestamp;
+        return;
+    }
+    CFTimeInterval elapsed = MIN(0.05, displayLink.timestamp - self.verticalHoldLastTimestamp);
+    self.verticalHoldLastTimestamp = displayLink.timestamp;
+    CGFloat progress = MIN(1.0, (displayLink.timestamp - self.verticalHoldStartTimestamp) /
+                                  kBrowserVerticalHoldAccelerationDuration);
+    CGFloat easedProgress = progress * progress * (3.0 - 2.0 * progress);
+    CGFloat speed = kBrowserVerticalHoldInitialSpeed +
+        (kBrowserVerticalHoldMaximumSpeed - kBrowserVerticalHoldInitialSpeed) * easedProgress;
+    CGFloat direction = self.heldVerticalPressType == UIPressTypeDownArrow ? 1.0 : -1.0;
+    [self applyManualScrollDelta:CGPointMake(0.0, direction * speed * elapsed)];
+}
+
+- (void)beginVerticalHoldForPressType:(UIPressType)pressType {
+    if ([self.host browserRemoteInputControllerPresentedViewController] != nil ||
+        [self.host browserRemoteInputControllerTabOverviewVisible] ||
+        [self.host browserRemoteInputControllerNewTabVisible] ||
+        [self.host browserRemoteInputControllerTopBarFocusActive]) {
+        return;
+    }
+    if (self.verticalPressPending && self.heldVerticalPressType == pressType) {
+        return;
+    }
+    [self stopVerticalHold];
+    self.verticalPressPending = YES;
+    self.heldVerticalPressType = pressType;
+    NSUInteger generation = self.verticalHoldGeneration;
+    __weak typeof(self) weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kBrowserVerticalHoldDelay * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (strongSelf == nil || generation != strongSelf.verticalHoldGeneration ||
+            !strongSelf.verticalPressPending || strongSelf.heldVerticalPressType != pressType) {
+            return;
+        }
+        [strongSelf stopManualScrollInertia];
+        strongSelf.verticalHoldActive = YES;
+        strongSelf.verticalHoldDisplayLink = [CADisplayLink displayLinkWithTarget:strongSelf
+                                                                        selector:@selector(handleVerticalHoldDisplayLink:)];
+        [strongSelf.verticalHoldDisplayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
+    });
+}
+
 - (void)handleVerticalPressEnded:(UIPressType)pressType {
     if ([self.host browserRemoteInputControllerPresentedViewController] != nil ||
         [self.host browserRemoteInputControllerTopBarFocusActive] ||
@@ -479,9 +593,19 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 
     CGFloat direction = pressType == UIPressTypeDownArrow ? 1.0 : -1.0;
     UIScrollView *scrollView = [self.host browserRemoteInputControllerActiveScrollView];
-    CGFloat pageStep = scrollView == nil ? 150.0 : MAX(120.0, CGRectGetHeight(scrollView.bounds) * 0.275);
+    if (scrollView == nil) { return; }
+    CGFloat pageStep = MAX(120.0, CGRectGetHeight(scrollView.bounds) * 0.275);
     [self stopManualScrollInertia];
-    [self applyManualScrollDelta:CGPointMake(0, direction * pageStep)];
+    CFTimeInterval now = CACurrentMediaTime();
+    BOOL continuePreviousScroll = self.animatedScrollView == scrollView &&
+        now - self.lastAnimatedScrollPressTimestamp < 0.6;
+    CGFloat baseY = continuePreviousScroll ? self.animatedScrollTargetY : scrollView.contentOffset.y;
+    CGFloat maxOffsetY = MAX(0.0, scrollView.contentSize.height - CGRectGetHeight(scrollView.bounds));
+    CGFloat targetY = MIN(MAX(baseY + direction * pageStep, 0.0), maxOffsetY);
+    self.animatedScrollView = scrollView;
+    self.animatedScrollTargetY = targetY;
+    self.lastAnimatedScrollPressTimestamp = now;
+    [scrollView setContentOffset:CGPointMake(scrollView.contentOffset.x, targetY) animated:YES];
     [self.host browserRemoteInputControllerPersistSession];
 }
 
@@ -521,6 +645,12 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 
 - (void)handlePressesBegan:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
     UIPress *press = presses.anyObject;
+    if (press.type == UIPressTypeSelect) {
+        [self beginSelectHold];
+    }
+    if (press.type == UIPressTypeUpArrow || press.type == UIPressTypeDownArrow) {
+        [self beginVerticalHoldForPressType:press.type];
+    }
     if (press != nil && (press.type == UIPressTypeMenu || press.type == UIPressTypePlayPause || press.type == UIPressTypeSelect)) {
         NSLog(@"[InputTrace][Root] pressesBegan type=%@ phase=%@ presented=%@",
               BrowserPressTypeString(press.type),
@@ -536,11 +666,23 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     if (press == nil) {
         return NO;
     }
-    if (self.awaitingSecondPlayPausePress && press.type != UIPressTypePlayPause) {
-        [NSObject cancelPreviousPerformRequestsWithTarget:self
-                                                  selector:@selector(handleDeferredPlayPausePressAction)
-                                                    object:nil];
-        [self handleDeferredPlayPausePressAction];
+    if (press.type != UIPressTypeSelect && self.selectPressPending) {
+        [self endSelectHold];
+    }
+    if (self.verticalPressPending && press.type != self.heldVerticalPressType) {
+        BOOL wasHolding = self.verticalHoldActive;
+        [self stopVerticalHold];
+        if (wasHolding) {
+            [self.host browserRemoteInputControllerPersistSession];
+        }
+    }
+    if (self.verticalPressPending && press.type == self.heldVerticalPressType) {
+        BOOL wasHolding = self.verticalHoldActive;
+        [self stopVerticalHold];
+        if (wasHolding) {
+            [self.host browserRemoteInputControllerPersistSession];
+            return YES;
+        }
     }
     if (![self.host browserRemoteInputControllerTabOverviewVisible] || press.type != UIPressTypeUpArrow) {
         self.lastTabOverviewUpPressTimestamp = 0.0;
@@ -623,7 +765,20 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     }
 
     if (press.type == UIPressTypeSelect) {
+        if (self.selectLongPressEndedByGlobal) {
+            self.selectLongPressEndedByGlobal = NO;
+            self.lastDirectSelectPressTimestamp = CACurrentMediaTime();
+            return YES;
+        }
+        if (self.selectClickHandledByGlobal &&
+            CACurrentMediaTime() - self.lastDirectSelectPressTimestamp < 0.15) {
+            self.selectClickHandledByGlobal = NO;
+            return YES;
+        }
         self.lastDirectSelectPressTimestamp = CACurrentMediaTime();
+        if ([self endSelectHold]) {
+            return YES;
+        }
         [self handleSelectPressEnded];
         return YES;
     }
@@ -644,7 +799,7 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
         return YES;
     }
     if (press.type == UIPressTypePlayPause) {
-        [self handlePlayPausePressEnded];
+        [self.host browserRemoteInputControllerHandlePlayPausePress];
         return YES;
     }
     if (press.type == UIPressTypeRightArrow) {
@@ -660,6 +815,22 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
         return YES;
     }
     return NO;
+}
+
+- (void)handlePressesCancelled:(NSSet<UIPress *> *)presses {
+    for (UIPress *press in presses) {
+        if (press.type == UIPressTypeSelect && self.selectPressPending) {
+            [self endSelectHold];
+        }
+        if (self.verticalPressPending && press.type == self.heldVerticalPressType) {
+            BOOL wasHolding = self.verticalHoldActive;
+            [self stopVerticalHold];
+            if (wasHolding) {
+                [self.host browserRemoteInputControllerPersistSession];
+            }
+            break;
+        }
+    }
 }
 
 - (BOOL)handleTouchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
@@ -702,17 +873,16 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
         } else {
             CGFloat xDiff = location.x - self.lastTouchLocation.x;
             CGFloat yDiff = location.y - self.lastTouchLocation.y;
-            CGFloat cursorSensitivity = self.magnifierEnabled ? 0.25 : 1.0;
+            CGFloat cursorSensitivity = self.magnifierEnabled ? 0.375 : 0.75;
             xDiff *= cursorSensitivity;
             yDiff *= cursorSensitivity;
             CGRect rect = self.cursorView.frame;
 
-            if (rect.origin.x + xDiff >= 0 && rect.origin.x + xDiff <= 1920) {
-                rect.origin.x += xDiff;
-            }
-            if (rect.origin.y + yDiff >= 0 && rect.origin.y + yDiff <= 1080) {
-                rect.origin.y += yDiff;
-            }
+            CGFloat cursorEdgeInset = self.magnifierEnabled ? kBrowserMagnifierCursorEdgeInset : 1.0;
+            CGFloat maximumCursorX = MAX(0.0, CGRectGetWidth(self.rootView.bounds) - cursorEdgeInset);
+            CGFloat maximumCursorY = MAX(0.0, CGRectGetHeight(self.rootView.bounds) - cursorEdgeInset);
+            rect.origin.x = MIN(MAX(rect.origin.x + xDiff, 0.0), maximumCursorX);
+            rect.origin.y = MIN(MAX(rect.origin.y + yDiff, 0.0), maximumCursorY);
             self.cursorView.frame = rect;
             self.lastTouchLocation = location;
         }

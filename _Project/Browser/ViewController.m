@@ -16,6 +16,7 @@
 #import "BrowserTabViewModel.h"
 #import "BrowserTabCoordinator.h"
 #import "BrowserTabOverviewController.h"
+#import "BrowserUsageGuideViewController.h"
 #import "BrowserVideoPlaybackCoordinator.h"
 #import "BrowserViewModel.h"
 #import "ViewController.h"
@@ -342,28 +343,9 @@ static UIColor *kTextColor(void) {
 }
 
 - (void)showHintsAlert {
-    UIAlertController *alertController = [UIAlertController alertControllerWithTitle:@"Usage Guide"
-                                                                             message:@"Move the pointer with the center touchpad and press the center to click.\nPress Up or Down to scroll.\nPress Left to go back or double press Left to show tabs.\nPress Right to go forward or double press Right for the Advanced Menu.\nBrowser Fullscreen and Favorites are in the Advanced Menu.\nEach Play/Pause press pauses or resumes video.\nPress Menu to exit fullscreen or go back."
-                                                                      preferredStyle:UIAlertControllerStyleAlert];
-
-    __weak typeof(self) weakSelf = self;
-    if (self.preferencesStore.dontShowHintsOnLaunch) {
-        [alertController addAction:[UIAlertAction actionWithTitle:@"Always Show On Launch"
-                                                            style:UIAlertActionStyleDestructive
-                                                          handler:^(__unused UIAlertAction *action) {
-            weakSelf.preferencesStore.dontShowHintsOnLaunch = NO;
-        }]];
-    } else {
-        [alertController addAction:[UIAlertAction actionWithTitle:@"Don't Show This Again"
-                                                            style:UIAlertActionStyleDestructive
-                                                          handler:^(__unused UIAlertAction *action) {
-            weakSelf.preferencesStore.dontShowHintsOnLaunch = YES;
-        }]];
-    }
-    [alertController addAction:[UIAlertAction actionWithTitle:@"Dismiss"
-                                                        style:UIAlertActionStyleCancel
-                                                      handler:nil]];
-    [self presentViewController:alertController animated:YES completion:nil];
+    BrowserUsageGuideViewController *guide = [[BrowserUsageGuideViewController alloc]
+                                              initWithPreferencesStore:self.preferencesStore];
+    [self presentViewController:guide animated:YES completion:nil];
 }
 
 - (void)browserHandlePrimaryAction {
@@ -643,6 +625,10 @@ static UIColor *kTextColor(void) {
 }
 
 - (void)browserRemoteInputControllerHandleMenuPress {
+    if (self.webview == nil) {
+        [self handleMenuPressOutsideFullscreen];
+        return;
+    }
     __weak typeof(self) weakSelf = self;
     [self.webview evaluateJavaScript:@"window.__browserTVExitFullscreen ? window.__browserTVExitFullscreen() : false"
                            completion:^(NSString *result) {
@@ -654,22 +640,12 @@ static UIColor *kTextColor(void) {
 }
 
 - (void)handleMenuPressOutsideFullscreen {
-    UIAlertController *alertController = (UIAlertController *)self.presentedViewController;
-    if (alertController != nil) {
+    if (self.presentedViewController != nil) {
         [self.presentedViewController dismissViewControllerAnimated:YES completion:nil];
-    } else if (self.webview.canGoBack) {
-        [self.webview goBack];
+    } else if (self.browserCursorMagnifierEnabled) {
+        self.browserCursorMagnifierEnabled = NO;
     } else {
-        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Exit App?"
-                                                                       message:nil
-                                                                preferredStyle:UIAlertControllerStyleAlert];
-        [alert addAction:[UIAlertAction actionWithTitle:@"Exit"
-                                                  style:UIAlertActionStyleDestructive
-                                                handler:^(__unused UIAlertAction *action) {
-            exit(EXIT_SUCCESS);
-        }]];
-        [alert addAction:[UIAlertAction actionWithTitle:@"Dismiss" style:UIAlertActionStyleCancel handler:nil]];
-        [self presentViewController:alert animated:YES completion:nil];
+        [self browserShowTabOverview];
     }
 }
 
@@ -853,6 +829,11 @@ static UIColor *kTextColor(void) {
         return;
     }
     [super pressesEnded:presses withEvent:event];
+}
+
+- (void)pressesCancelled:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
+    [self.remoteInputController handlePressesCancelled:presses];
+    [super pressesCancelled:presses withEvent:event];
 }
 
 - (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {

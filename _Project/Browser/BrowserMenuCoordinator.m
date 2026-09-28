@@ -252,6 +252,11 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
     }];
     self.toolbarButtons = toolbarButtons;
 
+    UIView *toolbarSeparator = [UIView new];
+    toolbarSeparator.translatesAutoresizingMaskIntoConstraints = NO;
+    toolbarSeparator.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.24];
+    [panelView.contentView addSubview:toolbarSeparator];
+
     UIView *separator = [UIView new];
     separator.translatesAutoresizingMaskIntoConstraints = NO;
     if (@available(tvOS 13.0, *)) {
@@ -326,12 +331,17 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
 
         [navigationToolbar.leadingAnchor constraintEqualToAnchor:panelView.leadingAnchor constant:24.0],
         [navigationToolbar.trailingAnchor constraintEqualToAnchor:panelView.trailingAnchor constant:-24.0],
-        [navigationToolbar.topAnchor constraintEqualToAnchor:addressButton.bottomAnchor constant:12.0],
+        [navigationToolbar.topAnchor constraintEqualToAnchor:addressButton.bottomAnchor constant:18.0],
         [navigationToolbar.heightAnchor constraintEqualToConstant:64.0],
+
+        [toolbarSeparator.leadingAnchor constraintEqualToAnchor:panelView.leadingAnchor constant:32.0],
+        [toolbarSeparator.trailingAnchor constraintEqualToAnchor:panelView.trailingAnchor constant:-32.0],
+        [toolbarSeparator.topAnchor constraintEqualToAnchor:navigationToolbar.bottomAnchor constant:14.0],
+        [toolbarSeparator.heightAnchor constraintEqualToConstant:1.0],
 
         [quickToolbar.leadingAnchor constraintEqualToAnchor:panelView.leadingAnchor constant:24.0],
         [quickToolbar.trailingAnchor constraintEqualToAnchor:panelView.trailingAnchor constant:-24.0],
-        [quickToolbar.topAnchor constraintEqualToAnchor:navigationToolbar.bottomAnchor constant:12.0],
+        [quickToolbar.topAnchor constraintEqualToAnchor:toolbarSeparator.bottomAnchor constant:14.0],
         [quickToolbar.heightAnchor constraintEqualToConstant:64.0],
 
         [separator.leadingAnchor constraintEqualToAnchor:panelView.leadingAnchor constant:20.0],
