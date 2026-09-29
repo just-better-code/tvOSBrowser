@@ -153,7 +153,7 @@ static CGFloat const kTabCardURLHeight = 64.0;
     self.thumbnailView.image = nil;
     self.addIconBackdropView.hidden = NO;
     self.titleLabel.text = @"New Tab";
-    self.urlLabel.text = @"Favorites and recent history";
+    self.urlLabel.text = @"Favorites and recents";
     self.hintLabel.hidden = YES;
     [self updateAppearance];
 }

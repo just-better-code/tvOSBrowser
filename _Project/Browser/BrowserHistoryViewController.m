@@ -146,6 +146,12 @@
     table.rowHeight = 112.0;
     table.backgroundColor = UIColor.clearColor;
     table.showsVerticalScrollIndicator = YES;
+    UILabel *emptyLabel = [self label:@"No browsing history yet" size:32.0 weight:UIFontWeightMedium
+                                   color:[UIColor colorWithWhite:1.0 alpha:0.72]];
+    emptyLabel.translatesAutoresizingMaskIntoConstraints = YES;
+    emptyLabel.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    emptyLabel.textAlignment = NSTextAlignmentCenter;
+    table.backgroundView = emptyLabel;
     [self.view addSubview:table];
     self.tableView = table;
 
@@ -227,6 +233,7 @@
     self.selectAllButton.alpha = self.selectAllButton.enabled ? 1.0 : 0.45;
     [self.selectAllButton setTitle:self.selectedIndexes.count == self.entries.count && self.entries.count > 0
                                     ? @"Deselect" : @"Select All" forState:UIControlStateNormal];
+    self.tableView.backgroundView.hidden = self.entries.count > 0;
 }
 
 - (NSInteger)tableView:(__unused UITableView *)tableView numberOfRowsInSection:(__unused NSInteger)section {
@@ -310,6 +317,8 @@
     [self.selectedIndexes removeAllIndexes];
     [self.tableView reloadData];
     [self updateActions];
+    [self setNeedsFocusUpdate];
+    [self updateFocusIfNeeded];
     if (self.historyDidChange != nil) self.historyDidChange();
 }
 
@@ -327,8 +336,10 @@
 
 - (void)clearAllPressed {
     if (self.entries.count == 0) return;
+    NSString *message = [NSString stringWithFormat:@"This removes all %lu saved visits. Favorites stay saved.",
+                                                   (unsigned long)self.entries.count];
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Clear all history?"
-                                                                   message:@"This removes every saved visit. Favorites stay saved."
+                                                                   message:message
                                                             preferredStyle:UIAlertControllerStyleAlert];
     __weak typeof(self) weakSelf = self;
     [alert addAction:[UIAlertAction actionWithTitle:@"Clear All History"
@@ -350,16 +361,21 @@
         [alert addAction:[UIAlertAction actionWithTitle:@"Open Selected" style:UIAlertActionStyleDefault
                                             handler:^(__unused UIAlertAction *action) { [weakSelf openPressed]; }]];
     }
-    [alert addAction:[UIAlertAction actionWithTitle:@"Select All" style:UIAlertActionStyleDefault
-                                        handler:^(__unused UIAlertAction *action) { [weakSelf selectAllPressed]; }]];
+    if (self.entries.count > 0) {
+        NSString *selectionTitle = self.selectedIndexes.count == self.entries.count ? @"Deselect" : @"Select All";
+        [alert addAction:[UIAlertAction actionWithTitle:selectionTitle style:UIAlertActionStyleDefault
+                                            handler:^(__unused UIAlertAction *action) { [weakSelf selectAllPressed]; }]];
+    }
     if (self.selectedIndexes.count > 0) {
         [alert addAction:[UIAlertAction actionWithTitle:@"Delete Selected" style:UIAlertActionStyleDestructive
                                             handler:^(__unused UIAlertAction *action) { [weakSelf deletePressed]; }]];
     }
-    [alert addAction:[UIAlertAction actionWithTitle:@"Clear All" style:UIAlertActionStyleDestructive
-                                        handler:^(__unused UIAlertAction *action) {
-        dispatch_async(dispatch_get_main_queue(), ^{ [weakSelf clearAllPressed]; });
-    }]];
+    if (self.entries.count > 0) {
+        [alert addAction:[UIAlertAction actionWithTitle:@"Clear All" style:UIAlertActionStyleDestructive
+                                            handler:^(__unused UIAlertAction *action) {
+            dispatch_async(dispatch_get_main_queue(), ^{ [weakSelf clearAllPressed]; });
+        }]];
+    }
     [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
     [self presentViewController:alert animated:YES completion:nil];
 }

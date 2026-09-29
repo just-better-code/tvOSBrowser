@@ -47,7 +47,7 @@
 - (instancetype)init {
     self = [super init];
     if (self) {
-        NSArray<NSNumber *> *directoryKinds = @[@(NSApplicationSupportDirectory), @(NSDocumentDirectory), @(NSCachesDirectory)];
+        NSArray<NSNumber *> *directoryKinds = @[@(NSApplicationSupportDirectory), @(NSDocumentDirectory)];
         for (NSNumber *kind in directoryKinds) {
             NSURL *directory = [[[NSFileManager defaultManager] URLsForDirectory:kind.unsignedIntegerValue
                                                                         inDomains:NSUserDomainMask] firstObject];
@@ -199,15 +199,32 @@
     return records;
 }
 
-- (NSArray<NSDictionary *> *)mostVisitedWithLimit:(NSUInteger)limit {
-    return [self recordsForSQL:"SELECT v.id,v.url,v.title,counts.visits FROM visits v "
-                               "JOIN (SELECT url,COUNT(*) visits,MAX(id) last_id FROM visits GROUP BY url) counts "
-                               "ON v.id=counts.last_id ORDER BY counts.visits DESC, v.id DESC LIMIT ?"
+- (NSArray<NSDictionary *> *)recentActiveWeekWithLimit:(NSUInteger)limit {
+    return [self recordsForSQL:"SELECT v.id,v.url,v.title,counts.visits,counts.latest FROM visits v "
+                               "JOIN (SELECT url,COUNT(*) visits,MAX(id) last_id,MAX(visited_at) latest FROM visits "
+                               "WHERE visited_at >= (SELECT MAX(visited_at) - 604800 FROM visits) GROUP BY url) counts "
+                               "ON v.id=counts.last_id ORDER BY counts.latest DESC, v.id DESC LIMIT ?"
                         limit:limit];
 }
 
 - (NSArray<NSDictionary *> *)allVisits {
     return [self recordsForSQL:"SELECT id,url,title,1,visited_at FROM visits ORDER BY visited_at DESC,id DESC" limit:0];
+}
+
+- (void)pruneOldVisits {
+    if (self.database == NULL) return;
+    NSDate *cutoff = [[NSCalendar currentCalendar] dateByAddingUnit:NSCalendarUnitMonth
+                                                               value:-1 toDate:[NSDate date] options:0];
+    if (cutoff == nil) return;
+    sqlite3_stmt *statement = NULL;
+    const char *SQL = "DELETE FROM visits WHERE visited_at < ? "
+                      "AND id NOT IN (SELECT id FROM visits ORDER BY visited_at DESC,id DESC LIMIT 100)";
+    if (sqlite3_prepare_v2(self.database, SQL, -1, &statement, NULL) != SQLITE_OK) return;
+    sqlite3_bind_double(statement, 1, cutoff.timeIntervalSince1970);
+    int result = sqlite3_step(statement);
+    int changed = sqlite3_changes(self.database);
+    sqlite3_finalize(statement);
+    if (result == SQLITE_DONE && changed > 0) [self syncHistoryBackup];
 }
 
 - (void)deleteVisitsWithIdentifiers:(NSArray<NSNumber *> *)identifiers {

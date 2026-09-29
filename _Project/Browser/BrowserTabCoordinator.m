@@ -64,8 +64,8 @@ static NSString *BrowserNewTabSectionHTML(NSArray *entries, BOOL favorites, NSUI
     }
     NSString *footer = favorites ? @"" : @"<a id='all-history' class='all-history nav-target' href='tvosbrowser://history'>All History  →</a>";
     return [NSString stringWithFormat:@"<section id='%@'><div class='section-heading'><h2>%@</h2><span class='count'>%lu</span><span class='section-hint'>%@</span></div><div class='%@'>%@</div>%@</section>",
-        favorites ? @"favorites" : @"history", favorites ? @"Favorites" : @"History",
-        (unsigned long)count, favorites ? @"Play/Pause to edit" : @"Most visited", favorites ? @"tiles" : @"history-list", cards, footer];
+        favorites ? @"favorites" : @"history", favorites ? @"Favorites" : @"Recents",
+        (unsigned long)count, favorites ? @"Play/Pause to edit" : @"Last active week", favorites ? @"tiles" : @"history-list", cards, footer];
 }
 
 @interface BrowserTabCoordinator ()
@@ -336,7 +336,7 @@ static NSString *BrowserNewTabSectionHTML(NSArray *entries, BOOL favorites, NSUI
     }
     self.newTabPageGeneration += 1;
     NSString *favorites = BrowserNewTabSectionHTML([[BrowserHistoryStore sharedStore] favorites], YES, 40);
-    NSArray *popular = [[BrowserHistoryStore sharedStore] mostVisitedWithLimit:10];
+    NSArray *popular = [[BrowserHistoryStore sharedStore] recentActiveWeekWithLimit:10];
     NSMutableArray *popularEntries = [NSMutableArray arrayWithCapacity:popular.count];
     for (NSDictionary *entry in popular) {
         [popularEntries addObject:@[entry[@"url"], entry[@"title"], entry[@"count"]]];
@@ -515,6 +515,53 @@ static NSString *BrowserNewTabSectionHTML(NSArray *entries, BOOL favorites, NSUI
         [self updateStoredScrollOffsetForTab:tab];
     }
     [self.sessionStore saveSessionForViewModel:self.viewModel];
+}
+
+- (BOOL)canGoBack {
+    BrowserTabViewModel *tab = self.activeTab;
+    return (tab.navigationIndex != NSNotFound && tab.navigationIndex > 0) ||
+        (!tab.navigationHistoryRestored && self.activeWebView.canGoBack);
+}
+
+- (BOOL)canGoForward {
+    BrowserTabViewModel *tab = self.activeTab;
+    return (tab.navigationIndex != NSNotFound && tab.navigationIndex + 1 < tab.navigationURLs.count) ||
+        (!tab.navigationHistoryRestored && self.activeWebView.canGoForward);
+}
+
+- (void)navigateToHistoryIndex:(NSInteger)index {
+    BrowserTabViewModel *tab = self.activeTab;
+    if (index < 0 || index >= tab.navigationURLs.count) return;
+    NSURLRequest *request = [self.navigationService requestForURLString:tab.navigationURLs[index]];
+    if (request == nil) return;
+    tab.pendingNavigationIndex = index;
+    if (!tab.navigationHistoryRestored && index == tab.navigationIndex - 1 &&
+        [self.activeWebView.backURLString isEqualToString:request.URL.absoluteString]) {
+        [self.activeWebView goBack];
+    } else if (!tab.navigationHistoryRestored && index == tab.navigationIndex + 1 &&
+               [self.activeWebView.forwardURLString isEqualToString:request.URL.absoluteString]) {
+        [self.activeWebView goForward];
+    } else {
+        [self.activeWebView loadRequest:request];
+        tab.navigationHistoryRestored = YES;
+    }
+}
+
+- (void)goBack {
+    if (self.activeTab.navigationIndex != NSNotFound && self.activeTab.navigationIndex > 0) {
+        [self navigateToHistoryIndex:self.activeTab.navigationIndex - 1];
+    } else if (!self.activeTab.navigationHistoryRestored && self.activeWebView.canGoBack) {
+        [self.activeWebView goBack];
+    }
+}
+
+- (void)goForward {
+    if (self.activeTab.navigationIndex != NSNotFound &&
+        self.activeTab.navigationIndex + 1 < self.activeTab.navigationURLs.count) {
+        [self navigateToHistoryIndex:self.activeTab.navigationIndex + 1];
+    } else if (!self.activeTab.navigationHistoryRestored && self.activeWebView.canGoForward) {
+        [self.activeWebView goForward];
+    }
 }
 
 - (void)loadStoredContentForTab:(BrowserTabViewModel *)tab
@@ -733,6 +780,7 @@ static NSString *BrowserNewTabSectionHTML(NSArray *entries, BOOL favorites, NSUI
     tab.requestURL = currentURL ?: @"";
     tab.previousURL = @"";
     tab.URLString = currentURL ?: @"";
+    tab.navigationHistoryRestored = YES;
     [self initWebView];
 
     if (currentURL.length > 0) {
@@ -793,12 +841,23 @@ static NSString *BrowserNewTabSectionHTML(NSArray *entries, BOOL favorites, NSUI
     return nil;
 }
 
-- (void)prepareTabForRequest:(NSURLRequest *)request webView:(id)webView {
+- (void)prepareTabForRequest:(NSURLRequest *)request webView:(id)webView navigationType:(NSInteger)navigationType {
     BrowserTabViewModel *tab = [self tabForWebView:webView];
     if (tab == nil || ![self isPrimaryDocumentRequest:request]) {
         return;
     }
     NSString *requestURL = request.URL.absoluteString ?: @"";
+    // WKNavigationTypeBackForward is 2. Distinguish it from a link to the same URL.
+    if (navigationType == 2 && tab.pendingNavigationIndex == NSNotFound &&
+        tab.navigationIndex != NSNotFound) {
+        NSInteger index = tab.navigationIndex;
+        if (index > 0 && [tab.navigationURLs[index - 1] isEqualToString:requestURL]) {
+            tab.pendingNavigationIndex = index - 1;
+        } else if (index + 1 < tab.navigationURLs.count &&
+                   [tab.navigationURLs[index + 1] isEqualToString:requestURL]) {
+            tab.pendingNavigationIndex = index + 1;
+        }
+    }
     if ([tab.URLString isEqualToString:kBrowserNewTabURL] &&
         [@[@"http", @"https"] containsObject:request.URL.scheme.lowercaseString]) {
         tab.URLString = requestURL;
@@ -821,6 +880,11 @@ static NSString *BrowserNewTabSectionHTML(NSArray *entries, BOOL favorites, NSUI
         [self.topMenuView.loadingSpinner startAnimating];
     }
     tab.previousURL = tab.requestURL;
+}
+
+- (void)webViewDidFailLoad:(id)webView {
+    BrowserTabViewModel *tab = [self tabForWebView:webView];
+    tab.pendingNavigationIndex = NSNotFound;
 }
 
 - (void)webViewDidFinishLoad:(id)webView {
@@ -851,6 +915,7 @@ static NSString *BrowserNewTabSectionHTML(NSArray *entries, BOOL favorites, NSUI
         }
     } else {
         [self.navigationService updateTab:tab withPageTitle:theTitle currentURLString:currentURL];
+        [tab recordNavigationURLString:currentURL];
     }
 
     if (tab == self.activeTab) {

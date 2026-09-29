@@ -1245,7 +1245,7 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
                                                                        handler:^{
         [self presentAddFavoritePrompt];
     }];
-    BrowserAdvancedMenuItem *historyItem = [self advancedMenuItemWithTitle:@"History"
+    BrowserAdvancedMenuItem *historyItem = [self advancedMenuItemWithTitle:@"Recents"
                                                                      style:UIAlertActionStyleDefault
                                                                    handler:^{
         [self.host browserShowNewTabPageSelectingGroup:@"history"];
@@ -1291,7 +1291,7 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
             [self tileItem:zoomResetItem title:@"Reset Zoom" symbol:@"arrow.counterclockwise"],
             [self tileItem:zoomInItem title:@"Zoom In" symbol:@"plus.magnifyingglass"],
             [self tileItem:addFavoriteItem title:@"Add Favorite" symbol:@"star.fill"],
-            [self tileItem:historyItem title:@"History" symbol:@"clock.arrow.circlepath"],
+            [self tileItem:historyItem title:@"Recents" symbol:@"clock.arrow.circlepath"],
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Settings"
                                                items:@[
