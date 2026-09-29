@@ -13,6 +13,7 @@
 
 - (BrowserTabViewModel *)activeTab;
 - (BrowserTabViewModel *)addTab;
+- (BrowserTabViewModel *)addStartPageTab;
 - (BrowserTabViewModel *)ensureActiveTab;
 - (BrowserTabViewModel *)removeTabAtIndex:(NSInteger)tabIndex;
 - (void)restoreTabs:(NSArray<BrowserTabViewModel *> *)tabs activeTabIndex:(NSInteger)activeTabIndex;

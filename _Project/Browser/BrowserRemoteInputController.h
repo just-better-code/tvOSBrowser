@@ -17,12 +17,23 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)browserRemoteInputControllerDismissTabOverview;
 - (void)browserRemoteInputControllerHandleTabOverviewAlternateAction;
 - (void)browserRemoteInputControllerHandlePrimaryAction;
+- (BOOL)browserRemoteInputControllerNewTabVisible;
+- (NSUInteger)browserRemoteInputControllerNewTabPageGeneration;
+- (void)browserRemoteInputControllerNavigateNewTabInDirection:(NSString *)direction;
+- (void)browserRemoteInputControllerActivateNewTabSelection;
+- (void)browserRemoteInputControllerHandleHistoryBackPress;
+- (void)browserRemoteInputControllerHandleHistoryForwardPress;
+- (void)browserRemoteInputControllerHandleTabOverviewPress;
 - (void)browserRemoteInputControllerHandleMenuPress;
 - (void)browserRemoteInputControllerHandlePlayPausePress;
-- (void)browserRemoteInputControllerHandleAdvancedMenuPress;
-- (NSString *)browserRemoteInputControllerHoverStateAtCursorPoint:(CGPoint)point;
+- (void)browserRemoteInputControllerEditNewTabFavoriteUsingKeyboardSelection:(BOOL)keyboardSelection;
+- (void)browserRemoteInputControllerToggleMagnifier;
+- (void)browserRemoteInputControllerHoverStateAtCursorPoint:(CGPoint)point
+                                                completion:(void (^)(BOOL isInteractive))completion;
 - (void)browserRemoteInputControllerSetWebInteractionEnabled:(BOOL)enabled;
 - (void)browserRemoteInputControllerPersistSession;
+- (void)browserRemoteInputControllerCaptureMagnifierAtPoint:(CGPoint)point
+                                                  completion:(void (^)(UIImage * _Nullable image))completion;
 
 @end
 
@@ -30,8 +41,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nonatomic, readonly) UIImageView *cursorView;
 @property (nonatomic, readonly) UIPanGestureRecognizer *manualScrollPanRecognizer;
-@property (nonatomic, readonly) UITapGestureRecognizer *playPauseDoubleTapRecognizer;
 @property (nonatomic, readonly, getter=isCursorModeEnabled) BOOL cursorModeEnabled;
+@property (nonatomic, getter=isMagnifierEnabled) BOOL magnifierEnabled;
 
 - (instancetype)initWithHost:(id<BrowserRemoteInputControllerHost>)host
                     rootView:(UIView *)rootView NS_DESIGNATED_INITIALIZER;
@@ -39,8 +50,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (instancetype)init NS_UNAVAILABLE;
 
 - (void)handleGlobalSelectPressEndedNotification;
+- (void)hideCursorForDirectionalNavigation;
 - (void)handlePressesBegan:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event;
 - (BOOL)handlePressesEnded:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event;
+- (void)handlePressesCancelled:(NSSet<UIPress *> *)presses;
 - (BOOL)handleTouchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event;
 - (BOOL)handleTouchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event;
 - (void)handleTouchesEnded;

@@ -16,8 +16,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSString *)evaluateEditableElementJavaScriptAtPoint:(CGPoint)point
                                                 webView:(BrowserWebView *)webView
                                                    body:(NSString *)body;
-- (NSString *)evaluateHoverStateJavaScriptAtPoint:(CGPoint)point
-                                           webView:(BrowserWebView *)webView;
+- (void)evaluateHoverStateAtCursorPoint:(CGPoint)point
+                                 inView:(UIView *)containerView
+                                webView:(BrowserWebView *)webView
+                             completion:(void (^)(BOOL isInteractive))completion;
 - (NSString *)javaScriptEscapedString:(NSString *)string;
 - (NSDictionary *)videoInfoAtDOMPoint:(CGPoint)point
                                webView:(BrowserWebView *)webView;

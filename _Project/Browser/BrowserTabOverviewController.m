@@ -52,6 +52,7 @@ static CGFloat const kTabCardURLHeight = 64.0;
 @property (nonatomic, readwrite, getter=isVisible) BOOL visible;
 @property (nonatomic) BOOL cursorModeBeforeShowing;
 @property (nonatomic, weak) BrowserTabOverviewViewController *presentedOverviewViewController;
+@property (nonatomic) BOOL dismissalInProgress;
 
 - (NSInteger)numberOfDisplayItems;
 - (NSInteger)activeTabDisplayItemIndex;
@@ -152,7 +153,7 @@ static CGFloat const kTabCardURLHeight = 64.0;
     self.thumbnailView.image = nil;
     self.addIconBackdropView.hidden = NO;
     self.titleLabel.text = @"New Tab";
-    self.urlLabel.text = @"Open the home page";
+    self.urlLabel.text = @"Favorites and recents";
     self.hintLabel.hidden = YES;
     [self updateAppearance];
 }
@@ -165,7 +166,7 @@ static CGFloat const kTabCardURLHeight = 64.0;
     self.addIconBackdropView.hidden = YES;
     self.titleLabel.text = tab.title.length > 0 ? tab.title : @"New Tab";
     self.urlLabel.text = tab.URLString.length > 0 ? tab.URLString : @"Home page";
-    self.hintLabel.text = @"Play/Pause to Close";
+    self.hintLabel.text = @"Double Up to Close";
     self.hintLabel.hidden = !self.isFocused;
     [self updateAppearance];
 }
@@ -290,7 +291,7 @@ static CGFloat const kTabCardURLHeight = 64.0;
 
     UILabel *footerLabel = [UILabel new];
     footerLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    footerLabel.text = @"Select: Open   Play/Pause: Close Focused Tab   Menu: Dismiss";
+    footerLabel.text = @"Select: Open   Double Up: Close Focused Tab   Menu: Dismiss";
     footerLabel.textColor = [UIColor colorWithWhite:1.0 alpha:0.62];
     footerLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleCaption1];
     footerLabel.textAlignment = NSTextAlignmentCenter;
@@ -356,11 +357,19 @@ static CGFloat const kTabCardURLHeight = 64.0;
 }
 
 - (void)updateCardAtTabIndex:(NSInteger)tabIndex {
-    NSInteger itemIndex = tabIndex;
-    if (itemIndex < 0 || itemIndex >= self.overviewController.viewModel.tabs.count) {
+    if (tabIndex < 0 || tabIndex >= self.overviewController.viewModel.tabs.count) {
         [self reload];
         return;
     }
+    BrowserTabViewModel *tab = self.overviewController.viewModel.tabs[tabIndex];
+    NSInteger itemIndex = NSNotFound;
+    for (NSInteger index = 0; index < [self.overviewController numberOfDisplayItems] - 1; index++) {
+        if ([self.overviewController tabForDisplayItemIndex:index] == tab) {
+            itemIndex = index;
+            break;
+        }
+    }
+    if (itemIndex == NSNotFound) return;
     NSIndexPath *indexPath = [NSIndexPath indexPathForItem:itemIndex inSection:0];
     if ([[self.collectionView indexPathsForVisibleItems] containsObject:indexPath]) {
         [self.collectionView reloadItemsAtIndexPaths:@[indexPath]];
@@ -371,7 +380,8 @@ static CGFloat const kTabCardURLHeight = 64.0;
 
 - (void)handleAlternateAction {
     NSInteger focusedItemIndex = [self currentFocusedItemIndex];
-    if (focusedItemIndex == NSNotFound || focusedItemIndex >= self.overviewController.viewModel.tabs.count) {
+    if (focusedItemIndex == NSNotFound ||
+        [self.overviewController tabForDisplayItemIndex:focusedItemIndex] == nil) {
         return;
     }
     self.preferredFocusItemIndex = focusedItemIndex;
@@ -394,12 +404,12 @@ static CGFloat const kTabCardURLHeight = 64.0;
 
 - (__kindof UICollectionViewCell *)collectionView:(UICollectionView *)collectionView cellForItemAtIndexPath:(NSIndexPath *)indexPath {
     BrowserTabOverviewCollectionViewCell *cell = [collectionView dequeueReusableCellWithReuseIdentifier:@"TabCard" forIndexPath:indexPath];
-    if (indexPath.item == self.overviewController.viewModel.tabs.count) {
+    BrowserTabViewModel *tab = [self.overviewController tabForDisplayItemIndex:indexPath.item];
+    if (tab == nil) {
         [cell configureAsAddCard];
         return cell;
     }
 
-    BrowserTabViewModel *tab = [self.overviewController tabForDisplayItemIndex:indexPath.item];
     BOOL activeTab = indexPath.item == [self.overviewController activeTabDisplayItemIndex];
     [cell configureWithTab:tab activeTab:activeTab];
     return cell;
@@ -425,6 +435,15 @@ static CGFloat const kTabCardURLHeight = 64.0;
 
 - (NSArray<id<UIFocusEnvironment>> *)preferredFocusEnvironments {
     return @[self.collectionView];
+}
+
+- (void)pressesBegan:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
+    if (presses.anyObject.type == UIPressTypeMenu) return;
+    [super pressesBegan:presses withEvent:event];
+}
+
+- (void)browserDismissForBackPress {
+    [self.overviewController dismiss];
 }
 
 - (void)pressesEnded:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
@@ -461,18 +480,30 @@ static CGFloat const kTabCardURLHeight = 64.0;
 }
 
 - (NSInteger)numberOfDisplayItems {
-    return self.viewModel.tabs.count + 1;
+    return [self displayedTabs].count + 1;
 }
 
 - (NSInteger)activeTabDisplayItemIndex {
-    return self.viewModel.activeTabIndex == NSNotFound ? 0 : self.viewModel.activeTabIndex;
+    BrowserTabViewModel *active = self.viewModel.activeTab;
+    if (active == nil) return [self displayedTabs].count;
+    NSUInteger index = [[self displayedTabs] indexOfObjectIdenticalTo:active];
+    return index == NSNotFound ? [self displayedTabs].count : (NSInteger)index;
 }
 
 - (BrowserTabViewModel *)tabForDisplayItemIndex:(NSInteger)displayItemIndex {
-    if (displayItemIndex < 0 || displayItemIndex >= self.viewModel.tabs.count) {
+    NSArray<BrowserTabViewModel *> *tabs = [self displayedTabs];
+    if (displayItemIndex < 0 || displayItemIndex >= tabs.count) {
         return nil;
     }
-    return self.viewModel.tabs[displayItemIndex];
+    return tabs[displayItemIndex];
+}
+
+- (NSArray<BrowserTabViewModel *> *)displayedTabs {
+    NSMutableArray<BrowserTabViewModel *> *tabs = [NSMutableArray array];
+    for (BrowserTabViewModel *tab in self.viewModel.tabs) {
+        if (![tab.URLString isEqualToString:@"about:blank"]) [tabs addObject:tab];
+    }
+    return tabs;
 }
 
 - (void)show {
@@ -491,7 +522,7 @@ static CGFloat const kTabCardURLHeight = 64.0;
 }
 
 - (void)dismiss {
-    if (!self.visible) {
+    if (!self.visible || self.dismissalInProgress) {
         return;
     }
 
@@ -500,7 +531,11 @@ static CGFloat const kTabCardURLHeight = 64.0;
         [self overviewViewControllerDidDisappear:nil];
         return;
     }
-    [viewController dismissViewControllerAnimated:YES completion:nil];
+    self.dismissalInProgress = YES;
+    BOOL returningToStartPage = [self.viewModel.activeTab.URLString isEqualToString:@"about:blank"];
+    [viewController dismissViewControllerAnimated:YES completion:^{
+        if (returningToStartPage) [self.host browserTabOverviewControllerReturnToStartPage];
+    }];
 }
 
 - (void)reload {
@@ -522,7 +557,12 @@ static CGFloat const kTabCardURLHeight = 64.0;
 }
 
 - (void)handleSelectionForDisplayItemIndex:(NSInteger)displayItemIndex {
-    if (displayItemIndex >= self.viewModel.tabs.count) {
+    NSArray<BrowserTabViewModel *> *tabs = [self displayedTabs];
+    if (displayItemIndex >= tabs.count) {
+        if ([self.viewModel.activeTab.URLString isEqualToString:@"about:blank"]) {
+            [self dismiss];
+            return;
+        }
         BrowserTabOverviewViewController *viewController = self.presentedOverviewViewController;
         if (viewController == nil) {
             [self.host browserTabOverviewControllerCreateNewTabLoadingHomePage:YES];
@@ -535,12 +575,16 @@ static CGFloat const kTabCardURLHeight = 64.0;
         return;
     }
 
-    [self.host browserTabOverviewControllerSwitchToTabAtIndex:displayItemIndex];
+    BrowserTabViewModel *tab = tabs[displayItemIndex];
+    NSInteger tabIndex = [self.viewModel.tabs indexOfObjectIdenticalTo:tab];
+    [self.host browserTabOverviewControllerSwitchToTabAtIndex:tabIndex];
     [self dismiss];
 }
 
 - (void)handleCloseRequestForDisplayItemIndex:(NSInteger)displayItemIndex {
-    NSInteger tabIndex = displayItemIndex;
+    BrowserTabViewModel *tab = [self tabForDisplayItemIndex:displayItemIndex];
+    if (tab == nil) return;
+    NSInteger tabIndex = [self.viewModel.tabs indexOfObjectIdenticalTo:tab];
     if (tabIndex < 0 || tabIndex >= self.viewModel.tabs.count || self.viewModel.tabs.count <= 1) {
         return;
     }
@@ -563,6 +607,7 @@ static CGFloat const kTabCardURLHeight = 64.0;
     }
 
     self.presentedOverviewViewController = nil;
+    self.dismissalInProgress = NO;
     if (!self.visible) {
         return;
     }

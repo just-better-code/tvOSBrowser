@@ -17,10 +17,13 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)browserTabCoordinatorUpdateTextFontSize;
 - (BOOL)browserTabCoordinatorIsCursorModeEnabled;
 - (BOOL)browserTabCoordinatorIsTabOverviewVisible;
+- (void)browserTabCoordinatorSnapshotDidUpdateForTab:(BrowserTabViewModel *)tab;
 
 @end
 
 @interface BrowserTabCoordinator : NSObject
+
+@property (nonatomic, readonly) NSUInteger newTabPageGeneration;
 
 @property (nonatomic, readonly, nullable) BrowserWebView *activeWebView;
 @property (nonatomic, readonly, nullable) BrowserTabViewModel *activeTab;
@@ -48,18 +51,28 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)createNewTabLoadingHomePage:(BOOL)loadHomePage;
 - (BOOL)createNewTabWithRequest:(NSURLRequest *)request;
 - (void)switchToTabAtIndex:(NSInteger)tabIndex;
+- (BOOL)returnToPreviousTabFromNewTab;
 - (void)closeTabAtIndex:(NSInteger)tabIndex;
 - (void)recreateActiveWebViewPreservingCurrentURL;
+- (void)setAdBlockEnabledForAllWebViews:(BOOL)enabled;
 - (void)captureSnapshotForCurrentTab;
 - (void)prepareTabOverviewThumbnails;
 - (void)persistSession;
+- (BOOL)canGoBack;
+- (BOOL)canGoForward;
+- (void)goBack;
+- (void)goForward;
+- (void)refreshNewTabPageIfVisibleSelectingGroup:(NSString *)group index:(NSUInteger)index;
+- (void)showNewTabPageSelectingGroup:(NSString *)group;
 - (void)handleWebViewPanGesture:(UIPanGestureRecognizer *)gestureRecognizer;
 - (void)webViewDidStartLoad:(id)webView;
 - (void)webViewDidFinishLoad:(id)webView;
-- (void)prepareTabForRequest:(NSURLRequest *)request webView:(id)webView;
+- (void)webViewDidFailLoad:(id)webView;
+- (void)prepareTabForRequest:(NSURLRequest *)request webView:(id)webView navigationType:(NSInteger)navigationType;
 - (void)setTopNavigationVisible:(BOOL)visible;
 - (BrowserTabViewModel *)tabForWebView:(id)webView;
 - (BOOL)isPrimaryDocumentRequest:(NSURLRequest *)request;
+- (void)reloadStartPageIfActive;
 
 @end
 
