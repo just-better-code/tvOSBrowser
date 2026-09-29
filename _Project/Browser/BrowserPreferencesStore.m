@@ -4,8 +4,10 @@ static NSString * const kUserAgentDefaultsKey = @"UserAgent";
 static NSString * const kMobileModeDefaultsKey = @"MobileMode";
 static NSString * const kShowTopNavigationBarDefaultsKey = @"ShowTopNavigationBar";
 static NSString * const kTextFontSizeDefaultsKey = @"TextFontSize";
+static NSString * const kPageZoomPercentDefaultsKey = @"PageZoomPercent";
 static NSString * const kEnableFullscreenVideoPlaybackDefaultsKey = @"EnableFullscreenVideoPlayback";
-static NSString * const kScalePagesToFitDefaultsKey = @"ScalePagesToFit";
+static NSString * const kAdBlockEnabledDefaultsKey = @"AdBlockEnabled";
+static NSString * const kCursorMagnifierEnabledDefaultsKey = @"CursorMagnifierEnabled";
 static NSString * const kDontShowHintsOnLaunchDefaultsKey = @"DontShowHintsOnLaunch";
 static NSString * const kHomepageDefaultsKey = @"homepage";
 
@@ -81,6 +83,17 @@ static NSUInteger const kMaximumTextFontSize = 200;
     [[self defaults] synchronize];
 }
 
+- (NSUInteger)pageZoomPercent {
+    NSNumber *storedValue = [[self defaults] objectForKey:kPageZoomPercentDefaultsKey];
+    NSUInteger value = storedValue == nil ? 100 : storedValue.unsignedIntegerValue;
+    return MIN((NSUInteger)200, MAX((NSUInteger)50, value));
+}
+
+- (void)setPageZoomPercent:(NSUInteger)pageZoomPercent {
+    NSUInteger value = MIN((NSUInteger)200, MAX((NSUInteger)50, pageZoomPercent));
+    [[self defaults] setObject:@(value) forKey:kPageZoomPercentDefaultsKey];
+}
+
 - (BOOL)fullscreenVideoPlaybackEnabled {
     return [[self defaults] boolForKey:kEnableFullscreenVideoPlaybackDefaultsKey];
 }
@@ -90,13 +103,21 @@ static NSUInteger const kMaximumTextFontSize = 200;
     [[self defaults] synchronize];
 }
 
-- (BOOL)scalePagesToFit {
-    return [[self defaults] boolForKey:kScalePagesToFitDefaultsKey];
+- (BOOL)adBlockEnabled {
+    return [[self defaults] boolForKey:kAdBlockEnabledDefaultsKey];
 }
 
-- (void)setScalePagesToFit:(BOOL)scalePagesToFit {
-    [[self defaults] setBool:scalePagesToFit forKey:kScalePagesToFitDefaultsKey];
+- (void)setAdBlockEnabled:(BOOL)adBlockEnabled {
+    [[self defaults] setBool:adBlockEnabled forKey:kAdBlockEnabledDefaultsKey];
     [[self defaults] synchronize];
+}
+
+- (BOOL)cursorMagnifierEnabled {
+    return [[self defaults] boolForKey:kCursorMagnifierEnabledDefaultsKey];
+}
+
+- (void)setCursorMagnifierEnabled:(BOOL)cursorMagnifierEnabled {
+    [[self defaults] setBool:cursorMagnifierEnabled forKey:kCursorMagnifierEnabledDefaultsKey];
 }
 
 - (BOOL)dontShowHintsOnLaunch {

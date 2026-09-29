@@ -38,10 +38,6 @@ static UIColor *BrowserPageActionTextColor(void) {
     return self;
 }
 
-- (NSString *)hoverStateAtDOMPoint:(CGPoint)point webView:(BrowserWebView *)webView {
-    return [self.domInteractionService evaluateHoverStateJavaScriptAtPoint:point webView:webView];
-}
-
 - (BOOL)handleTargetBlankLinkAtDOMPoint:(CGPoint)point webView:(BrowserWebView *)webView {
     NSDictionary *linkInfo = [self.domInteractionService linkInfoAtDOMPoint:point webView:webView];
     NSString *href = [linkInfo[@"href"] isKindOfClass:[NSString class]] ? linkInfo[@"href"] : @"";
@@ -193,7 +189,10 @@ static UIColor *BrowserPageActionTextColor(void) {
                                                                                                 "return type;"];
     [self.domInteractionService evaluateResolvedElementJavaScriptAtPoint:point
                                                                  webView:webView
-                                                                    body:@"var target = editableElement || interactiveElement || resolvedElement;"
+                                                                    body:@"if (typeof window.__browserTVFrameAtPoint === 'function' && window.__browserTVFrameAtPoint(x, y) && typeof window.__browserTVFrameClick === 'function') {"
+                                                                             "return window.__browserTVFrameClick(x, y) ? 'true' : 'false';"
+                                                                         "}"
+                                                                         "var target = editableElement || interactiveElement || resolvedElement;"
                                                                          "if (!target) { return 'false'; }"
                                                                          "try { if (target.focus) { target.focus(); } } catch (error) {}"
                                                                          "function dispatchPointerLikeEvent(type, constructorName) {"

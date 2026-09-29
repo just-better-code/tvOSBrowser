@@ -41,6 +41,10 @@
 		A1B49A8F2D700020001D58A1 /* BrowserTabOverviewController.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A8E2D700020001D58A1 /* BrowserTabOverviewController.m */; };
 		A1B49A922D700030001D58A1 /* BrowserPageActionCoordinator.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A912D700030001D58A1 /* BrowserPageActionCoordinator.m */; };
 		A1B49A952D700040001D58A1 /* BrowserRemoteInputController.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A942D700040001D58A1 /* BrowserRemoteInputController.m */; };
+		A1B49A982D700050001D58A1 /* BrowserUsageGuideViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A972D700050001D58A1 /* BrowserUsageGuideViewController.m */; };
+		A1B49A9B2D700060001D58A1 /* BrowserFavoriteEditorViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A9A2D700060001D58A1 /* BrowserFavoriteEditorViewController.m */; };
+		A1B49A9E2D700070001D58A1 /* BrowserHistoryViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A9D2D700070001D58A1 /* BrowserHistoryViewController.m */; };
+		A1B49AA12D700080001D58A1 /* BrowserHistoryStore.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49AA02D700080001D58A1 /* BrowserHistoryStore.m */; };
 		B002B8671BAE420500C744AF /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = B002B8661BAE420500C744AF /* main.m */; };
 		B002B86A1BAE420500C744AF /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = B002B8691BAE420500C744AF /* AppDelegate.m */; };
 		B002B86D1BAE420500C744AF /* ViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = B002B86C1BAE420500C744AF /* ViewController.m */; };
@@ -100,6 +104,14 @@
 		A1B49A912D700030001D58A1 /* BrowserPageActionCoordinator.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserPageActionCoordinator.m; sourceTree = "<group>"; };
 		A1B49A932D700040001D58A1 /* BrowserRemoteInputController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserRemoteInputController.h; sourceTree = "<group>"; };
 		A1B49A942D700040001D58A1 /* BrowserRemoteInputController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserRemoteInputController.m; sourceTree = "<group>"; };
+		A1B49A962D700050001D58A1 /* BrowserUsageGuideViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserUsageGuideViewController.h; sourceTree = "<group>"; };
+		A1B49A972D700050001D58A1 /* BrowserUsageGuideViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserUsageGuideViewController.m; sourceTree = "<group>"; };
+		A1B49A992D700060001D58A1 /* BrowserFavoriteEditorViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserFavoriteEditorViewController.h; sourceTree = "<group>"; };
+		A1B49A9A2D700060001D58A1 /* BrowserFavoriteEditorViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserFavoriteEditorViewController.m; sourceTree = "<group>"; };
+		A1B49A9C2D700070001D58A1 /* BrowserHistoryViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserHistoryViewController.h; sourceTree = "<group>"; };
+		A1B49A9D2D700070001D58A1 /* BrowserHistoryViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserHistoryViewController.m; sourceTree = "<group>"; };
+		A1B49A9F2D700080001D58A1 /* BrowserHistoryStore.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserHistoryStore.h; sourceTree = "<group>"; };
+		A1B49AA02D700080001D58A1 /* BrowserHistoryStore.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserHistoryStore.m; sourceTree = "<group>"; };
 		B002B8621BAE420500C744AF /* Browser.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Browser.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B002B8661BAE420500C744AF /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
 		B002B8681BAE420500C744AF /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
@@ -192,6 +204,12 @@
 				A1B49A8B2D700010001D58A1 /* BrowserTabCoordinator.m */,
 				A1B49A8D2D700020001D58A1 /* BrowserTabOverviewController.h */,
 				A1B49A8E2D700020001D58A1 /* BrowserTabOverviewController.m */,
+				A1B49A962D700050001D58A1 /* BrowserUsageGuideViewController.h */,
+				A1B49A972D700050001D58A1 /* BrowserUsageGuideViewController.m */,
+				A1B49A992D700060001D58A1 /* BrowserFavoriteEditorViewController.h */,
+				A1B49A9A2D700060001D58A1 /* BrowserFavoriteEditorViewController.m */,
+				A1B49A9C2D700070001D58A1 /* BrowserHistoryViewController.h */,
+				A1B49A9D2D700070001D58A1 /* BrowserHistoryViewController.m */,
 				A1B49A852D6D2000001D58A1 /* BrowserVideoPlaybackCoordinator.h */,
 				A1B49A862D6D2000001D58A1 /* BrowserVideoPlaybackCoordinator.m */,
 			);
@@ -205,6 +223,8 @@
 				A1B49A832D6D2000001D58A1 /* BrowserDOMInteractionService.m */,
 				A1B49A4C2D680900001D58A1 /* BrowserNavigationService.h */,
 				A1B49A4D2D680900001D58A1 /* BrowserNavigationService.m */,
+				A1B49A9F2D700080001D58A1 /* BrowserHistoryStore.h */,
+				A1B49AA02D700080001D58A1 /* BrowserHistoryStore.m */,
 				A1B49A872D700000001D58A1 /* BrowserPreferencesStore.h */,
 				A1B49A882D700000001D58A1 /* BrowserPreferencesStore.m */,
 				A1B49A562D6828D4001D58A1 /* BrowserSessionStore.h */,
@@ -416,6 +436,10 @@
 				A1B49A952D700040001D58A1 /* BrowserRemoteInputController.m in Sources */,
 				A1B49A8C2D700010001D58A1 /* BrowserTabCoordinator.m in Sources */,
 				A1B49A8F2D700020001D58A1 /* BrowserTabOverviewController.m in Sources */,
+				A1B49A982D700050001D58A1 /* BrowserUsageGuideViewController.m in Sources */,
+				A1B49A9B2D700060001D58A1 /* BrowserFavoriteEditorViewController.m in Sources */,
+				A1B49A9E2D700070001D58A1 /* BrowserHistoryViewController.m in Sources */,
+				A1B49AA12D700080001D58A1 /* BrowserHistoryStore.m in Sources */,
 				A1B49A872D6D2000001D58A1 /* BrowserVideoPlaybackCoordinator.m in Sources */,
 				A1B49A842D6D2000001D58A1 /* BrowserDOMInteractionService.m in Sources */,
 				A1B49A4E2D680900001D58A1 /* BrowserNavigationService.m in Sources */,
@@ -570,17 +594,18 @@
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 3000;
-				DEVELOPMENT_TEAM = PMC4RZG4LF;
+				DEVELOPMENT_TEAM = "";
 				EMBED_ASSET_PACKS_IN_PRODUCT_BUNDLE = YES;
 				ENABLE_ON_DEMAND_RESOURCES = NO;
 				FRAMEWORK_SEARCH_PATHS = "";
+				OTHER_LDFLAGS = "-lsqlite3";
 				INFOPLIST_FILE = Browser/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 2.0.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.jva.tvbrowser;
+				PRODUCT_BUNDLE_IDENTIFIER = org.example.tvosbrowser;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SCAN_ALL_SOURCE_FILES_FOR_INCLUDES = NO;
 				TVOS_DEPLOYMENT_TARGET = 15.6;
@@ -595,17 +620,18 @@
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 3000;
-				DEVELOPMENT_TEAM = PMC4RZG4LF;
+				DEVELOPMENT_TEAM = "";
 				EMBED_ASSET_PACKS_IN_PRODUCT_BUNDLE = YES;
 				ENABLE_ON_DEMAND_RESOURCES = NO;
 				FRAMEWORK_SEARCH_PATHS = "";
+				OTHER_LDFLAGS = "-lsqlite3";
 				INFOPLIST_FILE = Browser/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 2.0.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.jva.tvbrowser;
+				PRODUCT_BUNDLE_IDENTIFIER = org.example.tvosbrowser;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SCAN_ALL_SOURCE_FILES_FOR_INCLUDES = NO;
 				TVOS_DEPLOYMENT_TARGET = 15.6;

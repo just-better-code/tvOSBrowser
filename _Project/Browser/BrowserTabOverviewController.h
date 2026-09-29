@@ -15,6 +15,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)browserTabOverviewControllerCreateNewTabLoadingHomePage:(BOOL)loadHomePage;
 - (void)browserTabOverviewControllerSwitchToTabAtIndex:(NSInteger)tabIndex;
 - (void)browserTabOverviewControllerCloseTabAtIndex:(NSInteger)tabIndex;
+- (void)browserTabOverviewControllerReturnToStartPage;
 
 @end
 

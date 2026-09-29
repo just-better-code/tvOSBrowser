@@ -8,6 +8,7 @@
 
 #import "BrowserMenuCoordinator.h"
 #import "BrowserDOMInteractionService.h"
+#import "BrowserHistoryStore.h"
 #import "BrowserNavigationService.h"
 #import "BrowserPageActionCoordinator.h"
 #import "BrowserPreferencesStore.h"
@@ -16,11 +17,13 @@
 #import "BrowserTabViewModel.h"
 #import "BrowserTabCoordinator.h"
 #import "BrowserTabOverviewController.h"
+#import "BrowserUsageGuideViewController.h"
 #import "BrowserVideoPlaybackCoordinator.h"
 #import "BrowserViewModel.h"
 #import "ViewController.h"
 
 static NSString * const kBrowserGlobalSelectPressEndedNotification = @"BrowserGlobalSelectPressEndedNotification";
+static NSString * const kBrowserGlobalDirectionalPressBeganNotification = @"BrowserGlobalDirectionalPressBeganNotification";
 
 static UIColor *kTextColor(void) {
     if (@available(tvOS 13, *)) {
@@ -62,8 +65,11 @@ static UIColor *kTextColor(void) {
     [self.preferencesStore ensureUserAgentConsistency];
 
     self.viewModel = [BrowserViewModel new];
-    self.viewModel.topNavigationBarVisible = self.preferencesStore.topNavigationBarVisible;
-    self.viewModel.textFontSize = self.preferencesStore.textFontSize;
+    self.preferencesStore.topNavigationBarVisible = NO;
+    self.viewModel.topNavigationBarVisible = NO;
+    NSUInteger matchingFontSize = self.preferencesStore.pageZoomPercent;
+    self.preferencesStore.textFontSize = matchingFontSize;
+    self.viewModel.textFontSize = matchingFontSize;
     self.viewModel.fullscreenVideoPlaybackEnabled = self.preferencesStore.fullscreenVideoPlaybackEnabled;
 
     self.domInteractionService = [BrowserDOMInteractionService new];
@@ -116,8 +122,13 @@ static UIColor *kTextColor(void) {
                                              selector:@selector(handleGlobalSelectPressEndedNotification:)
                                                  name:kBrowserGlobalSelectPressEndedNotification
                                                object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(handleGlobalDirectionalPressBeganNotification:)
+                                                 name:kBrowserGlobalDirectionalPressBeganNotification
+                                               object:nil];
 
     [self.tabCoordinator restoreInitialStateOrCreateFirstTab];
+    self.remoteInputController.magnifierEnabled = self.preferencesStore.cursorMagnifierEnabled;
 }
 
 - (void)viewDidAppear:(BOOL)animated {
@@ -157,6 +168,11 @@ static UIColor *kTextColor(void) {
 - (void)handleGlobalSelectPressEndedNotification:(NSNotification *)notification {
     (void)notification;
     [self.remoteInputController handleGlobalSelectPressEndedNotification];
+}
+
+- (void)handleGlobalDirectionalPressBeganNotification:(NSNotification *)notification {
+    (void)notification;
+    [self.remoteInputController hideCursorForDirectionalNavigation];
 }
 
 #pragma mark - Helpers
@@ -219,17 +235,13 @@ static UIColor *kTextColor(void) {
 
     switch (action) {
         case BrowserTopBarActionBack:
-            if (self.webview.canGoBack) {
-                [self.webview goBack];
-            }
+            [self.tabCoordinator goBack];
             break;
         case BrowserTopBarActionRefresh:
             [self.webview reload];
             break;
         case BrowserTopBarActionForward:
-            if (self.webview.canGoForward) {
-                [self.webview goForward];
-            }
+            [self.tabCoordinator goForward];
             break;
         case BrowserTopBarActionHome:
             [self loadHomePage];
@@ -241,20 +253,6 @@ static UIColor *kTextColor(void) {
             [self showInputURLorSearchGoogle];
             break;
         case BrowserTopBarActionFullscreen:
-            if (self.viewModel.topNavigationBarVisible) {
-                UIAlertController *alertController = [UIAlertController alertControllerWithTitle:@"Hide Top Navigation bar?"
-                                                                                         message:@"You can still open the side menu by double-tapping the Play/Pause button."
-                                                                                  preferredStyle:UIAlertControllerStyleAlert];
-                [alertController addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
-                [alertController addAction:[UIAlertAction actionWithTitle:@"Hide Bar"
-                                                                    style:UIAlertActionStyleDestructive
-                                                                  handler:^(__unused UIAlertAction *action) {
-                    [self browserHideTopNav];
-                }]];
-                [self browserPresentViewController:alertController];
-            } else {
-                [self browserShowTopNav];
-            }
             break;
         case BrowserTopBarActionMenu:
             [self showAdvancedMenu];
@@ -263,50 +261,10 @@ static UIColor *kTextColor(void) {
 }
 
 - (void)updateTextFontSize {
-    if (self.webview == nil) {
-        return;
-    }
-
-    NSString *jsString = [[NSString alloc] initWithFormat:
-                          @"(function(){"
-                           "var value='%lu%%';"
-                           "var multiplier=%lu/100;"
-                           "if (document.documentElement && document.documentElement.style) {"
-                               "document.documentElement.style.setProperty('-webkit-text-size-adjust', value, 'important');"
-                               "document.documentElement.style.setProperty('text-size-adjust', value, 'important');"
-                           "}"
-                           "if (document.body && document.body.style) {"
-                               "document.body.style.setProperty('-webkit-text-size-adjust', value, 'important');"
-                               "document.body.style.setProperty('text-size-adjust', value, 'important');"
-                           "}"
-                           "if (!document.body || !window.getComputedStyle) { return value; }"
-                           "var elements = document.querySelectorAll('body, body *');"
-                           "for (var i = 0; i < elements.length; i++) {"
-                               "var element = elements[i];"
-                               "if (!element || !element.tagName) { continue; }"
-                               "var tagName = element.tagName.toLowerCase();"
-                               "if (tagName === 'script' || tagName === 'style' || tagName === 'noscript') { continue; }"
-                               "var originalSize = element.getAttribute('data-browser-original-font-size');"
-                               "if (!originalSize) {"
-                                   "var computedSize = window.getComputedStyle(element).fontSize || '';"
-                                   "if (computedSize.indexOf('px') == -1) { continue; }"
-                                   "var parsedSize = parseFloat(computedSize);"
-                                   "if (!isFinite(parsedSize) || parsedSize <= 0) { continue; }"
-                                   "originalSize = String(parsedSize);"
-                                   "element.setAttribute('data-browser-original-font-size', originalSize);"
-                               "}"
-                               "var baseSize = parseFloat(originalSize);"
-                               "if (!isFinite(baseSize) || baseSize <= 0) { continue; }"
-                               "element.style.setProperty('font-size', (baseSize * multiplier) + 'px', 'important');"
-                           "}"
-                           "return value;"
-                          "})()",
-                          (unsigned long)self.viewModel.textFontSize,
-                          (unsigned long)self.viewModel.textFontSize];
-    [self.webview stringByEvaluatingJavaScriptFromString:jsString];
+    self.webview.textZoomFactor = self.viewModel.textFontSize / 100.0;
 }
 
-- (void)showInputURLorSearchGoogle {
+- (void)showInputURLorSearchGoogleWithInitialText:(NSString *)initialText {
     UIAlertController *alertController = [UIAlertController alertControllerWithTitle:@"Enter URL or Search Terms"
                                                                              message:@""
                                                                       preferredStyle:UIAlertControllerStyleAlert];
@@ -314,6 +272,7 @@ static UIColor *kTextColor(void) {
     [alertController addTextFieldWithConfigurationHandler:^(UITextField *textField) {
         textField.keyboardType = UIKeyboardTypeURL;
         textField.placeholder = @"Enter URL or Search Terms";
+        textField.text = initialText;
         textField.textColor = kTextColor();
         [textField setReturnKeyType:UIReturnKeyDone];
     }];
@@ -354,16 +313,20 @@ static UIColor *kTextColor(void) {
     }
 }
 
+- (void)showInputURLorSearchGoogle {
+    [self showInputURLorSearchGoogleWithInitialText:nil];
+}
+
 - (void)requestURLorSearchInput {
     UIAlertController *alertController = [UIAlertController alertControllerWithTitle:@"Quick Menu"
                                                                              message:@""
                                                                       preferredStyle:UIAlertControllerStyleAlert];
 
-    if (self.webview.canGoForward) {
+    if ([self.tabCoordinator canGoForward]) {
         [alertController addAction:[UIAlertAction actionWithTitle:@"Go Forward"
                                                             style:UIAlertActionStyleDefault
                                                           handler:^(__unused UIAlertAction *action) {
-            [self.webview goForward];
+            [self.tabCoordinator goForward];
         }]];
     }
 
@@ -387,28 +350,9 @@ static UIColor *kTextColor(void) {
 }
 
 - (void)showHintsAlert {
-    UIAlertController *alertController = [UIAlertController alertControllerWithTitle:@"Usage Guide"
-                                                                             message:@"Double press the touch area to switch between cursor & scroll mode.\nPress the touch area while in cursor mode to click.\nSingle tap to Menu button to Go Back, or Exit on root page.\nSingle tap the Play/Pause button to: Go Forward, Enter URL or Reload Page.\nDouble tap the Play/Pause to show the Advanced Menu with more options.\nUse the tabs icon in the top bar to open the tab overview."
-                                                                      preferredStyle:UIAlertControllerStyleAlert];
-
-    __weak typeof(self) weakSelf = self;
-    if (self.preferencesStore.dontShowHintsOnLaunch) {
-        [alertController addAction:[UIAlertAction actionWithTitle:@"Always Show On Launch"
-                                                            style:UIAlertActionStyleDestructive
-                                                          handler:^(__unused UIAlertAction *action) {
-            weakSelf.preferencesStore.dontShowHintsOnLaunch = NO;
-        }]];
-    } else {
-        [alertController addAction:[UIAlertAction actionWithTitle:@"Don't Show This Again"
-                                                            style:UIAlertActionStyleDestructive
-                                                          handler:^(__unused UIAlertAction *action) {
-            weakSelf.preferencesStore.dontShowHintsOnLaunch = YES;
-        }]];
-    }
-    [alertController addAction:[UIAlertAction actionWithTitle:@"Dismiss"
-                                                        style:UIAlertActionStyleCancel
-                                                      handler:nil]];
-    [self presentViewController:alertController animated:YES completion:nil];
+    BrowserUsageGuideViewController *guide = [[BrowserUsageGuideViewController alloc]
+                                              initWithPreferencesStore:self.preferencesStore];
+    [self presentViewController:guide animated:YES completion:nil];
 }
 
 - (void)browserHandlePrimaryAction {
@@ -465,10 +409,6 @@ static UIColor *kTextColor(void) {
     self.preferencesStore.textFontSize = self.viewModel.textFontSize;
 }
 
-- (BOOL)browserTopMenuShowing {
-    return self.viewModel.topNavigationBarVisible;
-}
-
 - (BOOL)browserFullscreenVideoPlaybackEnabled {
     return self.viewModel.fullscreenVideoPlaybackEnabled;
 }
@@ -478,6 +418,19 @@ static UIColor *kTextColor(void) {
     self.preferencesStore.fullscreenVideoPlaybackEnabled = browserFullscreenVideoPlaybackEnabled;
 }
 
+- (BOOL)browserCursorMagnifierEnabled {
+    return self.preferencesStore.cursorMagnifierEnabled;
+}
+
+- (void)setBrowserCursorMagnifierEnabled:(BOOL)browserCursorMagnifierEnabled {
+    self.preferencesStore.cursorMagnifierEnabled = browserCursorMagnifierEnabled;
+    self.remoteInputController.magnifierEnabled = browserCursorMagnifierEnabled;
+}
+
+- (void)browserRemoteInputControllerToggleMagnifier {
+    self.browserCursorMagnifierEnabled = !self.browserCursorMagnifierEnabled;
+}
+
 - (void)browserPresentViewController:(UIViewController *)viewController {
     [self deactivateTopBarFocusMode];
     [self presentViewController:viewController animated:YES completion:nil];
@@ -485,6 +438,11 @@ static UIColor *kTextColor(void) {
 
 - (void)browserLoadHomePage {
     [self loadHomePage];
+}
+
+- (void)browserEditCurrentAddress {
+    NSString *address = self.webview.request.URL.absoluteString;
+    [self showInputURLorSearchGoogleWithInitialText:[address isEqualToString:@"about:blank"] ? nil : address];
 }
 
 - (void)browserShowHints {
@@ -497,21 +455,15 @@ static UIColor *kTextColor(void) {
     [self.tabOverviewController show];
 }
 
-- (void)browserCreateNewTabLoadingHomePage:(BOOL)loadHomePage {
-    [self.tabCoordinator createNewTabLoadingHomePage:loadHomePage];
+- (void)browserCreateNewTab {
+    [self.tabCoordinator createNewTabLoadingHomePage:NO];
 }
 
-- (void)browserHideTopNav {
-    [self deactivateTopBarFocusMode];
-    self.viewModel.topNavigationBarVisible = NO;
-    self.preferencesStore.topNavigationBarVisible = NO;
-    [self.tabCoordinator setTopNavigationVisible:NO];
-}
-
-- (void)browserShowTopNav {
-    self.viewModel.topNavigationBarVisible = YES;
-    self.preferencesStore.topNavigationBarVisible = YES;
-    [self.tabCoordinator setTopNavigationVisible:YES];
+- (void)browserOpenHistoryURLString:(NSString *)URLString {
+    NSURLRequest *request = [self.navigationService requestForURLString:URLString];
+    if (request != nil) {
+        [self.webview loadRequest:request];
+    }
 }
 
 - (void)browserUpdateTextFontSize {
@@ -532,6 +484,10 @@ static UIColor *kTextColor(void) {
 
 - (void)browserPlayVideoUnderCursorIfAvailable {
     [self.videoPlaybackCoordinator playVideoUnderCursorIfAvailable];
+}
+
+- (void)browserSetAdBlockEnabled:(BOOL)enabled {
+    [self.tabCoordinator setAdBlockEnabledForAllWebViews:enabled];
 }
 
 #pragma mark - BrowserVideoPlaybackCoordinatorHost
@@ -596,6 +552,10 @@ static UIColor *kTextColor(void) {
     [self.tabCoordinator closeTabAtIndex:tabIndex];
 }
 
+- (void)browserTabOverviewControllerReturnToStartPage {
+    [self.tabCoordinator reloadStartPageIfActive];
+}
+
 #pragma mark - BrowserPageActionCoordinatorHost
 
 - (void)browserPageActionCoordinatorPresentViewController:(UIViewController *)viewController {
@@ -656,49 +616,144 @@ static UIColor *kTextColor(void) {
     [self browserHandlePrimaryAction];
 }
 
+- (BOOL)browserRemoteInputControllerNewTabVisible {
+    return [self.tabCoordinator.activeTab.URLString isEqualToString:@"about:blank"];
+}
+
+- (NSUInteger)browserRemoteInputControllerNewTabPageGeneration {
+    return self.tabCoordinator.newTabPageGeneration;
+}
+
+- (void)browserRemoteInputControllerNavigateNewTabInDirection:(NSString *)direction {
+    NSString *script = [NSString stringWithFormat:@"window.browserNewTabNavigate && window.browserNewTabNavigate('%@')", direction];
+    [self.webview evaluateJavaScript:script completion:^(__unused NSString *result) {}];
+}
+
+- (void)browserRemoteInputControllerActivateNewTabSelection {
+    [self.webview evaluateJavaScript:@"window.browserNewTabActivate && window.browserNewTabActivate()"
+                           completion:^(__unused NSString *result) {}];
+}
+
+- (void)browserRemoteInputControllerHandleHistoryBackPress {
+    [self.tabCoordinator goBack];
+}
+
+- (void)browserRemoteInputControllerHandleHistoryForwardPress {
+    [self.tabCoordinator goForward];
+}
+
+- (void)browserRemoteInputControllerHandleTabOverviewPress {
+    [self browserShowTabOverview];
+}
+
 - (void)browserRemoteInputControllerHandleMenuPress {
-    UIAlertController *alertController = (UIAlertController *)self.presentedViewController;
-    if (alertController != nil) {
+    if (self.webview == nil) {
+        [self handleMenuPressOutsideFullscreen];
+        return;
+    }
+    __weak typeof(self) weakSelf = self;
+    [self.webview evaluateJavaScript:@"window.__browserTVExitFullscreen ? window.__browserTVExitFullscreen() : false"
+                           completion:^(NSString *result) {
+        if ([result isEqualToString:@"true"]) {
+            return;
+        }
+        [weakSelf handleMenuPressOutsideFullscreen];
+    }];
+}
+
+- (void)handleMenuPressOutsideFullscreen {
+    if (self.presentedViewController != nil) {
         [self.presentedViewController dismissViewControllerAnimated:YES completion:nil];
-    } else if (self.webview.canGoBack) {
-        [self.webview goBack];
+    } else if ([self.tabCoordinator returnToPreviousTabFromNewTab]) {
+        return;
+    } else if (self.browserCursorMagnifierEnabled) {
+        self.browserCursorMagnifierEnabled = NO;
     } else {
-        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Exit App?"
-                                                                       message:nil
-                                                                preferredStyle:UIAlertControllerStyleAlert];
-        [alert addAction:[UIAlertAction actionWithTitle:@"Exit"
-                                                  style:UIAlertActionStyleDestructive
-                                                handler:^(__unused UIAlertAction *action) {
-            exit(EXIT_SUCCESS);
-        }]];
-        [alert addAction:[UIAlertAction actionWithTitle:@"Dismiss" style:UIAlertActionStyleCancel handler:nil]];
-        [self presentViewController:alert animated:YES completion:nil];
+        [self showAdvancedMenu];
     }
 }
 
 - (void)browserRemoteInputControllerHandlePlayPausePress {
-    UIAlertController *alertController = (UIAlertController *)self.presentedViewController;
-    if (alertController != nil) {
-        [self.presentedViewController dismissViewControllerAnimated:YES completion:nil];
+    __weak typeof(self) weakSelf = self;
+    [self.webview evaluateJavaScript:@"window.__browserTVToggleVideo ? window.__browserTVToggleVideo() : false"
+                           completion:^(NSString *result) {
+        if ([result isEqualToString:@"true"]) {
+            return;
+        }
+        if ([weakSelf.presentedViewController isKindOfClass:[UIAlertController class]]) {
+            [weakSelf.presentedViewController dismissViewControllerAnimated:YES completion:nil];
+        }
+    }];
+}
+
+- (void)browserRemoteInputControllerEditNewTabFavoriteUsingKeyboardSelection:(BOOL)keyboardSelection {
+    if (![self browserRemoteInputControllerNewTabVisible]) return;
+    NSString *script;
+    if (keyboardSelection) {
+        script = @"window.browserNewTabManageSelected ? window.browserNewTabManageSelected() : false";
     } else {
-        [self requestURLorSearchInput];
+        CGPoint point = [self browserDOMPointForCursor];
+        script = [NSString stringWithFormat:
+            @"window.browserNewTabManageAt ? window.browserNewTabManageAt(%.3f, %.3f) : false", point.x, point.y];
     }
+    [self.webview evaluateJavaScript:script completion:^(__unused NSString *result) {}];
 }
 
-- (void)browserRemoteInputControllerHandleAdvancedMenuPress {
-    [self showAdvancedMenu];
+- (void)browserRemoteInputControllerHoverStateAtCursorPoint:(CGPoint)point
+                                                completion:(void (^)(BOOL))completion {
+    BrowserWebView *webView = self.webview;
+    if (webView.request == nil) {
+        completion(NO);
+        return;
+    }
+    [self.domInteractionService evaluateHoverStateAtCursorPoint:point
+                                                          inView:self.view
+                                                         webView:webView
+                                                      completion:completion];
 }
 
-- (NSString *)browserRemoteInputControllerHoverStateAtCursorPoint:(CGPoint)point {
-    if (self.webview.request == nil) {
-        return @"false";
+- (void)browserRemoteInputControllerCaptureMagnifierAtPoint:(CGPoint)point
+                                                  completion:(void (^)(UIImage *))completion {
+    BrowserWebView *webView = self.webview;
+    if (webView == nil || webView.request == nil || CGRectIsEmpty(webView.bounds)) {
+        completion(nil);
+        return;
     }
-    CGPoint webPoint = [self.view convertPoint:point toView:self.webview];
-    if (webPoint.y < 0) {
-        return @"false";
+    CGPoint webPoint = [self.view convertPoint:point toView:webView];
+    if (!CGRectContainsPoint(webView.bounds, webPoint)) {
+        completion(nil);
+        return;
     }
-    CGPoint domPoint = [self browserDOMPointForCursor];
-    return [self.pageActionCoordinator hoverStateAtDOMPoint:domPoint webView:self.webview];
+    CGFloat cropSize = MIN(192.0, MIN(CGRectGetWidth(webView.bounds), CGRectGetHeight(webView.bounds)));
+    CGRect centeredCrop = CGRectMake(webPoint.x - cropSize / 2.0,
+                                     webPoint.y - cropSize / 2.0,
+                                     cropSize, cropSize);
+    CGRect visibleCrop = CGRectIntersection(centeredCrop, webView.bounds);
+    if (CGRectIsEmpty(visibleCrop)) {
+        completion(nil);
+        return;
+    }
+    CGFloat magnification = 384.0 / cropSize;
+    [webView captureSnapshotInRect:visibleCrop
+                            width:CGRectGetWidth(visibleCrop) * magnification
+                       completion:^(UIImage *snapshot) {
+        if (snapshot == nil) {
+            completion(nil);
+            return;
+        }
+        UIGraphicsImageRenderer *renderer = [[UIGraphicsImageRenderer alloc]
+            initWithSize:CGSizeMake(384.0, 384.0)];
+        UIImage *centeredImage = [renderer imageWithActions:^(UIGraphicsImageRendererContext *context) {
+            [[UIColor colorWithWhite:0.1 alpha:1.0] setFill];
+            UIRectFill(CGRectMake(0.0, 0.0, 384.0, 384.0));
+            CGRect imageRect = CGRectMake((CGRectGetMinX(visibleCrop) - CGRectGetMinX(centeredCrop)) * magnification,
+                                          (CGRectGetMinY(visibleCrop) - CGRectGetMinY(centeredCrop)) * magnification,
+                                          CGRectGetWidth(visibleCrop) * magnification,
+                                          CGRectGetHeight(visibleCrop) * magnification);
+            [snapshot drawInRect:imageRect];
+        }];
+        completion(centeredImage);
+    }];
 }
 
 - (void)browserRemoteInputControllerSetWebInteractionEnabled:(BOOL)enabled {
@@ -713,14 +768,72 @@ static UIColor *kTextColor(void) {
 
 - (BOOL)webView:(id)webView shouldCreateNewTabWithRequest:(NSURLRequest *)request navigationType:(NSInteger)navigationType {
     (void)webView;
-    (void)navigationType;
     return [self.tabCoordinator createNewTabWithRequest:request];
 }
 
 - (BOOL)webView:(id)webView shouldStartLoadWithRequest:(NSURLRequest *)request navigationType:(NSInteger)navigationType {
     (void)navigationType;
-    [self.tabCoordinator prepareTabForRequest:request webView:webView];
+    if ([request.URL.scheme.lowercaseString isEqualToString:@"tvosbrowser"] &&
+        [request.URL.host.lowercaseString isEqualToString:@"manage"] &&
+        [self browserRemoteInputControllerNewTabVisible]) {
+        NSString *kind = nil;
+        NSUInteger index = NSNotFound;
+        for (NSURLQueryItem *item in [NSURLComponents componentsWithURL:request.URL resolvingAgainstBaseURL:NO].queryItems) {
+            if ([item.name isEqualToString:@"kind"]) {
+                kind = item.value;
+            } else if ([item.name isEqualToString:@"index"] && item.value.length > 0) {
+                NSScanner *scanner = [NSScanner scannerWithString:item.value];
+                unsigned long long parsedIndex = 0;
+                if ([scanner scanUnsignedLongLong:&parsedIndex] && scanner.isAtEnd && parsedIndex <= NSUIntegerMax) {
+                    index = (NSUInteger)parsedIndex;
+                }
+            }
+        }
+        if (index != NSNotFound && [kind isEqualToString:@"favorite"]) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [self.menuCoordinator presentStoredItemActionsForKind:kind index:index];
+            });
+        }
+        return NO;
+    }
+    if ([request.URL.scheme.lowercaseString isEqualToString:@"tvosbrowser"] &&
+        [self browserRemoteInputControllerNewTabVisible]) {
+        NSString *host = request.URL.host.lowercaseString;
+        if ([host isEqualToString:@"history"]) {
+            dispatch_async(dispatch_get_main_queue(), ^{ [self.menuCoordinator presentAllHistory]; });
+            return NO;
+        }
+        if ([host isEqualToString:@"delete-history"]) {
+            NSString *URLString = nil;
+            for (NSURLQueryItem *item in [NSURLComponents componentsWithURL:request.URL resolvingAgainstBaseURL:NO].queryItems) {
+                if ([item.name isEqualToString:@"url"]) URLString = item.value;
+            }
+            if (URLString.length > 0) {
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    [self.menuCoordinator deleteHistoryForURLString:URLString];
+                });
+            }
+            return NO;
+        }
+    }
+    if ([request.URL.scheme.lowercaseString isEqualToString:@"tvosbrowser"] &&
+        [request.URL.host.lowercaseString isEqualToString:@"search"] &&
+        [self browserRemoteInputControllerNewTabVisible]) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self showInputURLorSearchGoogle];
+        });
+        return NO;
+    }
+    [self.tabCoordinator prepareTabForRequest:request webView:webView navigationType:navigationType];
     return YES;
+}
+
+- (void)browserRefreshNewTabPageSelectingGroup:(NSString *)group index:(NSUInteger)index {
+    [self.tabCoordinator refreshNewTabPageIfVisibleSelectingGroup:group index:index];
+}
+
+- (void)browserShowNewTabPageSelectingGroup:(NSString *)group {
+    [self.tabCoordinator showNewTabPageSelectingGroup:group];
 }
 
 - (void)webViewDidStartLoad:(id)webView {
@@ -745,6 +858,16 @@ static UIColor *kTextColor(void) {
     }
 }
 
+- (void)browserTabCoordinatorSnapshotDidUpdateForTab:(BrowserTabViewModel *)tab {
+    if (!self.tabOverviewController.visible) {
+        return;
+    }
+    NSInteger tabIndex = [self.viewModel.tabs indexOfObject:tab];
+    if (tabIndex != NSNotFound) {
+        [self.tabOverviewController updateCardAtIndex:tabIndex];
+    }
+}
+
 - (void)webView:(id)webView didFailLoadWithError:(NSError *)error {
     BrowserTabViewModel *tab = [self.tabCoordinator tabForWebView:webView];
     if (tab == nil) {
@@ -758,6 +881,10 @@ static UIColor *kTextColor(void) {
         currentRequestURLString.length > 0 &&
         ![failingURL.absoluteString isEqualToString:currentRequestURLString]) {
         return;
+    }
+
+    if (![self.navigationService shouldIgnoreLoadError:error]) {
+        [self.tabCoordinator webViewDidFailLoad:webView];
     }
 
     if (tab == self.tabCoordinator.activeTab) {
@@ -814,6 +941,11 @@ static UIColor *kTextColor(void) {
         return;
     }
     [super pressesEnded:presses withEvent:event];
+}
+
+- (void)pressesCancelled:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
+    [self.remoteInputController handlePressesCancelled:presses];
+    [super pressesCancelled:presses withEvent:event];
 }
 
 - (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {

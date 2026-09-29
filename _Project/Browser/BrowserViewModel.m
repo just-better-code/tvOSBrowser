@@ -5,7 +5,7 @@
 static NSUInteger const kDefaultTextFontSize = 100;
 static NSUInteger const kMinimumTextFontSize = 50;
 static NSUInteger const kMaximumTextFontSize = 200;
-static NSUInteger const kMaximumTabCount = 5;
+static NSString * const kStartPageURL = @"about:blank";
 @implementation BrowserViewModel
 
 - (instancetype)init {
@@ -28,11 +28,16 @@ static NSUInteger const kMaximumTabCount = 5;
 }
 
 - (BrowserTabViewModel *)addTab {
-    if (self.tabs.count >= kMaximumTabCount) {
-        return nil;
-    }
-    
     BrowserTabViewModel *tab = [BrowserTabViewModel new];
+    [self.tabs addObject:tab];
+    self.activeTabIndex = self.tabs.count - 1;
+    return tab;
+}
+
+- (BrowserTabViewModel *)addStartPageTab {
+    BrowserTabViewModel *tab = [BrowserTabViewModel new];
+    tab.URLString = kStartPageURL;
+    tab.requestURL = kStartPageURL;
     [self.tabs addObject:tab];
     self.activeTabIndex = self.tabs.count - 1;
     return tab;
@@ -43,7 +48,7 @@ static NSUInteger const kMaximumTabCount = 5;
     if (tab != nil) {
         return tab;
     }
-    return [self addTab];
+    return [self addStartPageTab];
 }
 
 - (BrowserTabViewModel *)removeTabAtIndex:(NSInteger)tabIndex {

@@ -21,20 +21,33 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nullable, nonatomic, readonly, copy) NSString *title;
 @property (nonatomic, readonly, getter=canGoBack) BOOL canGoBack;
 @property (nonatomic, readonly, getter=canGoForward) BOOL canGoForward;
+@property (nullable, nonatomic, readonly, copy) NSString *backURLString;
+@property (nullable, nonatomic, readonly, copy) NSString *forwardURLString;
 @property (nonatomic, readonly, getter=isLoading) BOOL loading;
-@property (nonatomic) BOOL scalesPageToFit;
+@property (nonatomic) CGFloat pageZoomFactor;
+@property (nonatomic) CGFloat textZoomFactor;
+@property (nonatomic, readonly) BOOL adBlockEnabled;
+@property (nonatomic, readonly, copy) NSString *adBlockStatus;
 
 - (instancetype)initWithUserAgent:(NSString * _Nullable)userAgent
       allowsInlineMediaPlayback:(BOOL)allowsInlineMediaPlayback NS_DESIGNATED_INITIALIZER;
 
 - (void)loadRequest:(NSURLRequest * _Nullable)request;
+- (void)loadHTMLString:(NSString *)HTMLString;
 - (void)reload;
 - (void)goBack;
 - (void)goForward;
 - (nullable NSString *)stringByEvaluatingJavaScriptFromString:(NSString * _Nonnull)script;
+- (void)evaluateJavaScript:(NSString * _Nonnull)script
+               completion:(void (^ _Nonnull)(NSString * _Nullable result))completion;
 - (NSString * _Nonnull)runtimeMediaPreferenceReport;
 - (void)setUserAgent:(NSString * _Nullable)userAgent;
 - (void)pauseAllMediaPlayback;
+- (void)captureSnapshotWithCompletion:(void (^)(UIImage * _Nullable snapshot))completion;
+- (void)captureSnapshotInRect:(CGRect)rect
+                       width:(CGFloat)width
+                  completion:(void (^)(UIImage * _Nullable snapshot))completion;
+- (void)setAdBlockEnabled:(BOOL)enabled;
 
 + (nullable NSData *)cookieDataRepresentation;
 + (NSArray<NSHTTPCookie *> * _Nonnull)allCookies;
