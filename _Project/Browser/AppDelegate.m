@@ -8,6 +8,7 @@
 
 #import "AppDelegate.h"
 #import "BrowserPreferencesStore.h"
+#import "BrowserTorrentKeepAlive.h"
 #import "BrowserWebView.h"
 
 @interface AppDelegate ()
@@ -49,6 +50,9 @@
         [[NSUserDefaults standardUserDefaults] synchronize];
     }
     [self restoreCookiesFromDefaults];
+    if (BrowserTorrentKeepAlive.sharedKeepAlive.enabled) {
+        [BrowserTorrentKeepAlive.sharedKeepAlive setEnabled:YES];
+    }
 	return YES;
 }
 
