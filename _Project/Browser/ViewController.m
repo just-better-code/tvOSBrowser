@@ -58,7 +58,6 @@ static UIColor *kTextColor(void) {
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    [[BrowserHistoryStore sharedStore] pruneOldVisits];
     self.definesPresentationContext = YES;
     self.scrollViewAllowBounces = YES;
 
@@ -665,6 +664,8 @@ static UIColor *kTextColor(void) {
 - (void)handleMenuPressOutsideFullscreen {
     if (self.presentedViewController != nil) {
         [self.presentedViewController dismissViewControllerAnimated:YES completion:nil];
+    } else if ([self.tabCoordinator returnToPreviousTabFromNewTab]) {
+        return;
     } else if (self.browserCursorMagnifierEnabled) {
         self.browserCursorMagnifierEnabled = NO;
     } else {

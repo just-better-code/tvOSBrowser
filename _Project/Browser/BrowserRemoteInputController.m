@@ -941,8 +941,9 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
                 self.cursorIdleHidden = NO;
                 [self noteCursorActivity];
             }
-            if (fabs(rect.origin.x - self.newTabKeyboardSelectionCursorOrigin.x) +
-                fabs(rect.origin.y - self.newTabKeyboardSelectionCursorOrigin.y) > 10.0) {
+            if (!self.selectPressPending &&
+                fabs(rect.origin.x - self.newTabKeyboardSelectionCursorOrigin.x) +
+                fabs(rect.origin.y - self.newTabKeyboardSelectionCursorOrigin.y) > 40.0) {
                 self.newTabKeyboardSelectionActive = NO;
             }
             self.cursorView.frame = rect;

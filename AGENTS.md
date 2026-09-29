@@ -37,6 +37,19 @@ The Xcode project is `_Project/Browser.xcodeproj`, and the scheme is `Browser`. 
 
 This workflow successfully built, installed, and launched the app on the physical Apple TV named «test Apple TV» on 2026-09-28. A successful launch does not confirm that a UI bug is fixed; verify the behavior on the TV.
 
+## History storage regression guard
+
+On «test Apple TV» on 2026-09-29, the live history database was **`Library/Caches/BrowserHistory.sqlite`** inside the `org.example.tvosbrowser` app data container. It contained 247 visits and 3 favorites; `Library/Application Support` did not exist. Removing Caches from the database search paths made this existing history disappear from the app and prevented new visits from being saved when the other directories were unavailable. The store now opens an existing database before creating a new one elsewhere; it does not move old files. After installing the fix, the same database had 248 visits, then 249 after relaunch, with 3 favorites and `PRAGMA integrity_check` returning `ok` each time.
+
+Before changing database paths, fallback order, or history retention, inspect the actual device container and copy its database. Do not infer the live location from simulator behavior or from the preferred path in source code:
+
+```sh
+xcrun devicectl device info files --device <COREDEVICE_ID> --domain-type appDataContainer --domain-identifier org.example.tvosbrowser --filter "Name CONTAINS 'BrowserHistory.sqlite'"
+xcrun devicectl device copy from --device <COREDEVICE_ID> --domain-type appDataContainer --domain-identifier org.example.tvosbrowser --source Library/Caches/BrowserHistory.sqlite --destination /private/tmp/tvosbrowser-history-before-change.sqlite
+```
+
+After installing a history change, visit a new page on the TV and verify that it appears in **All History** and remains after relaunch. Check the database row count before and after if the UI is ambiguous. Do not add automatic age-based deletion; history is cleared only through an explicit user action. The current live database is in Caches, which tvOS may purge, so moving it to durable storage requires a separately verified data-preserving change.
+
 ## Git policy
 
 Do not create Git commits or push this repository. Leave changes in the working tree for the user.
