@@ -51,6 +51,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)createNewTabLoadingHomePage:(BOOL)loadHomePage;
 - (BOOL)createNewTabWithRequest:(NSURLRequest *)request;
 - (void)switchToTabAtIndex:(NSInteger)tabIndex;
+- (BOOL)returnToPreviousTabFromNewTab;
 - (void)closeTabAtIndex:(NSInteger)tabIndex;
 - (void)recreateActiveWebViewPreservingCurrentURL;
 - (void)setAdBlockEnabledForAllWebViews:(BOOL)enabled;

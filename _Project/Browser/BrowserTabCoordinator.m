@@ -65,7 +65,7 @@ static NSString *BrowserNewTabSectionHTML(NSArray *entries, BOOL favorites, NSUI
     NSString *footer = favorites ? @"" : @"<a id='all-history' class='all-history nav-target' href='tvosbrowser://history'>All History  →</a>";
     return [NSString stringWithFormat:@"<section id='%@'><div class='section-heading'><h2>%@</h2><span class='count'>%lu</span><span class='section-hint'>%@</span></div><div class='%@'>%@</div>%@</section>",
         favorites ? @"favorites" : @"history", favorites ? @"Favorites" : @"Recents",
-        (unsigned long)count, favorites ? @"Play/Pause to edit" : @"Last active week", favorites ? @"tiles" : @"history-list", cards, footer];
+        (unsigned long)count, favorites ? @"Play/Pause to edit" : @"Latest visits", favorites ? @"tiles" : @"history-list", cards, footer];
 }
 
 @interface BrowserTabCoordinator ()
@@ -87,6 +87,7 @@ static NSString *BrowserNewTabSectionHTML(NSArray *entries, BOOL favorites, NSUI
 @property (nonatomic, readwrite, nullable) BrowserWebView *activeWebView;
 @property (nonatomic, copy) NSString *pendingNewTabSelectionGroup;
 @property (nonatomic) NSUInteger pendingNewTabSelectionIndex;
+@property (nonatomic, copy) NSString *lastActiveTabIdentifier;
 @property (nonatomic, readwrite) NSUInteger newTabPageGeneration;
 
 - (void)showNewTabPageInWebView:(BrowserWebView *)webView tab:(BrowserTabViewModel *)tab;
@@ -336,7 +337,7 @@ static NSString *BrowserNewTabSectionHTML(NSArray *entries, BOOL favorites, NSUI
     }
     self.newTabPageGeneration += 1;
     NSString *favorites = BrowserNewTabSectionHTML([[BrowserHistoryStore sharedStore] favorites], YES, 40);
-    NSArray *popular = [[BrowserHistoryStore sharedStore] recentActiveWeekWithLimit:10];
+    NSArray *popular = [[BrowserHistoryStore sharedStore] recentVisitsWithLimit:10];
     NSMutableArray *popularEntries = [NSMutableArray arrayWithCapacity:popular.count];
     for (NSDictionary *entry in popular) {
         [popularEntries addObject:@[entry[@"url"], entry[@"title"], entry[@"count"]]];
@@ -380,7 +381,7 @@ static NSString *BrowserNewTabSectionHTML(NSArray *entries, BOOL favorites, NSUI
          "<a class='search nav-target selected' id='search' href='tvosbrowser://search'><span class='search-symbol'>⌕</span>Search or enter an address</a>"];
     [HTML appendString:favorites];
     [HTML appendString:history];
-    [HTML appendString:@"<script>(function(){let group='search',index=0;const search=document.getElementById('search');"
+    [HTML appendString:@"<script>(function(){let group='search',index=0,lastActivation=0;const search=document.getElementById('search');"
                        "const favorites=Array.from(document.querySelectorAll('#favorites .nav-target'));"
                        "const history=Array.from(document.querySelectorAll('#history .history-row'));"
                        "const historyDeletes=Array.from(document.querySelectorAll('#history .history-delete'));"
@@ -388,7 +389,7 @@ static NSString *BrowserNewTabSectionHTML(NSArray *entries, BOOL favorites, NSUI
                        "function current(){if(group==='search')return search;if(group==='favorites')return favorites[index];"
                        "if(group==='history-delete')return historyDeletes[index];if(group==='history-all')return allHistory;return history[index]}"
                        "function select(g,i){let old=current();if(old)old.classList.remove('selected');group=g;index=i;let item=current();"
-                       "if(item){item.classList.add('selected');item.scrollIntoView({block:'nearest',inline:'nearest'})}}"
+                       "if(item){item.classList.add('selected');item.focus();item.scrollIntoView({block:'nearest',inline:'nearest'})}}"
                        "window.browserNewTabNavigate=function(d){if(group==='search'){if(d==='down')select(favorites.length?'favorites':history.length?'history':'history-all',0)}"
                        "else if(group==='favorites'){if(d==='left')select(group,Math.max(0,index-1));else if(d==='right')select(group,Math.min(favorites.length-1,index+1));"
                        "else if(d==='up')select('search',0);else if(d==='down')select(history.length?'history':'history-all',0)}"
@@ -398,7 +399,11 @@ static NSString *BrowserNewTabSectionHTML(NSArray *entries, BOOL favorites, NSUI
                        "else if(d==='left'&&favorites.length)select('favorites',Math.min(index,favorites.length-1));"
                        "else if(d==='right')select('history-delete',index)}"
                        "else if(group==='history-all'&&d==='up')select(history.length?'history':favorites.length?'favorites':'search',history.length?history.length-1:0);return true};"
-                       "window.browserNewTabActivate=function(){let item=current();if(item)item.click();return true};"
+                       "document.addEventListener('click',function(e){if(e.target&&e.target.closest&&e.target.closest('.nav-target'))lastActivation=Date.now()},true);"
+                       "window.browserNewTabActivate=function(){let item=current();if(!item)return false;"
+                       "if(Date.now()-lastActivation<300)return true;item.click();return true};"
+                       "document.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();"
+                       "e.stopPropagation();window.browserNewTabActivate()}},true);"
                        "window.browserNewTabManageSelected=function(){let item=current();if(!item||group!=='favorites')return false;"
                        "let button=item.parentElement.querySelector('.manage-button');if(!button)return false;button.click();return true};"
                        "window.browserNewTabManageAt=function(x,y){let item=document.elementFromPoint(x,y);"
@@ -674,6 +679,7 @@ static NSString *BrowserNewTabSectionHTML(NSArray *entries, BOOL favorites, NSUI
         [self showNewTabPageInWebView:self.activeWebView tab:self.activeTab];
         return;
     }
+    self.lastActiveTabIdentifier = self.activeTab.identifier;
     BrowserTabViewModel *tab = [self.viewModel addStartPageTab];
 
     (void)loadHomePage;
@@ -722,6 +728,7 @@ static NSString *BrowserNewTabSectionHTML(NSArray *entries, BOOL favorites, NSUI
 
     BrowserTabViewModel *currentTab = self.activeTab;
     BOOL discardCurrentTab = [currentTab.URLString isEqualToString:kBrowserNewTabURL];
+    if (!discardCurrentTab) self.lastActiveTabIdentifier = currentTab.identifier;
     if (!discardCurrentTab) [self captureSnapshotForTab:currentTab];
 
     [self.viewModel switchToTabAtIndex:tabIndex];
@@ -739,6 +746,31 @@ static NSString *BrowserNewTabSectionHTML(NSArray *entries, BOOL favorites, NSUI
         [self loadStoredContentForTab:self.activeTab webView:self.activeWebView fallbackToHomePage:YES];
     }
     [self persistSession];
+}
+
+- (BOOL)returnToPreviousTabFromNewTab {
+    BrowserTabViewModel *currentTab = self.activeTab;
+    if (![currentTab.URLString isEqualToString:kBrowserNewTabURL]) return NO;
+    NSInteger targetIndex = NSNotFound;
+    for (NSInteger index = 0; index < self.viewModel.tabs.count; index++) {
+        BrowserTabViewModel *tab = self.viewModel.tabs[index];
+        if (tab != currentTab && [tab.identifier isEqualToString:self.lastActiveTabIdentifier]) {
+            targetIndex = index;
+            break;
+        }
+    }
+    if (targetIndex == NSNotFound) {
+        for (NSInteger index = self.viewModel.tabs.count - 1; index >= 0; index--) {
+            BrowserTabViewModel *tab = self.viewModel.tabs[index];
+            if (tab != currentTab && ![tab.URLString isEqualToString:kBrowserNewTabURL]) {
+                targetIndex = index;
+                break;
+            }
+        }
+    }
+    if (targetIndex == NSNotFound) return NO;
+    [self switchToTabAtIndex:targetIndex];
+    return YES;
 }
 
 - (void)closeTabAtIndex:(NSInteger)tabIndex {

@@ -75,11 +75,11 @@ Back is an app navigation control, not a second way to traverse page history. Us
 
 ## Start page, tabs, and saved pages
 
-The **New Tab** page contains an address/search field, Favorites, and the ten most visited URLs. Arrow keys navigate these controls; Play/Pause acts as Enter. **All History** opens the full visit list. Press Center on a visit to mark it; the checkmark is on the left. The fixed action row above the list lets you open one selected visit, delete selected visits, select all, or clear all history with confirmation without scrolling to the bottom. Play/Pause also opens history actions. Favorites can be opened, edited, and deleted; hold Play/Pause on a selected Favorite to edit it.
+The **New Tab** page contains an address/search field, Favorites, and the ten most recently visited URLs. Arrow keys navigate these controls; Play/Pause acts as Enter. **All History** opens the full visit list. Press Center on a visit to mark it; the checkmark is on the left. The fixed action row above the list lets you open one selected visit, delete selected visits, select all, or clear all history with confirmation without scrolling to the bottom. Play/Pause also opens history actions. Favorites can be opened, edited, and deleted; hold Play/Pause on a selected Favorite to edit it.
 
 The tab overview has a large **+** button for New Tab. The empty New Tab page is transient: it does not occupy a saved tab slot, and the browser saves ordinary tabs and the active tab for restoration. Double Up or Play/Pause closes the focused ordinary tab. The old five-tab limit has been removed.
 
-Visits and Favorites are stored in `BrowserHistory.sqlite` using SQLite. On tvOS the app prefers Application Support, then Documents, then Caches. It copies an existing database from Caches or Documents into Application Support on first launch after this change and retains the older preferences backup path. A simulator build replacement preserved all 25 existing visits during this migration; persistence after removing and reinstalling the app still needs separate verification.
+Visits and Favorites are stored in `BrowserHistory.sqlite` using SQLite. The app opens an existing database in Application Support, Documents, or Caches before creating a new one in that order. It does not move old databases. On the physical Apple TV «Спальня», the live database was found at `Library/Caches/BrowserHistory.sqlite` on 2026-09-29; Application Support did not exist in its container. Removing Caches from the search paths made the saved history appear empty and stopped new visits from being saved. History has no automatic age-based cleanup; only explicit Delete and Clear History actions remove visits. The live Caches location can be purged by tvOS, so a future move to durable storage must preserve and verify the existing database on the device.
 
 ## Browser menu
 
@@ -89,7 +89,7 @@ Press **Back/Menu** on a page to open the menu. The top toolbar contains **Home*
 | --- | --- |
 | Quick Actions | Zoom Out, Reset Zoom, Zoom In, Add Favorite, History |
 | Settings | Ad Block, Magnifier, Fit to Screen, Full Screen Player, Mobile Site |
-| Tools | Debug, User Guide, Clear Cache, Clear Cookies |
+| Tools | Debug, User Guide, Clear Cache, Clear Cookies, Clear History |
 
 Zoom changes in 10% steps, from 50% to 200%. Reset Zoom returns to 100%. The browser applies both page zoom and text sizing; the current zoom preference is restored after reload. The zoom controls and settings toggles keep the menu open so changes can be checked immediately.
 

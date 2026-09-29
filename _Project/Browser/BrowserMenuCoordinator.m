@@ -514,9 +514,10 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
                   layout:(__unused UICollectionViewLayout *)collectionViewLayout
   sizeForItemAtIndexPath:(NSIndexPath *)indexPath {
     CGFloat availableWidth = self.panelWidth - 32.0 - 40.0;
-    BOOL isZoomRow = indexPath.section == 0 && indexPath.item < 3;
-    CGFloat width = isZoomRow ? floor((availableWidth - 24.0) / 3.0) - 1.0
-                              : floor((availableWidth - 12.0) / 2.0) - 1.0;
+    BOOL isThreeTileRow = (indexPath.section == 0 && indexPath.item < 3) ||
+                          (indexPath.section == 2 && indexPath.item >= 2);
+    CGFloat width = isThreeTileRow ? floor((availableWidth - 24.0) / 3.0) - 1.0
+                                    : floor((availableWidth - 12.0) / 2.0) - 1.0;
     return CGSizeMake(width, 132.0);
 }
 
@@ -923,6 +924,27 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
     }];
 }
 
+- (void)confirmClearHistory {
+    NSUInteger count = [[BrowserHistoryStore sharedStore] allVisits].count;
+    NSString *message = count > 0
+        ? [NSString stringWithFormat:@"This removes all %lu saved visits. Favorites stay saved.",
+                                     (unsigned long)count]
+        : @"History is already empty.";
+    UIAlertController *alert = [self browserAlertControllerWithTitle:@"Clear all history?" message:message];
+    if (count > 0) {
+        __weak typeof(self) weakSelf = self;
+        [alert addAction:[self browserActionWithTitle:@"Clear All History"
+                                              style:UIAlertActionStyleDestructive
+                                            handler:^(__unused UIAlertAction *action) {
+            [[BrowserHistoryStore sharedStore] deleteAllVisits];
+            [weakSelf.host browserRefreshNewTabPageSelectingGroup:@"history" index:0];
+        }]];
+    }
+    [alert addAction:[self browserActionWithTitle:count > 0 ? @"Cancel" : @"OK"
+                                          style:UIAlertActionStyleCancel handler:nil]];
+    [self.host browserPresentViewController:alert];
+}
+
 - (NSString *)mediaDiagnosticsJavaScript {
     return @"(function(){"
             "function canPlay(type){"
@@ -1283,6 +1305,11 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
                                                                          handler:^{
         [self clearCookiesAndReload];
     }];
+    BrowserAdvancedMenuItem *clearHistoryItem = [self advancedMenuItemWithTitle:@"Clear History"
+                                                                           style:UIAlertActionStyleDestructive
+                                                                         handler:^{
+        [self confirmClearHistory];
+    }];
 
     return @[
         [BrowserAdvancedMenuSection sectionWithTitle:@"Quick Actions"
@@ -1306,6 +1333,7 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
             [self tileItem:[self usageGuideMenuItem] title:@"User Guide" symbol:@"book.closed.fill"],
             [self tileItem:clearCacheItem title:@"Clear Cache" symbol:@"externaldrive"],
             [self tileItem:clearCookiesItem title:@"Clear Cookies" symbol:@"trash"],
+            [self tileItem:clearHistoryItem title:@"Clear History" symbol:@"clock.arrow.circlepath"],
         ]],
     ];
 }
