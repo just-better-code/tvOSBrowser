@@ -45,6 +45,11 @@
 		A1B49A9B2D700060001D58A1 /* BrowserFavoriteEditorViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A9A2D700060001D58A1 /* BrowserFavoriteEditorViewController.m */; };
 		A1B49A9E2D700070001D58A1 /* BrowserHistoryViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A9D2D700070001D58A1 /* BrowserHistoryViewController.m */; };
 		A1B49AA12D700080001D58A1 /* BrowserHistoryStore.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49AA02D700080001D58A1 /* BrowserHistoryStore.m */; };
+		C0D3A0010000000000000001 /* BrowserTorrentManager.mm in Sources */ = {isa = PBXBuildFile; fileRef = C0D3A0010000000000000002 /* BrowserTorrentManager.mm */; };
+		C0D3A0010000000000000005 /* BrowserTorrentAssetLoader.m in Sources */ = {isa = PBXBuildFile; fileRef = C0D3A0010000000000000006 /* BrowserTorrentAssetLoader.m */; };
+		C0D3A0010000000000000008 /* BrowserTorrentLibraryViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = C0D3A0010000000000000009 /* BrowserTorrentLibraryViewController.m */; };
+		C0D3A001000000000000000B /* BrowserTorrentKeepAlive.m in Sources */ = {isa = PBXBuildFile; fileRef = C0D3A001000000000000000C /* BrowserTorrentKeepAlive.m */; };
+		C0D3A001000000000000000E /* libtorrent.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = C0D3A001000000000000000F /* libtorrent.xcframework */; };
 		B002B8671BAE420500C744AF /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = B002B8661BAE420500C744AF /* main.m */; };
 		B002B86A1BAE420500C744AF /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = B002B8691BAE420500C744AF /* AppDelegate.m */; };
 		B002B86D1BAE420500C744AF /* ViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = B002B86C1BAE420500C744AF /* ViewController.m */; };
@@ -112,6 +117,15 @@
 		A1B49A9D2D700070001D58A1 /* BrowserHistoryViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserHistoryViewController.m; sourceTree = "<group>"; };
 		A1B49A9F2D700080001D58A1 /* BrowserHistoryStore.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserHistoryStore.h; sourceTree = "<group>"; };
 		A1B49AA02D700080001D58A1 /* BrowserHistoryStore.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserHistoryStore.m; sourceTree = "<group>"; };
+		C0D3A0010000000000000002 /* BrowserTorrentManager.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = BrowserTorrentManager.mm; sourceTree = "<group>"; };
+		C0D3A0010000000000000003 /* BrowserTorrentManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserTorrentManager.h; sourceTree = "<group>"; };
+		C0D3A0010000000000000006 /* BrowserTorrentAssetLoader.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserTorrentAssetLoader.m; sourceTree = "<group>"; };
+		C0D3A0010000000000000007 /* BrowserTorrentAssetLoader.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserTorrentAssetLoader.h; sourceTree = "<group>"; };
+		C0D3A0010000000000000009 /* BrowserTorrentLibraryViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserTorrentLibraryViewController.m; sourceTree = "<group>"; };
+		C0D3A001000000000000000A /* BrowserTorrentLibraryViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserTorrentLibraryViewController.h; sourceTree = "<group>"; };
+		C0D3A001000000000000000C /* BrowserTorrentKeepAlive.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserTorrentKeepAlive.m; sourceTree = "<group>"; };
+		C0D3A001000000000000000D /* BrowserTorrentKeepAlive.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserTorrentKeepAlive.h; sourceTree = "<group>"; };
+		C0D3A001000000000000000F /* libtorrent.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = libtorrent.xcframework; path = ../.deps/libtorrent.xcframework; sourceTree = "<group>"; };
 		B002B8621BAE420500C744AF /* Browser.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Browser.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B002B8661BAE420500C744AF /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
 		B002B8681BAE420500C744AF /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
@@ -129,6 +143,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C0D3A001000000000000000E /* libtorrent.xcframework in Frameworks */,
 				9675E1FF20857AEF00A4A84A /* UIKit.framework in Frameworks */,
 				9675E1FC20855F6500A4A84A /* Foundation.framework in Frameworks */,
 			);
@@ -158,6 +173,7 @@
 		9675E1FA20855F6500A4A84A /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				C0D3A001000000000000000F /* libtorrent.xcframework */,
 				9675E1FE20857AEF00A4A84A /* UIKit.framework */,
 				9675E1FB20855F6500A4A84A /* Foundation.framework */,
 			);
@@ -250,6 +266,8 @@
 				A1B49A692D6B1000001D58A1 /* BrowserNativeVideoPlayerViewController.h */,
 				A1B49A6B2D6B1000001D58A1 /* BrowserNativeVideoPlayerViewController.m */,
 				A1B49A602D6A1000001D58A1 /* BrowserWKWebViewProofOfConceptViewController.m */,
+				C0D3A001000000000000000A /* BrowserTorrentLibraryViewController.h */,
+				C0D3A0010000000000000009 /* BrowserTorrentLibraryViewController.m */,
 			);
 			name = Controllers;
 			sourceTree = "<group>";
@@ -272,8 +290,21 @@
 				A1B49A732D6C1000001D58A1 /* BrowserNativeVideoAssetLoader.m */,
 				A1B49A702D6B7000001D58A1 /* BrowserYouTubeExtractor.h */,
 				A1B49A712D6B7000001D58A1 /* BrowserYouTubeExtractor.m */,
+				C0D3A0010000000000000007 /* BrowserTorrentAssetLoader.h */,
+				C0D3A0010000000000000006 /* BrowserTorrentAssetLoader.m */,
 			);
 			name = Video;
+			sourceTree = "<group>";
+		};
+		C0D3A0010000000000000004 /* Torrents */ = {
+			isa = PBXGroup;
+			children = (
+				C0D3A0010000000000000003 /* BrowserTorrentManager.h */,
+				C0D3A0010000000000000002 /* BrowserTorrentManager.mm */,
+				C0D3A001000000000000000D /* BrowserTorrentKeepAlive.h */,
+				C0D3A001000000000000000C /* BrowserTorrentKeepAlive.m */,
+			);
+			name = Torrents;
 			sourceTree = "<group>";
 		};
 		A1B49A812D6D0000001D58A1 /* Runtime */ = {
@@ -315,6 +346,7 @@
 				A1B49A7C2D6D0000001D58A1 /* Services */,
 				A1B49A7D2D6D0000001D58A1 /* UI */,
 				A1B49A802D6D0000001D58A1 /* Video */,
+				C0D3A0010000000000000004 /* Torrents */,
 				A1B49A812D6D0000001D58A1 /* Runtime */,
 				3A2A7C0621E77E2C0083CB13 /* MenuIcons */,
 				B002B8651BAE420500C744AF /* Supporting Files */,
@@ -440,6 +472,10 @@
 				A1B49A9B2D700060001D58A1 /* BrowserFavoriteEditorViewController.m in Sources */,
 				A1B49A9E2D700070001D58A1 /* BrowserHistoryViewController.m in Sources */,
 				A1B49AA12D700080001D58A1 /* BrowserHistoryStore.m in Sources */,
+				C0D3A0010000000000000001 /* BrowserTorrentManager.mm in Sources */,
+				C0D3A0010000000000000005 /* BrowserTorrentAssetLoader.m in Sources */,
+				C0D3A0010000000000000008 /* BrowserTorrentLibraryViewController.m in Sources */,
+				C0D3A001000000000000000B /* BrowserTorrentKeepAlive.m in Sources */,
 				A1B49A872D6D2000001D58A1 /* BrowserVideoPlaybackCoordinator.m in Sources */,
 				A1B49A842D6D2000001D58A1 /* BrowserDOMInteractionService.m in Sources */,
 				A1B49A4E2D680900001D58A1 /* BrowserNavigationService.m in Sources */,
@@ -590,6 +626,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
 				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
@@ -598,7 +635,11 @@
 				EMBED_ASSET_PACKS_IN_PRODUCT_BUNDLE = YES;
 				ENABLE_ON_DEMAND_RESOURCES = NO;
 				FRAMEWORK_SEARCH_PATHS = "";
-				OTHER_LDFLAGS = "-lsqlite3";
+				HEADER_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/../.deps/libtorrent.xcframework/tvos-arm64/Headers",
+					"$(PROJECT_DIR)/../.deps/boost-1.69.0",
+				);
+				OTHER_LDFLAGS = "-lsqlite3 -framework SystemConfiguration";
 				INFOPLIST_FILE = Browser/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -616,6 +657,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
 				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
@@ -624,7 +666,11 @@
 				EMBED_ASSET_PACKS_IN_PRODUCT_BUNDLE = YES;
 				ENABLE_ON_DEMAND_RESOURCES = NO;
 				FRAMEWORK_SEARCH_PATHS = "";
-				OTHER_LDFLAGS = "-lsqlite3";
+				HEADER_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/../.deps/libtorrent.xcframework/tvos-arm64/Headers",
+					"$(PROJECT_DIR)/../.deps/boost-1.69.0",
+				);
+				OTHER_LDFLAGS = "-lsqlite3 -framework SystemConfiguration";
 				INFOPLIST_FILE = Browser/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

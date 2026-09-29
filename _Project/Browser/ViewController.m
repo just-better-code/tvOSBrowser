@@ -17,6 +17,8 @@
 #import "BrowserTabViewModel.h"
 #import "BrowserTabCoordinator.h"
 #import "BrowserTabOverviewController.h"
+#import "BrowserTorrentLibraryViewController.h"
+#import "BrowserTorrentManager.h"
 #import "BrowserUsageGuideViewController.h"
 #import "BrowserVideoPlaybackCoordinator.h"
 #import "BrowserViewModel.h"
@@ -455,6 +457,10 @@ static UIColor *kTextColor(void) {
     [self.tabOverviewController show];
 }
 
+- (void)browserShowTorrents {
+    [self browserPresentViewController:[BrowserTorrentLibraryViewController new]];
+}
+
 - (void)browserCreateNewTab {
     [self.tabCoordinator createNewTabLoadingHomePage:NO];
 }
@@ -773,6 +779,26 @@ static UIColor *kTextColor(void) {
 
 - (BOOL)webView:(id)webView shouldStartLoadWithRequest:(NSURLRequest *)request navigationType:(NSInteger)navigationType {
     (void)navigationType;
+    NSString *scheme = request.URL.scheme.lowercaseString;
+    if ([scheme isEqualToString:@"magnet"]) {
+        NSError *error = nil;
+        BOOL added = [[BrowserTorrentManager sharedManager] addMagnetString:request.URL.absoluteString error:&error];
+        [self showTorrentImportMessage:added ? @"Torrent added. Open Torrents from the menu to view its files." : error.localizedDescription];
+        return NO;
+    }
+    if (([scheme isEqualToString:@"http"] || [scheme isEqualToString:@"https"]) &&
+        [request.URL.pathExtension.lowercaseString isEqualToString:@"torrent"]) {
+        __weak typeof(self) weakSelf = self;
+        [[[NSURLSession sharedSession] dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *downloadError) {
+            NSError *torrentError = nil;
+            BOOL added = data && !downloadError && [[BrowserTorrentManager sharedManager] addTorrentData:data error:&torrentError];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [weakSelf showTorrentImportMessage:added ? @"Torrent added. Open Torrents from the menu to view its files."
+                                                          : (downloadError ?: torrentError).localizedDescription];
+            });
+        }] resume];
+        return NO;
+    }
     if ([request.URL.scheme.lowercaseString isEqualToString:@"tvosbrowser"] &&
         [request.URL.host.lowercaseString isEqualToString:@"manage"] &&
         [self browserRemoteInputControllerNewTabVisible]) {
@@ -826,6 +852,13 @@ static UIColor *kTextColor(void) {
     }
     [self.tabCoordinator prepareTabForRequest:request webView:webView navigationType:navigationType];
     return YES;
+}
+
+- (void)showTorrentImportMessage:(NSString *)message {
+    if (self.presentedViewController) return;
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Torrents" message:message ?: @"Could not add torrent." preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+    [self browserPresentViewController:alert];
 }
 
 - (void)browserRefreshNewTabPageSelectingGroup:(NSString *)group index:(NSUInteger)index {

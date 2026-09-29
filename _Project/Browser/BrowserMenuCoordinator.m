@@ -3,6 +3,7 @@
 #import "BrowserHistoryViewController.h"
 #import "BrowserHistoryStore.h"
 #import "BrowserPreferencesStore.h"
+#import "BrowserTorrentKeepAlive.h"
 #import "BrowserWebView.h"
 
 static UIColor *MenuTextColor(void) {
@@ -1213,6 +1214,19 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
     return item;
 }
 
+- (BrowserAdvancedMenuItem *)torrentKeepAliveToggleMenuItem {
+    BrowserAdvancedMenuItem *item = [self advancedMenuItemWithTitle:@"Torrent Keep Alive (Experimental)"
+                                                               style:UIAlertActionStyleDefault
+                                                             handler:^{
+        BrowserTorrentKeepAlive *keepAlive = BrowserTorrentKeepAlive.sharedKeepAlive;
+        keepAlive.enabled = !keepAlive.enabled;
+    }];
+    item.toggleStateProvider = ^BOOL {
+        return BrowserTorrentKeepAlive.sharedKeepAlive.enabled;
+    };
+    return item;
+}
+
 - (NSArray<BrowserAdvancedMenuItem *> *)advancedMenuToolbarItems {
     BrowserAdvancedMenuItem *homeItem = [self advancedMenuItemWithTitle:@"Home"
                                                                   style:UIAlertActionStyleDefault
@@ -1272,6 +1286,11 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
                                                                    handler:^{
         [self.host browserShowNewTabPageSelectingGroup:@"history"];
     }];
+    BrowserAdvancedMenuItem *torrentsItem = [self advancedMenuItemWithTitle:@"Torrents"
+                                                                      style:UIAlertActionStyleDefault
+                                                                    handler:^{
+        [self.host browserShowTorrents];
+    }];
     BrowserAdvancedMenuItem *zoomOutItem = [self advancedMenuItemWithTitle:@"Zoom Out"
                                                                     style:UIAlertActionStyleDefault
                                                                   handler:^{
@@ -1319,12 +1338,14 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
             [self tileItem:zoomInItem title:@"Zoom In" symbol:@"plus.magnifyingglass"],
             [self tileItem:addFavoriteItem title:@"Add Favorite" symbol:@"star.fill"],
             [self tileItem:historyItem title:@"Recents" symbol:@"clock.arrow.circlepath"],
+            [self tileItem:torrentsItem title:@"Torrents" symbol:@"arrow.down.circle.fill"],
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Settings"
                                                items:@[
             [self tileItem:[self adBlockToggleMenuItem] title:@"Ad Block" symbol:@"hand.raised.fill"],
             [self tileItem:[self cursorMagnifierToggleMenuItem] title:@"Magnifier" symbol:@"magnifyingglass"],
             [self tileItem:[self fullscreenVideoPlaybackToggleMenuItem] title:@"Full Screen Player" symbol:@"play.rectangle.fill"],
+            [self tileItem:[self torrentKeepAliveToggleMenuItem] title:@"Keep Alive" symbol:@"waveform"],
             [self tileItem:[self userAgentModeMenuItem] title:@"Mobile Site" symbol:@"iphone"],
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Tools"
