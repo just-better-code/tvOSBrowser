@@ -885,6 +885,9 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     if (!self.cursorModeEnabled) {
         return NO;
     }
+    self.cursorHiddenForDirectionalNavigation = NO;
+    self.cursorIdleHidden = NO;
+    [self noteCursorActivity];
     self.lastTouchLocation = CGPointMake(-1, -1);
     return YES;
 }
@@ -901,6 +904,8 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
         return NO;
     }
 
+    self.cursorHiddenForDirectionalNavigation = NO;
+    self.cursorIdleHidden = NO;
     [self noteCursorActivity];
 
     for (UITouch *touch in touches) {
