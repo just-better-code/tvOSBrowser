@@ -686,15 +686,15 @@ static UIColor *kTextColor(void) {
     }];
 }
 
-- (void)browserRemoteInputControllerEditNewTabFavoriteUsingKeyboardSelection:(BOOL)keyboardSelection {
+- (void)browserRemoteInputControllerHandleNewTabOptionUsingKeyboardSelection:(BOOL)keyboardSelection {
     if (![self browserRemoteInputControllerNewTabVisible]) return;
     NSString *script;
     if (keyboardSelection) {
-        script = @"window.browserNewTabManageSelected ? window.browserNewTabManageSelected() : false";
+        script = @"window.browserNewTabOptionSelected ? window.browserNewTabOptionSelected() : false";
     } else {
         CGPoint point = [self browserDOMPointForCursor];
         script = [NSString stringWithFormat:
-            @"window.browserNewTabManageAt ? window.browserNewTabManageAt(%.3f, %.3f) : false", point.x, point.y];
+            @"window.browserNewTabOptionAt ? window.browserNewTabOptionAt(%.3f, %.3f) : false", point.x, point.y];
     }
     [self.webview evaluateJavaScript:script completion:^(__unused NSString *result) {}];
 }

@@ -810,6 +810,34 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
     [self.host browserPresentViewController:controller];
 }
 
+- (void)presentRecentHistory {
+    NSArray<NSDictionary *> *entries = [[BrowserHistoryStore sharedStore] recentVisitsWithLimit:20];
+    NSString *message = entries.count > 0 ? @"Select a page to open it." : @"No browsing history yet.";
+    UIAlertController *history = [self browserAlertControllerWithTitle:@"History" message:message];
+    __weak typeof(self) weakSelf = self;
+    for (NSDictionary *entry in entries) {
+        NSString *URLString = entry[@"url"] ?: @"";
+        NSString *title = entry[@"title"] ?: @"";
+        NSURL *URL = [NSURL URLWithString:URLString];
+        NSString *actionTitle = title.length > 0 ? title : URL.host;
+        if (actionTitle.length == 0 || URL.host.length == 0) {
+            continue;
+        }
+        [history addAction:[self browserActionWithTitle:actionTitle
+                                                  style:UIAlertActionStyleDefault
+                                                handler:^(__unused UIAlertAction *action) {
+            [weakSelf.host browserOpenHistoryURLString:URLString];
+        }]];
+    }
+    [history addAction:[self browserActionWithTitle:@"All History"
+                                              style:UIAlertActionStyleDefault
+                                            handler:^(__unused UIAlertAction *action) {
+        dispatch_async(dispatch_get_main_queue(), ^{ [weakSelf presentAllHistory]; });
+    }]];
+    [history addAction:[self browserCancelAction]];
+    [self.host browserPresentViewController:history];
+}
+
 - (void)deleteHistoryForURLString:(NSString *)URLString {
     [[BrowserHistoryStore sharedStore] deleteVisitsForURLString:URLString];
     [self.host browserRefreshNewTabPageSelectingGroup:@"history" index:0];
@@ -1267,10 +1295,10 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
                                                                        handler:^{
         [self presentAddFavoritePrompt];
     }];
-    BrowserAdvancedMenuItem *historyItem = [self advancedMenuItemWithTitle:@"Recents"
+    BrowserAdvancedMenuItem *historyItem = [self advancedMenuItemWithTitle:@"History"
                                                                      style:UIAlertActionStyleDefault
                                                                    handler:^{
-        [self.host browserShowNewTabPageSelectingGroup:@"history"];
+        [self presentRecentHistory];
     }];
     BrowserAdvancedMenuItem *zoomOutItem = [self advancedMenuItemWithTitle:@"Zoom Out"
                                                                     style:UIAlertActionStyleDefault
@@ -1318,7 +1346,7 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
             [self tileItem:zoomResetItem title:@"Reset Zoom" symbol:@"arrow.counterclockwise"],
             [self tileItem:zoomInItem title:@"Zoom In" symbol:@"plus.magnifyingglass"],
             [self tileItem:addFavoriteItem title:@"Add Favorite" symbol:@"star.fill"],
-            [self tileItem:historyItem title:@"Recents" symbol:@"clock.arrow.circlepath"],
+            [self tileItem:historyItem title:@"History" symbol:@"clock.arrow.circlepath"],
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Settings"
                                                items:@[

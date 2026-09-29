@@ -82,7 +82,6 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 @property (nonatomic) BOOL newTabKeyboardSelectionActive;
 @property (nonatomic) CGPoint newTabKeyboardSelectionCursorOrigin;
 @property (nonatomic) NSUInteger observedNewTabPageGeneration;
-@property (nonatomic) CFTimeInterval newTabPlayPauseBeganTime;
 @property (nonatomic) BOOL cursorHiddenForDirectionalNavigation;
 @property (nonatomic) CGPoint directionalNavigationCursorOrigin;
 @property (nonatomic) BOOL awaitingSecondHorizontalPress;
@@ -675,9 +674,6 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     if (press.type == UIPressTypeSelect) {
         [self beginSelectHold];
     }
-    if (press.type == UIPressTypePlayPause && [self.host browserRemoteInputControllerNewTabVisible]) {
-        self.newTabPlayPauseBeganTime = CACurrentMediaTime();
-    }
     if (press.type == UIPressTypeUpArrow || press.type == UIPressTypeDownArrow) {
         [self beginVerticalHoldForPressType:press.type];
     }
@@ -817,20 +813,13 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     }
 
     if (press.type == UIPressTypePlayPause && [self.host browserRemoteInputControllerNewTabVisible]) {
-        CFTimeInterval heldFor = self.newTabPlayPauseBeganTime > 0.0
-            ? CACurrentMediaTime() - self.newTabPlayPauseBeganTime : 0.0;
-        self.newTabPlayPauseBeganTime = 0.0;
-        if (heldFor >= 0.55) {
-            NSUInteger generation = [self.host browserRemoteInputControllerNewTabPageGeneration];
-            if (generation != self.observedNewTabPageGeneration) {
-                self.observedNewTabPageGeneration = generation;
-                self.newTabKeyboardSelectionActive = NO;
-            }
-            [self.host browserRemoteInputControllerEditNewTabFavoriteUsingKeyboardSelection:
-                !self.cursorModeEnabled || self.newTabKeyboardSelectionActive];
-        } else {
-            [self handleSelectPressEnded];
+        NSUInteger generation = [self.host browserRemoteInputControllerNewTabPageGeneration];
+        if (generation != self.observedNewTabPageGeneration) {
+            self.observedNewTabPageGeneration = generation;
+            self.newTabKeyboardSelectionActive = NO;
         }
+        [self.host browserRemoteInputControllerHandleNewTabOptionUsingKeyboardSelection:
+            !self.cursorModeEnabled || self.newTabKeyboardSelectionActive];
         return YES;
     }
 

@@ -55,6 +55,7 @@
 
 @property (nonatomic, copy) NSArray<NSDictionary *> *entries;
 @property (nonatomic, strong) NSMutableIndexSet *selectedIndexes;
+@property (nonatomic, strong) NSIndexPath *focusedEntryIndexPath;
 @property (nonatomic, strong) UITableView *tableView;
 @property (nonatomic, strong) UIButton *selectAllButton;
 @property (nonatomic, strong) UIButton *openButton;
@@ -221,7 +222,7 @@
 }
 
 - (void)updateActions {
-    self.countLabel.text = [NSString stringWithFormat:@"%lu visits · %lu selected · Select a row to mark it · Play/Pause for actions",
+    self.countLabel.text = [NSString stringWithFormat:@"%lu visits · %lu selected · Select opens · Play/Pause marks",
                             (unsigned long)self.entries.count, (unsigned long)self.selectedIndexes.count];
     self.openButton.enabled = self.selectedIndexes.count == 1;
     self.openButton.alpha = self.openButton.enabled ? 1.0 : 0.45;
@@ -274,19 +275,42 @@
     [cell refreshAppearance];
     cell.accessibilityLabel = [NSString stringWithFormat:@"%@, %@", cell.textLabel.text, URLString];
     cell.accessibilityValue = [self.selectedIndexes containsIndex:(NSUInteger)indexPath.row] ? @"Selected" : @"Not selected";
-    cell.accessibilityHint = @"Press Select to select or deselect this visit";
+    cell.accessibilityHint = @"Press Select to open. Press Play/Pause to select or deselect this visit.";
     return cell;
 }
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
+    [tableView deselectRowAtIndexPath:indexPath animated:YES];
+    [self openEntryAtIndex:(NSUInteger)indexPath.row];
+}
+
+- (void)tableView:(UITableView *)tableView
+didUpdateFocusInContext:(UITableViewFocusUpdateContext *)context
+withAnimationCoordinator:(__unused UIFocusAnimationCoordinator *)coordinator {
+    self.focusedEntryIndexPath = context.nextFocusedIndexPath;
+}
+
+- (void)toggleSelectionAtIndexPath:(NSIndexPath *)indexPath {
+    if (indexPath == nil || indexPath.row < 0 || (NSUInteger)indexPath.row >= self.entries.count) return;
     NSUInteger index = (NSUInteger)indexPath.row;
     if ([self.selectedIndexes containsIndex:index]) {
         [self.selectedIndexes removeIndex:index];
     } else {
         [self.selectedIndexes addIndex:index];
     }
-    [tableView reloadRowsAtIndexPaths:@[indexPath] withRowAnimation:UITableViewRowAnimationNone];
+    [self.tableView reloadRowsAtIndexPaths:@[indexPath] withRowAnimation:UITableViewRowAnimationNone];
     [self updateActions];
+}
+
+- (void)openEntryAtIndex:(NSUInteger)index {
+    if (index >= self.entries.count) return;
+    NSString *URLString = self.entries[index][@"url"];
+    NSURL *URL = [NSURL URLWithString:URLString];
+    if (URL.host.length == 0 || ![@[@"http", @"https"] containsObject:URL.scheme.lowercaseString]) return;
+    void (^openURLString)(NSString *) = self.openURLString;
+    [self dismissViewControllerAnimated:YES completion:^{
+        if (openURLString != nil) openURLString(URLString);
+    }];
 }
 
 - (void)selectAllPressed {
@@ -301,15 +325,7 @@
 
 - (void)openPressed {
     if (self.selectedIndexes.count != 1) return;
-    NSUInteger index = self.selectedIndexes.firstIndex;
-    if (index >= self.entries.count) return;
-    NSString *URLString = self.entries[index][@"url"];
-    NSURL *URL = [NSURL URLWithString:URLString];
-    if (URL.host.length == 0 || ![@[@"http", @"https"] containsObject:URL.scheme.lowercaseString]) return;
-    void (^openURLString)(NSString *) = self.openURLString;
-    [self dismissViewControllerAnimated:YES completion:^{
-        if (openURLString != nil) openURLString(URLString);
-    }];
+    [self openEntryAtIndex:self.selectedIndexes.firstIndex];
 }
 
 - (void)reloadAfterDeletion {
@@ -352,34 +368,6 @@
     [self presentViewController:alert animated:YES completion:nil];
 }
 
-- (void)presentActions {
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"History Actions"
-                                                                   message:@"Select visits with the remote's center button."
-                                                            preferredStyle:UIAlertControllerStyleAlert];
-    __weak typeof(self) weakSelf = self;
-    if (self.selectedIndexes.count == 1) {
-        [alert addAction:[UIAlertAction actionWithTitle:@"Open Selected" style:UIAlertActionStyleDefault
-                                            handler:^(__unused UIAlertAction *action) { [weakSelf openPressed]; }]];
-    }
-    if (self.entries.count > 0) {
-        NSString *selectionTitle = self.selectedIndexes.count == self.entries.count ? @"Deselect" : @"Select All";
-        [alert addAction:[UIAlertAction actionWithTitle:selectionTitle style:UIAlertActionStyleDefault
-                                            handler:^(__unused UIAlertAction *action) { [weakSelf selectAllPressed]; }]];
-    }
-    if (self.selectedIndexes.count > 0) {
-        [alert addAction:[UIAlertAction actionWithTitle:@"Delete Selected" style:UIAlertActionStyleDestructive
-                                            handler:^(__unused UIAlertAction *action) { [weakSelf deletePressed]; }]];
-    }
-    if (self.entries.count > 0) {
-        [alert addAction:[UIAlertAction actionWithTitle:@"Clear All" style:UIAlertActionStyleDestructive
-                                            handler:^(__unused UIAlertAction *action) {
-            dispatch_async(dispatch_get_main_queue(), ^{ [weakSelf clearAllPressed]; });
-        }]];
-    }
-    [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
-    [self presentViewController:alert animated:YES completion:nil];
-}
-
 - (void)donePressed {
     [self dismissViewControllerAnimated:YES completion:nil];
 }
@@ -395,8 +383,10 @@
             return;
         }
         if (press.type == UIPressTypePlayPause) {
-            [self presentActions];
-            return;
+            if (self.focusedEntryIndexPath != nil) {
+                [self toggleSelectionAtIndexPath:self.focusedEntryIndexPath];
+                return;
+            }
         }
     }
     [super pressesEnded:presses withEvent:event];
