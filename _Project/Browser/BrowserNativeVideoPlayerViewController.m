@@ -1,5 +1,6 @@
 #import "BrowserNativeVideoPlayerViewController.h"
 #import "BrowserNativeVideoAssetLoader.h"
+#import "BrowserTorrentAssetLoader.h"
 
 #import <AVFoundation/AVFoundation.h>
 
@@ -37,6 +38,7 @@ static NSString *BrowserNativePlayerPressPhaseString(UIPressPhase phase) {
 @property (nonatomic, copy) NSDictionary<NSString *, NSString *> *requestHeaders;
 @property (nonatomic, copy) NSArray<NSHTTPCookie *> *requestCookies;
 @property (nonatomic, strong) BrowserNativeVideoAssetLoader *assetLoader;
+@property (nonatomic, strong) BrowserTorrentAssetLoader *torrentAssetLoader;
 
 @end
 
@@ -75,7 +77,12 @@ static NSString *BrowserNativePlayerPressPhaseString(UIPressPhase phase) {
     self.view.backgroundColor = UIColor.blackColor;
     self.showsPlaybackControls = YES;
     AVPlayerItem *playerItem = nil;
-    if (self.requestHeaders.count > 0 || self.requestCookies.count > 0) {
+    if ([self.videoURL.scheme.lowercaseString isEqualToString:@"browsertorrent"]) {
+        self.torrentAssetLoader = [BrowserTorrentAssetLoader new];
+        AVURLAsset *asset = [AVURLAsset URLAssetWithURL:self.videoURL options:nil];
+        [self.torrentAssetLoader attachToAsset:asset];
+        playerItem = [AVPlayerItem playerItemWithAsset:asset];
+    } else if (self.requestHeaders.count > 0 || self.requestCookies.count > 0) {
         NSMutableDictionary *assetOptions = [NSMutableDictionary dictionary];
         if (self.requestHeaders.count > 0) {
             assetOptions[@"AVURLAssetHTTPHeaderFieldsKey"] = self.requestHeaders;
