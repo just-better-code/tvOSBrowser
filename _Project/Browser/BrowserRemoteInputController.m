@@ -19,6 +19,7 @@ static UIImage *BrowserPointerCursor(void) {
 }
 
 static NSTimeInterval const kBrowserCursorIdleDelay = 3.0;
+static NSTimeInterval const kBrowserMagnifierIdleDisableDelay = 30.0;
 static CGFloat const kBrowserMagnifierDiameter = 384.0;
 static NSTimeInterval const kBrowserSelectHoldDelay = 0.65;
 static NSTimeInterval const kBrowserVerticalHoldDelay = 0.38;
@@ -98,10 +99,32 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 @property (nonatomic) CGPoint latestMagnifierPoint;
 @property (nonatomic) NSUInteger magnifierGeneration;
 @property (nonatomic) NSTimer *magnifierRefreshTimer;
+@property (nonatomic) NSTimer *magnifierIdleTimer;
 
 @end
 
 @implementation BrowserRemoteInputController
+
+- (void)resetMagnifierIdleTimer {
+    [self.magnifierIdleTimer invalidate];
+    self.magnifierIdleTimer = nil;
+    if (!self.magnifierEnabled) {
+        return;
+    }
+
+    __weak typeof(self) weakSelf = self;
+    self.magnifierIdleTimer = [NSTimer timerWithTimeInterval:kBrowserMagnifierIdleDisableDelay
+                                                     repeats:NO
+                                                       block:^(__unused NSTimer *timer) {
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (strongSelf == nil || !strongSelf.magnifierEnabled) {
+            return;
+        }
+        strongSelf.magnifierIdleTimer = nil;
+        [strongSelf.host browserRemoteInputControllerToggleMagnifier];
+    }];
+    [[NSRunLoop mainRunLoop] addTimer:self.magnifierIdleTimer forMode:NSRunLoopCommonModes];
+}
 
 - (instancetype)initWithHost:(id<BrowserRemoteInputControllerHost>)host
                     rootView:(UIView *)rootView {
@@ -152,9 +175,12 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     self.magnifierGeneration += 1;
     [self.magnifierRefreshTimer invalidate];
     self.magnifierRefreshTimer = nil;
+    [self.magnifierIdleTimer invalidate];
+    self.magnifierIdleTimer = nil;
     self.magnifierImageView.image = nil;
     self.magnifierView.hidden = YES;
     if (magnifierEnabled) {
+        [self resetMagnifierIdleTimer];
         [self noteCursorActivity];
         [self updateMagnifierAtPoint:self.cursorView.frame.origin];
         __weak typeof(self) weakSelf = self;
@@ -224,6 +250,9 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 - (void)noteCursorActivity {
     if (!self.cursorModeEnabled || self.cursorHiddenForDirectionalNavigation) {
         return;
+    }
+    if (self.magnifierEnabled) {
+        [self resetMagnifierIdleTimer];
     }
     self.cursorIdleHidden = NO;
     self.cursorView.hidden = [self.host browserRemoteInputControllerTabOverviewVisible];
