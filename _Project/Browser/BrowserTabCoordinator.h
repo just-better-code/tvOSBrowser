@@ -57,12 +57,17 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)captureSnapshotForCurrentTab;
 - (void)prepareTabOverviewThumbnails;
 - (void)persistSession;
+- (BOOL)canGoBack;
+- (BOOL)canGoForward;
+- (void)goBack;
+- (void)goForward;
 - (void)refreshNewTabPageIfVisibleSelectingGroup:(NSString *)group index:(NSUInteger)index;
 - (void)showNewTabPageSelectingGroup:(NSString *)group;
 - (void)handleWebViewPanGesture:(UIPanGestureRecognizer *)gestureRecognizer;
 - (void)webViewDidStartLoad:(id)webView;
 - (void)webViewDidFinishLoad:(id)webView;
-- (void)prepareTabForRequest:(NSURLRequest *)request webView:(id)webView;
+- (void)webViewDidFailLoad:(id)webView;
+- (void)prepareTabForRequest:(NSURLRequest *)request webView:(id)webView navigationType:(NSInteger)navigationType;
 - (void)setTopNavigationVisible:(BOOL)visible;
 - (BrowserTabViewModel *)tabForWebView:(id)webView;
 - (BOOL)isPrimaryDocumentRequest:(NSURLRequest *)request;

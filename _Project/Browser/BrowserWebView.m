@@ -1013,6 +1013,26 @@ static void BrowserLoadAdBlockRuleList(BrowserAdBlockRuleListCompletion completi
     return self.runtimeWebView != nil && [self.runtimeWebView respondsToSelector:selector] ? ((BOOL (*)(id, SEL))objc_msgSend)(self.runtimeWebView, selector) : NO;
 }
 
+- (NSString *)URLStringForHistoryItemSelector:(SEL)itemSelector {
+    SEL listSelector = NSSelectorFromString(@"backForwardList");
+    if (self.runtimeWebView == nil || ![self.runtimeWebView respondsToSelector:listSelector]) return nil;
+    id list = ((id (*)(id, SEL))objc_msgSend)(self.runtimeWebView, listSelector);
+    if (![list respondsToSelector:itemSelector]) return nil;
+    id item = ((id (*)(id, SEL))objc_msgSend)(list, itemSelector);
+    SEL URLSelector = NSSelectorFromString(@"URL");
+    if (![item respondsToSelector:URLSelector]) return nil;
+    NSURL *URL = ((id (*)(id, SEL))objc_msgSend)(item, URLSelector);
+    return URL.absoluteString;
+}
+
+- (NSString *)backURLString {
+    return [self URLStringForHistoryItemSelector:NSSelectorFromString(@"backItem")];
+}
+
+- (NSString *)forwardURLString {
+    return [self URLStringForHistoryItemSelector:NSSelectorFromString(@"forwardItem")];
+}
+
 - (void)loadRequest:(NSURLRequest *)request {
     if (request == nil || self.runtimeWebView == nil) {
         return;
@@ -1599,10 +1619,10 @@ windowFeatures:(id)windowFeatures {
 + (void)clearCachedDataWithCompletion:(void (^)(void))completion {
     [[NSURLCache sharedURLCache] removeAllCachedResponses];
 
-    NSMutableSet<NSString *> *websiteDataTypes = [[self allWebsiteDataTypes] mutableCopy];
-    for (NSString *dataType in websiteDataTypes.allObjects) {
-        if ([dataType.lowercaseString containsString:@"cookie"]) {
-            [websiteDataTypes removeObject:dataType];
+    NSMutableSet<NSString *> *websiteDataTypes = [NSMutableSet set];
+    for (NSString *dataType in [self allWebsiteDataTypes]) {
+        if ([dataType.lowercaseString containsString:@"cache"]) {
+            [websiteDataTypes addObject:dataType];
         }
     }
 

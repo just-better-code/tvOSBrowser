@@ -11,6 +11,12 @@
 @property (nonatomic) CGPoint savedScrollOffset;
 @property (nonatomic) BOOL hasSavedScrollOffset;
 @property (nonatomic) BOOL needsScrollRestore;
+@property (nonatomic, copy) NSArray<NSString *> *navigationURLs;
+@property (nonatomic) NSInteger navigationIndex;
+@property (nonatomic) NSInteger pendingNavigationIndex;
+@property (nonatomic) BOOL navigationHistoryRestored;
+
+- (void)recordNavigationURLString:(NSString *)URLString;
 
 - (instancetype)initWithSessionRepresentation:(NSDictionary *)sessionRepresentation;
 - (NSDictionary *)sessionRepresentation;

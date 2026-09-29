@@ -8,6 +8,7 @@
 
 #import "BrowserMenuCoordinator.h"
 #import "BrowserDOMInteractionService.h"
+#import "BrowserHistoryStore.h"
 #import "BrowserNavigationService.h"
 #import "BrowserPageActionCoordinator.h"
 #import "BrowserPreferencesStore.h"
@@ -57,6 +58,7 @@ static UIColor *kTextColor(void) {
 
 - (void)viewDidLoad {
     [super viewDidLoad];
+    [[BrowserHistoryStore sharedStore] pruneOldVisits];
     self.definesPresentationContext = YES;
     self.scrollViewAllowBounces = YES;
 
@@ -234,17 +236,13 @@ static UIColor *kTextColor(void) {
 
     switch (action) {
         case BrowserTopBarActionBack:
-            if (self.webview.canGoBack) {
-                [self.webview goBack];
-            }
+            [self.tabCoordinator goBack];
             break;
         case BrowserTopBarActionRefresh:
             [self.webview reload];
             break;
         case BrowserTopBarActionForward:
-            if (self.webview.canGoForward) {
-                [self.webview goForward];
-            }
+            [self.tabCoordinator goForward];
             break;
         case BrowserTopBarActionHome:
             [self loadHomePage];
@@ -325,11 +323,11 @@ static UIColor *kTextColor(void) {
                                                                              message:@""
                                                                       preferredStyle:UIAlertControllerStyleAlert];
 
-    if (self.webview.canGoForward) {
+    if ([self.tabCoordinator canGoForward]) {
         [alertController addAction:[UIAlertAction actionWithTitle:@"Go Forward"
                                                             style:UIAlertActionStyleDefault
                                                           handler:^(__unused UIAlertAction *action) {
-            [self.webview goForward];
+            [self.tabCoordinator goForward];
         }]];
     }
 
@@ -638,15 +636,11 @@ static UIColor *kTextColor(void) {
 }
 
 - (void)browserRemoteInputControllerHandleHistoryBackPress {
-    if (self.webview.canGoBack) {
-        [self.webview goBack];
-    }
+    [self.tabCoordinator goBack];
 }
 
 - (void)browserRemoteInputControllerHandleHistoryForwardPress {
-    if (self.webview.canGoForward) {
-        [self.webview goForward];
-    }
+    [self.tabCoordinator goForward];
 }
 
 - (void)browserRemoteInputControllerHandleTabOverviewPress {
@@ -773,7 +767,6 @@ static UIColor *kTextColor(void) {
 
 - (BOOL)webView:(id)webView shouldCreateNewTabWithRequest:(NSURLRequest *)request navigationType:(NSInteger)navigationType {
     (void)webView;
-    (void)navigationType;
     return [self.tabCoordinator createNewTabWithRequest:request];
 }
 
@@ -830,7 +823,7 @@ static UIColor *kTextColor(void) {
         });
         return NO;
     }
-    [self.tabCoordinator prepareTabForRequest:request webView:webView];
+    [self.tabCoordinator prepareTabForRequest:request webView:webView navigationType:navigationType];
     return YES;
 }
 
@@ -887,6 +880,10 @@ static UIColor *kTextColor(void) {
         currentRequestURLString.length > 0 &&
         ![failingURL.absoluteString isEqualToString:currentRequestURLString]) {
         return;
+    }
+
+    if (![self.navigationService shouldIgnoreLoadError:error]) {
+        [self.tabCoordinator webViewDidFailLoad:webView];
     }
 
     if (tab == self.tabCoordinator.activeTab) {

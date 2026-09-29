@@ -21,6 +21,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nullable, nonatomic, readonly, copy) NSString *title;
 @property (nonatomic, readonly, getter=canGoBack) BOOL canGoBack;
 @property (nonatomic, readonly, getter=canGoForward) BOOL canGoForward;
+@property (nullable, nonatomic, readonly, copy) NSString *backURLString;
+@property (nullable, nonatomic, readonly, copy) NSString *forwardURLString;
 @property (nonatomic, readonly, getter=isLoading) BOOL loading;
 @property (nonatomic) CGFloat pageZoomFactor;
 @property (nonatomic) CGFloat textZoomFactor;

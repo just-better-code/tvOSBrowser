@@ -4,8 +4,9 @@
 
 + (instancetype)sharedStore;
 - (void)recordURLString:(NSString *)URLString title:(NSString *)title;
-- (NSArray<NSDictionary *> *)mostVisitedWithLimit:(NSUInteger)limit;
+- (NSArray<NSDictionary *> *)recentActiveWeekWithLimit:(NSUInteger)limit;
 - (NSArray<NSDictionary *> *)allVisits;
+- (void)pruneOldVisits;
 - (void)deleteVisitsWithIdentifiers:(NSArray<NSNumber *> *)identifiers;
 - (void)deleteAllVisits;
 - (void)deleteVisitsForURLString:(NSString *)URLString;
