@@ -58,3 +58,6 @@ _Project/Availability.h
 
 # Generated local knowledge graph
 graphify-out/
+
+# Locally downloaded tvOS torrent toolchain (see scripts/bootstrap-torrent-deps.sh)
+.deps/
