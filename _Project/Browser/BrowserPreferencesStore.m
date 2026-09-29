@@ -2,7 +2,6 @@
 
 static NSString * const kUserAgentDefaultsKey = @"UserAgent";
 static NSString * const kMobileModeDefaultsKey = @"MobileMode";
-static NSString * const kShowTopNavigationBarDefaultsKey = @"ShowTopNavigationBar";
 static NSString * const kTextFontSizeDefaultsKey = @"TextFontSize";
 static NSString * const kPageZoomPercentDefaultsKey = @"PageZoomPercent";
 static NSString * const kEnableFullscreenVideoPlaybackDefaultsKey = @"EnableFullscreenVideoPlayback";
@@ -55,16 +54,6 @@ static NSUInteger const kMaximumTextFontSize = 200;
 
 - (void)setMobileModeEnabled:(BOOL)mobileModeEnabled {
     [[self defaults] setBool:mobileModeEnabled forKey:kMobileModeDefaultsKey];
-    [[self defaults] synchronize];
-}
-
-- (BOOL)topNavigationBarVisible {
-    NSNumber *showTopNavBar = [[self defaults] objectForKey:kShowTopNavigationBarDefaultsKey];
-    return showTopNavBar ? showTopNavBar.boolValue : YES;
-}
-
-- (void)setTopNavigationBarVisible:(BOOL)topNavigationBarVisible {
-    [[self defaults] setObject:@(topNavigationBarVisible) forKey:kShowTopNavigationBarDefaultsKey];
     [[self defaults] synchronize];
 }
 

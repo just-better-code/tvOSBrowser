@@ -6,7 +6,6 @@
 
 @property (nonatomic, strong, readonly) NSMutableArray *tabs;
 @property (nonatomic) NSInteger activeTabIndex;
-@property (nonatomic) BOOL topNavigationBarVisible;
 @property (nonatomic) BOOL tabOverviewVisible;
 @property (nonatomic) NSUInteger textFontSize;
 @property (nonatomic) BOOL fullscreenVideoPlaybackEnabled;

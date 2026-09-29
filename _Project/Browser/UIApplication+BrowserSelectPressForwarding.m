@@ -8,11 +8,8 @@ NSString * const BrowserGlobalDirectionalPressBeganNotification = @"BrowserGloba
 static BOOL sBrowserNativeScrubTracking = NO;
 static CGFloat sBrowserNativePendingScrubPixels = 0.0;
 static CGPoint sBrowserNativeLastTouchLocation = {0, 0};
-static CFTimeInterval sBrowserNativeLastArrowPressTimestamp = 0.0;
-static UIPressType sBrowserNativeLastArrowPressType = (UIPressType)-1;
 static BOOL sBrowserSwallowTabOverviewMenuUntilEnd = NO;
 static CGFloat const kBrowserNativeScrubPixelStep = 18.0;
-static CFTimeInterval const kBrowserNativeArrowDoubleTapInterval = 0.35;
 
 static NSString *BrowserPressTypeString(UIPressType type) {
     switch (type) {
@@ -254,25 +251,12 @@ static UIViewController *BrowserFindPresentedViewControllerOfClass(UIApplication
             if (nativeVideoPlayerClass != Nil && nativeVideoPlayerViewController != nil) {
                 SEL skipSelector = NSSelectorFromString(@"skipByInterval:");
                 if ([nativeVideoPlayerViewController respondsToSelector:skipSelector]) {
-                    CFTimeInterval now = CACurrentMediaTime();
-                    BOOL isDoubleTap = (sBrowserNativeLastArrowPressType == press.type) &&
-                                       ((now - sBrowserNativeLastArrowPressTimestamp) <= kBrowserNativeArrowDoubleTapInterval);
-                    sBrowserNativeLastArrowPressType = press.type;
-                    sBrowserNativeLastArrowPressTimestamp = now;
-
-                    if (isDoubleTap) {
-                        NSTimeInterval delta = (press.type == UIPressTypeRightArrow) ? 5.0 : -5.0;
-                        NSLog(@"[InputTrace][App] swallow %@ double tap for native player (delta=%0.1f)",
-                              BrowserPressTypeString(press.type), delta);
-                        dispatch_async(dispatch_get_main_queue(), ^{
-                            ((void (*)(id, SEL, NSTimeInterval))objc_msgSend)(nativeVideoPlayerViewController, skipSelector, delta);
-                        });
-                        sBrowserNativeLastArrowPressType = (UIPressType)-1;
-                        sBrowserNativeLastArrowPressTimestamp = 0.0;
-                    } else {
-                        NSLog(@"[InputTrace][App] swallow %@ single tap for native player (waiting for double tap)",
-                              BrowserPressTypeString(press.type));
-                    }
+                    NSTimeInterval delta = (press.type == UIPressTypeRightArrow) ? 10.0 : -10.0;
+                    NSLog(@"[InputTrace][App] swallow %@ for native player (delta=%0.1f)",
+                          BrowserPressTypeString(press.type), delta);
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        ((void (*)(id, SEL, NSTimeInterval))objc_msgSend)(nativeVideoPlayerViewController, skipSelector, delta);
+                    });
                     return;
                 }
             }

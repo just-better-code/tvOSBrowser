@@ -5,7 +5,6 @@
 #import "BrowserPreferencesStore.h"
 #import "BrowserSessionStore.h"
 #import "BrowserTabViewModel.h"
-#import "BrowserTopBarView.h"
 #import "BrowserViewModel.h"
 #import "BrowserWebView.h"
 
@@ -77,7 +76,6 @@ static NSString *BrowserNewTabSectionHTML(NSArray *entries, BOOL favorites, NSUI
 @property (nonatomic) BrowserSessionStore *sessionStore;
 @property (nonatomic, weak) UIView *browserContainerView;
 @property (nonatomic, weak) UIView *rootView;
-@property (nonatomic, weak) BrowserTopBarView *topMenuView;
 @property (nonatomic, weak) UIImageView *cursorView;
 @property (nonatomic, weak) UIPanGestureRecognizer *manualScrollPanRecognizer;
 @property (nonatomic, weak) id webViewDelegate;
@@ -103,7 +101,6 @@ static NSString *BrowserNewTabSectionHTML(NSArray *entries, BOOL favorites, NSUI
                 sessionStore:(BrowserSessionStore *)sessionStore
           browserContainerView:(UIView *)browserContainerView
                     rootView:(UIView *)rootView
-                  topMenuView:(BrowserTopBarView *)topMenuView
                   cursorView:(UIImageView *)cursorView
      manualScrollPanRecognizer:(UIPanGestureRecognizer *)manualScrollPanRecognizer
              webViewDelegate:(id)webViewDelegate
@@ -117,7 +114,6 @@ static NSString *BrowserNewTabSectionHTML(NSArray *entries, BOOL favorites, NSUI
         _sessionStore = sessionStore;
         _browserContainerView = browserContainerView;
         _rootView = rootView;
-        _topMenuView = topMenuView;
         _cursorView = cursorView;
         _manualScrollPanRecognizer = manualScrollPanRecognizer;
         _webViewDelegate = webViewDelegate;
@@ -149,37 +145,9 @@ static NSString *BrowserNewTabSectionHTML(NSArray *entries, BOOL favorites, NSUI
     self.activeTab.previousURL = previousURL ?: @"";
 }
 
-- (BOOL)topNavigationVisible {
-    return self.viewModel.topNavigationBarVisible;
-}
-
-- (CGFloat)topMenuBrowserOffset {
-    return self.topNavigationVisible ? self.topMenuView.frame.size.height : 0.0;
-}
-
-- (void)setTopNavigationVisible:(BOOL)visible {
-    self.viewModel.topNavigationBarVisible = visible;
-    self.topMenuView.hidden = !visible;
-    [self updateTopNavAndWebView];
-}
-
-- (void)updateTopNavAndWebView {
-    if (self.activeWebView == nil) {
-        return;
-    }
-    if (self.topNavigationVisible) {
-        self.activeWebView.frame = CGRectMake(self.rootView.bounds.origin.x,
-                                              self.rootView.bounds.origin.y + self.topMenuBrowserOffset,
-                                              self.rootView.bounds.size.width,
-                                              self.rootView.bounds.size.height - self.topMenuBrowserOffset);
-    } else {
-        self.activeWebView.frame = self.rootView.bounds;
-    }
-}
-
 - (CGSize)thumbnailViewportSize {
     CGFloat width = CGRectGetWidth(self.rootView.bounds);
-    CGFloat height = CGRectGetHeight(self.rootView.bounds) - self.topMenuBrowserOffset;
+    CGFloat height = CGRectGetHeight(self.rootView.bounds);
     return CGSizeMake(MAX(width, 1.0), MAX(height, 1.0));
 }
 
@@ -283,7 +251,6 @@ static NSString *BrowserNewTabSectionHTML(NSArray *entries, BOOL favorites, NSUI
 - (void)refreshActiveTabUI {
     BrowserTabViewModel *tab = self.activeTab;
     if (tab == nil) {
-        self.topMenuView.URLLabel.text = @"";
         return;
     }
 
@@ -291,10 +258,6 @@ static NSString *BrowserNewTabSectionHTML(NSArray *entries, BOOL favorites, NSUI
     self.activeWebView.textZoomFactor = self.preferencesStore.textFontSize / 100.0;
 
     NSURLRequest *request = self.activeWebView.request;
-    NSString *currentURL = tab.URLString.length > 0 ? tab.URLString : request.URL.absoluteString;
-    self.topMenuView.URLLabel.text = currentURL.length > 0 && ![currentURL isEqualToString:kBrowserNewTabURL]
-        ? currentURL : @"New Tab";
-
     if (request != nil) {
         [self.host browserTabCoordinatorUpdateTextFontSize];
     }
@@ -305,7 +268,6 @@ static NSString *BrowserNewTabSectionHTML(NSArray *entries, BOOL favorites, NSUI
 }
 
 - (void)restoreInitialStateOrCreateFirstTab {
-    self.topMenuView.hidden = !self.viewModel.topNavigationBarVisible;
     if (![self restoreBrowserSession]) {
         [self createNewTabLoadingHomePage:NO];
         return;
@@ -444,8 +406,6 @@ static NSString *BrowserNewTabSectionHTML(NSArray *entries, BOOL favorites, NSUI
 }
 
 - (void)initWebView {
-    self.topMenuView.hidden = !self.viewModel.topNavigationBarVisible;
-
     BrowserTabViewModel *tab = [self.viewModel ensureActiveTab];
     if (tab == nil) {
         return;
@@ -481,10 +441,9 @@ static NSString *BrowserNewTabSectionHTML(NSArray *entries, BOOL favorites, NSUI
     }
 
     self.activeWebView = activeWebView;
-    [self.topMenuView.loadingSpinner stopAnimating];
     [self.activeWebView removeFromSuperview];
     [self.browserContainerView addSubview:self.activeWebView];
-    [self updateTopNavAndWebView];
+    self.activeWebView.frame = self.rootView.bounds;
 
     UIScrollView *scrollView = self.activeWebView.scrollView;
     [scrollView setNeedsLayout];
@@ -910,9 +869,6 @@ static NSString *BrowserNewTabSectionHTML(NSArray *entries, BOOL favorites, NSUI
         return;
     }
 
-    if (tab == self.activeTab && ![tab.previousURL isEqualToString:tab.requestURL]) {
-        [self.topMenuView.loadingSpinner startAnimating];
-    }
     tab.previousURL = tab.requestURL;
 }
 
@@ -925,10 +881,6 @@ static NSString *BrowserNewTabSectionHTML(NSArray *entries, BOOL favorites, NSUI
     BrowserTabViewModel *tab = [self tabForWebView:webView];
     if (tab == nil) {
         return;
-    }
-
-    if (tab == self.activeTab) {
-        [self.topMenuView.loadingSpinner stopAnimating];
     }
 
     NSString *theTitle = [webView title];

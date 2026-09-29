@@ -13,7 +13,6 @@ static NSString * const kStartPageURL = @"about:blank";
     if (self) {
         _tabs = [NSMutableArray array];
         _activeTabIndex = NSNotFound;
-        _topNavigationBarVisible = YES;
         _textFontSize = kDefaultTextFontSize;
         _fullscreenVideoPlaybackEnabled = NO;
     }
@@ -94,10 +93,6 @@ static NSString * const kStartPageURL = @"about:blank";
         return;
     }
     self.activeTabIndex = tabIndex;
-}
-
-- (void)setTopNavigationBarVisible:(BOOL)topNavigationBarVisible {
-    _topNavigationBarVisible = topNavigationBarVisible;
 }
 
 - (void)setTextFontSize:(NSUInteger)textFontSize {

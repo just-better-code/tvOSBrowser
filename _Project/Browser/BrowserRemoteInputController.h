@@ -7,10 +7,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (nullable UIScrollView *)browserRemoteInputControllerActiveScrollView;
 - (nullable UIViewController *)browserRemoteInputControllerPresentedViewController;
-- (BOOL)browserRemoteInputControllerTopBarFocusActive;
-- (BOOL)browserRemoteInputControllerCanActivateTopBarFocus;
-- (void)browserRemoteInputControllerActivateTopBarFocus;
-- (void)browserRemoteInputControllerDeactivateTopBarFocus;
 - (BOOL)browserRemoteInputControllerTabOverviewVisible;
 - (BOOL)browserRemoteInputControllerTabOverviewContainsPoint:(CGPoint)point;
 - (BOOL)browserRemoteInputControllerHandleTabOverviewSelectionAtPoint:(CGPoint)point;
@@ -21,8 +17,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSUInteger)browserRemoteInputControllerNewTabPageGeneration;
 - (void)browserRemoteInputControllerNavigateNewTabInDirection:(NSString *)direction;
 - (void)browserRemoteInputControllerActivateNewTabSelection;
-- (void)browserRemoteInputControllerHandleHistoryBackPress;
-- (void)browserRemoteInputControllerHandleHistoryForwardPress;
+- (void)browserRemoteInputControllerHandleMediaHorizontalPress:(UIPressType)pressType;
 - (void)browserRemoteInputControllerHandleTabOverviewPress;
 - (void)browserRemoteInputControllerHandleMenuPress;
 - (void)browserRemoteInputControllerHandlePlayPausePress;
