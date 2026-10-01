@@ -36,9 +36,9 @@ The current bridge supports some clicks and video commands. Further research cov
 
 ### Fix page scaling
 
-**Purpose:** make zoom predictable without shifting the page unexpectedly or losing accurate cursor interaction.
+**Purpose:** finish the interaction checks for scaled pages.
 
-Investigate the remaining scaling problems, including zoom around the visible center, behavior after reload/navigation, and pointer/click coordinates on scaled pages and embedded players. Earlier zoom improvements do not close this task; a complete fix remains planned.
+Page and text now use one WebKit zoom factor, and zoom changes and session restoration reset horizontal position to the left edge. Visual verification on representative websites, including pravda.com.ua, remains pending. Investigate pointer/click coordinates on scaled pages and embedded players, plus any website layout or scroll restoration issues revealed by that verification.
 
 ## Rejected
 

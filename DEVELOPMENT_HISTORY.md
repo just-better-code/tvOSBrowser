@@ -1,6 +1,6 @@
 # Development history — tvOS Browser, just-better-code version
 
-Detailed background for [CHANGELOG.md](CHANGELOG.md): user requests, implementation decisions, verification evidence and reversals from the fork baseline to **2.15.22**.
+Detailed background for [CHANGELOG.md](CHANGELOG.md): user requests, implementation decisions, verification evidence and reversals from the fork baseline to **2.15.24**.
 
 ## Historical context
 
@@ -12,6 +12,10 @@ Dates in the chronological account describe project discussions in Europe/Kiev. 
 
 ## Chronological account
 
+### 2026-10-01 — page zoom for reading
+
+The user narrowed the active work to readable whole-page zoom on pravda.com.ua, with no rightward drift and a stable relaunch. The previous Zoom action combined WebKit page zoom with private text zoom and used three delayed horizontal offset corrections based on the visible center. Firefox iOS research showed a single page scale per tab and host-based persistence; Apple documents `WKWebView.pageZoom` as scaling all page content. This change uses the existing global `PageZoomPercent` preference with one page scale, anchors the left edge on zoom and session restore, and prevents Zoom Out at 50% from wrapping to 200%. Implementation: `5151814`, fix 24. No zoom build or visual interaction check was requested or performed at this point; site-specific layout and cursor behavior remain unverified.
+
 ### 2026-10-01 — restoring the browsing and viewing session
 
 **Back still exited to the Apple TV home screen.** The user again reported that Back should behave as the browser menu. Global input handling was changed to consume all Menu/Back phases so the system would not exit after a browser action. Back closes a presented screen, returns from New Tab when possible, turns off the magnifier, or opens the menu. This continued the September 28 fixes; it was not the first introduction of menu behavior. Implementation: `d7987c2`, fix 16.
@@ -22,7 +26,7 @@ Dates in the chronological account describe project discussions in Europe/Kiev. 
 
 **The episode dropdown exposed a separate website-storage failure.** On a test streaming website, the user selected an episode as the acceptance example. Selection reset after another launch, unlike the mobile browser; similar websites behaved the same way. The user explicitly requested normal website storage rather than a custom backup of the dropdown or playback position. Diagnostics found that the default WebsiteData path was not writable. localStorage appeared usable during a session but a test value did not survive another process launch. All browsing WebViews were configured with one persistent store under writable Caches. The user manually checked the result and reported success. Implementation: `95e6264`, fix 21.
 
-**The reported page scroll offset was not fixed.** The user also observed that the page position did not restore. It was useful diagnostic context but not critical to the requested player-state fix. No separate completed fix for that case was identified. A full TV reboot was not independently confirmed during this work.
+**The reported page scroll offset was not fixed in the website-storage change.** The user also observed that the page position did not restore. It was useful diagnostic context but not critical to the requested player-state fix. No separate completed fix for that case was identified at the time. A full TV reboot was not independently confirmed during this work.
 
 **Diagnostics remained available after the successful fix.** The user asked for loggers, then a clean build, then whether the loggers had been kept. A Debug toggle was added to enable/disable Website Logging immediately without reloading and persist the choice. The file records storage operations and available player state without copying localStorage or cookie values. Implementation: `95e6264`, feature 2.15.
 
@@ -148,7 +152,7 @@ The website owns episode/season/timecode persistence. No dropdown-specific prefe
 - Focus raises buttons above neighbors, keeps icons readable and uses modest enlargement.
 - Address editing exposes the complete URL although the inactive menu shows only the domain.
 - Mobile Site changes User Agent and reopens the active tab without deliberately clearing site data.
-- Native page/text zoom ranges from 50–200%, in 10% steps. Horizontal offsets are recalculated to preserve the visible center; loaded pages reapply saved zoom. Further scaling work remains planned.
+- Page zoom ranges from 50–200%, in 10% steps. Version 2.15.24 removed the simultaneous text zoom and center-based horizontal offset recalculation. Zoom changes and restored sessions start at the left edge; loaded pages reapply the saved percentage. Visual verification and cursor alignment remain planned.
 - Ad Block changes rules across existing WebViews, preserves their history and exposes removal failure separately from successful OFF.
 - Clear Cache removes cache types rather than all non-cookie website data.
 
@@ -214,7 +218,7 @@ No automatic age cleanup remains. The database discovery order considers Applica
 - Complete backup recovery compared all five tables with 288 visits, 3 Favorites and 5 tabs. New visits appeared in All History and survived relaunch.
 - The user confirmed test-site episode selection after website-store changes. That confirmation is not a claim of universal website behavior or a separately verified full TV reboot.
 - Earlier domain-focus diagnostics reported focused=1 and onScreen=1. No fresh physical TV checks were performed while writing these documents.
-- Page scroll restoration has a reported unresolved case. Additional page scaling fixes are planned despite earlier native-zoom improvements.
+- General page scroll restoration has a reported unresolved case. The 2.15.24 zoom change resets horizontal restoration while retaining the saved vertical offset; visual verification of the reading layout and pointer remains pending.
 - Main history and website files remain in Caches and can be evicted; preferences backup protects the database, not site state.
 - The torrent/Keep Alive prototype exists in another branch and is absent from the current feature/canvas-fix tree.
 - Pure canvas players, closed player APIs, codecs and DRM are not universally supported. PiP and iCloud were rejected; Firefox Sync and background torrent downloading remain planned.
