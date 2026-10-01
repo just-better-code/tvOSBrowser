@@ -10,13 +10,13 @@ A web browser for Apple TV, built with `WKWebView` and designed for the Siri Rem
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for versioned changes in the [Common Changelog](https://common-changelog.org/) format. Current version: **2.15.22**.
+See [CHANGELOG.md](CHANGELOG.md) for versioned changes in the [Common Changelog](https://common-changelog.org/) format. Current version: **2.15.23**.
 
 Detailed development history, decisions, and verification notes: [DEVELOPMENT_HISTORY.md](DEVELOPMENT_HISTORY.md). Planned features and rejected directions: [ROADMAP.md](ROADMAP.md).
 
 ## Build
 
-Open [`_Project/Browser.xcodeproj`](_Project/Browser.xcodeproj) in Xcode, select the `Browser` scheme, then build for an Apple TV Simulator or a paired Apple TV. Keep the project’s existing signing settings for device builds.
+Open [`_Project/Browser.xcodeproj`](_Project/Browser.xcodeproj) in Xcode, select the `Browser` scheme, then build for an Apple TV Simulator or a paired Apple TV. For device signing, copy `_Project/Browser/Config/Signing.local.xcconfig.example` to `Signing.local.xcconfig` in the same directory and set your own team and bundle identifier. The local configuration is ignored by Git. Agents use the simulator unless physical-device work is authorized.
 
 ## User guide
 

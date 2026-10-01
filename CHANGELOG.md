@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.15.23 - 2026-10-01
+
+### Fixed
+
+- Prevent native video diagnostics from writing object payloads containing request headers, signed URLs, page content, or detailed errors to logs ([diagnostic privacy](USER_GUIDE.md#native-video-diagnostic-privacy)).
+
 ## 2.15.22 - 2026-10-01
 
 _Retrospective numbering for just-better-code version, without published releases or Git tags; see the [development history](DEVELOPMENT_HISTORY.md) for implementation dates, decisions, verification and reversals, and the [roadmap](ROADMAP.md) for future work._

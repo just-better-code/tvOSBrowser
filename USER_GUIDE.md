@@ -153,3 +153,7 @@ For local inspection, the application container contains `Library/Caches/Browser
 - **History is missing:** recovery runs when the database opens; success depends on a valid local copy being available.
 
 See [CHANGELOG.md](CHANGELOG.md) for versioned changes, [DEVELOPMENT_HISTORY.md](DEVELOPMENT_HISTORY.md) for detailed history and known limits, and [ROADMAP.md](ROADMAP.md) for plans.
+
+### Native video diagnostic privacy
+
+Native playback and extraction diagnostics omit object payloads such as URLs, headers, response bodies, and error descriptions. Events containing these values show redacted placeholders; numeric-only diagnostic events retain their values. Website logging remains controlled by its Debug menu toggle. Review any diagnostic output before sharing it publicly.
