@@ -747,6 +747,10 @@ static UIColor *kTextColor(void) {
     [self.tabCoordinator webViewDidStartLoad:webView];
 }
 
+- (void)webViewDidChangeNavigationHistory:(id)webView {
+    [self.tabCoordinator webViewDidChangeNavigationHistory:webView];
+}
+
 - (void)webViewDidFinishLoad:(id)webView {
     [self.tabCoordinator webViewDidFinishLoad:webView];
     if (self.tabOverviewController.visible) {

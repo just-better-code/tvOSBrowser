@@ -9,6 +9,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)webView:(id _Nonnull)webView shouldCreateNewTabWithRequest:(NSURLRequest * _Nullable)request navigationType:(NSInteger)navigationType;
 - (void)webViewDidStartLoad:(id _Nonnull)webView;
 - (void)webViewDidFinishLoad:(id _Nonnull)webView;
+- (void)webViewDidChangeNavigationHistory:(id _Nonnull)webView;
 - (void)webView:(id _Nonnull)webView didFailLoadWithError:(NSError * _Nonnull)error;
 
 @end
@@ -37,6 +38,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)reload;
 - (void)goBack;
 - (void)goForward;
+- (nullable NSDictionary *)navigationHistorySnapshot;
 - (nullable NSString *)stringByEvaluatingJavaScriptFromString:(NSString * _Nonnull)script;
 - (void)evaluateJavaScript:(NSString * _Nonnull)script
                completion:(void (^ _Nonnull)(NSString * _Nullable result))completion;

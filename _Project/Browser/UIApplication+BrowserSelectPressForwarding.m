@@ -9,6 +9,7 @@ static BOOL sBrowserNativeScrubTracking = NO;
 static CGFloat sBrowserNativePendingScrubPixels = 0.0;
 static CGPoint sBrowserNativeLastTouchLocation = {0, 0};
 static BOOL sBrowserSwallowTabOverviewMenuUntilEnd = NO;
+static BOOL sBrowserSwallowMainMenuPressUntilEnd = NO;
 static CGFloat const kBrowserNativeScrubPixelStep = 18.0;
 
 static NSString *BrowserPressTypeString(UIPressType type) {
@@ -182,6 +183,12 @@ static UIViewController *BrowserFindPresentedViewControllerOfClass(UIApplication
         }
         nativeVideoPlayerViewController = BrowserFindPresentedViewControllerOfClass(self, nativeVideoPlayerClass);
         if (press.type == UIPressTypeMenu) {
+            if (sBrowserSwallowMainMenuPressUntilEnd) {
+                if (press.phase == UIPressPhaseEnded || press.phase == UIPressPhaseCancelled) {
+                    sBrowserSwallowMainMenuPressUntilEnd = NO;
+                }
+                return;
+            }
             if (sBrowserSwallowTabOverviewMenuUntilEnd) {
                 if (press.phase != UIPressPhaseBegan) {
                     if (press.phase == UIPressPhaseEnded || press.phase == UIPressPhaseCancelled) {
@@ -199,6 +206,18 @@ static UIViewController *BrowserFindPresentedViewControllerOfClass(UIApplication
                     sBrowserSwallowTabOverviewMenuUntilEnd = YES;
                     dispatch_async(dispatch_get_main_queue(), ^{
                         ((void (*)(id, SEL))objc_msgSend)(overview, dismissSelector);
+                    });
+                    return;
+                }
+
+                UIViewController *browser = BrowserFindPresentedViewControllerOfClass(
+                    self, NSClassFromString(@"ViewController"));
+                SEL handleMenuSelector = NSSelectorFromString(@"browserRemoteInputControllerHandleMenuPress");
+                if (browser != nil && browser.presentedViewController == nil &&
+                    nativeVideoPlayerViewController == nil && [browser respondsToSelector:handleMenuSelector]) {
+                    sBrowserSwallowMainMenuPressUntilEnd = YES;
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        ((void (*)(id, SEL))objc_msgSend)(browser, handleMenuSelector);
                     });
                     return;
                 }

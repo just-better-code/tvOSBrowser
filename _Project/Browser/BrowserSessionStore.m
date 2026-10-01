@@ -1,6 +1,7 @@
 #import "BrowserSessionStore.h"
 
 #import "BrowserNavigationService.h"
+#import "BrowserHistoryStore.h"
 #import "BrowserTabViewModel.h"
 #import "BrowserViewModel.h"
 
@@ -9,8 +10,9 @@ static NSString * const kBrowserSessionTabsKey = @"tabs";
 static NSString * const kBrowserSessionActiveTabIndexKey = @"activeTabIndex";
 static NSString * const kBrowserSessionVersionKey = @"version";
 static NSString * const kBrowserSavedURLToReopenDefaultsKey = @"savedURLtoReopen";
+static NSString * const kBrowserSessionSQLiteSavePendingKey = @"BrowserSessionSQLiteSavePending";
 static NSNumber *BrowserSessionVersion(void) {
-    return @1;
+    return @2;
 }
 
 @implementation BrowserSessionStore
@@ -50,12 +52,6 @@ static NSNumber *BrowserSessionVersion(void) {
 }
 
 - (void)saveSessionForViewModel:(BrowserViewModel *)viewModel {
-    if (viewModel.tabs.count == 0) {
-        [[NSUserDefaults standardUserDefaults] removeObjectForKey:kBrowserSessionDefaultsKey];
-        [[NSUserDefaults standardUserDefaults] synchronize];
-        return;
-    }
-    
     NSMutableArray *tabRepresentations = [NSMutableArray arrayWithCapacity:viewModel.tabs.count];
     NSInteger savedActiveIndex = NSNotFound;
     for (BrowserTabViewModel *tab in viewModel.tabs) {
@@ -63,25 +59,29 @@ static NSNumber *BrowserSessionVersion(void) {
         if (tab == viewModel.activeTab) savedActiveIndex = tabRepresentations.count;
         [tabRepresentations addObject:[tab sessionRepresentation]];
     }
-    if (tabRepresentations.count == 0) {
-        [[NSUserDefaults standardUserDefaults] removeObjectForKey:kBrowserSessionDefaultsKey];
-        [[NSUserDefaults standardUserDefaults] synchronize];
-        return;
-    }
-    
     NSDictionary *sessionRepresentation = @{
         kBrowserSessionVersionKey: BrowserSessionVersion(),
-        kBrowserSessionActiveTabIndexKey: @(savedActiveIndex == NSNotFound ? tabRepresentations.count - 1 : savedActiveIndex),
+        kBrowserSessionActiveTabIndexKey: @(savedActiveIndex == NSNotFound ? MAX((NSInteger)tabRepresentations.count - 1, 0) : savedActiveIndex),
         kBrowserSessionTabsKey: tabRepresentations
     };
 
+    BOOL saved = [[BrowserHistoryStore sharedStore] saveBrowserSession:sessionRepresentation];
+    [[NSUserDefaults standardUserDefaults] setBool:!saved forKey:kBrowserSessionSQLiteSavePendingKey];
+    if (!saved) {
+        NSLog(@"[Session] SQLite save failed; keeping the session in the preferences backup");
+    }
+    // tvOS may purge caches. Keep a recoverable backup of the complete session.
     [[NSUserDefaults standardUserDefaults] setObject:sessionRepresentation forKey:kBrowserSessionDefaultsKey];
     [[NSUserDefaults standardUserDefaults] synchronize];
 }
 
 - (NSDictionary *)restoredSessionRepresentation {
+    NSDictionary *storedSession = [[BrowserHistoryStore sharedStore] savedBrowserSession];
+    if (storedSession != nil && ![[NSUserDefaults standardUserDefaults] boolForKey:kBrowserSessionSQLiteSavePendingKey]) return storedSession;
     NSDictionary *defaultsRepresentation = [[NSUserDefaults standardUserDefaults] objectForKey:kBrowserSessionDefaultsKey];
     if ([defaultsRepresentation isKindOfClass:[NSDictionary class]]) {
+        BOOL saved = [[BrowserHistoryStore sharedStore] saveBrowserSession:defaultsRepresentation];
+        [[NSUserDefaults standardUserDefaults] setBool:!saved forKey:kBrowserSessionSQLiteSavePendingKey];
         return defaultsRepresentation;
     }
 

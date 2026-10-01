@@ -65,6 +65,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)handleWebViewPanGesture:(UIPanGestureRecognizer *)gestureRecognizer;
 - (void)webViewDidStartLoad:(id)webView;
 - (void)webViewDidFinishLoad:(id)webView;
+- (void)webViewDidChangeNavigationHistory:(id)webView;
 - (void)webViewDidFailLoad:(id)webView;
 - (void)prepareTabForRequest:(NSURLRequest *)request webView:(id)webView navigationType:(NSInteger)navigationType;
 - (BrowserTabViewModel *)tabForWebView:(id)webView;

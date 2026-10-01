@@ -19,6 +19,9 @@ Use an isolated Simulator or disposable test data for cases that delete history 
 | TAB-02 | Open several pages and switch between tabs | Each tab retains its page and can be selected |
 | TAB-03 | Close the focused tab with the supported remote action | The tab closes and focus moves to a valid remaining item |
 | TAB-04 | Relaunch the app after opening multiple tabs | The saved session restores ordinary tabs and the active tab |
+| TAB-05 | Navigate A → B → C, go Back to B, terminate and relaunch, then go Forward to C and Back to A | Each tab restores its complete navigation list and current position; both directions work |
+| TAB-06 | Repeat TAB-05 with same-document links or `history.pushState` | Transitions that do not finish a page load survive relaunch |
+| TAB-07 | Restore a tab whose current URL redirects, with a saved Forward entry | The current entry follows the redirect and the Forward entry remains available |
 
 ## Favorites and history
 
@@ -53,3 +56,15 @@ Use an isolated Simulator or disposable test data for cases that delete history 
 ## Data safety
 
 Before testing history deletion, use a disposable Simulator or a copy of the database. For device storage changes, inspect the target app container and back up the existing database before installing a build. Verify that new visits appear in All History and survive relaunch.
+
+## Complete local database backup
+
+| ID | Steps | Expected result |
+| --- | --- | --- |
+| BACKUP-01 | Preserve the device SQLite file, move the live file aside, then relaunch | All five tables restore from the compressed preferences snapshot, including visit IDs, favorites and tab navigation |
+| BACKUP-02 | Visit a new page, open All History, then relaunch and reopen All History | The visit remains visible and the snapshot includes the updated database |
+| BACKUP-03 | On disposable data, delete selected visits or clear history, then remove SQLite and relaunch | Deleted visits remain deleted; favorites and tabs remain intact |
+| BACKUP-04 | On disposable data, corrupt or truncate SQLite while retaining a valid snapshot | Restore validates checksum and SQLite integrity; damaged files are preserved |
+| BACKUP-05 | On disposable data, exceed the 450 KiB preferences budget or damage the snapshot | SQLite history is never pruned; an invalid snapshot cannot overwrite data, and a stale snapshot cannot resurrect explicit deletions |
+
+The snapshot uses NSUserDefaults and protects against cache-file loss. Uninstalling the app removes this backup too. The preferences budget is finite; this is not cloud storage.

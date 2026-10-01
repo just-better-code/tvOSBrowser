@@ -478,9 +478,41 @@ static NSString *BrowserNewTabSectionHTML(NSArray *entries, BOOL favorites, NSUI
 
 - (void)persistSession {
     for (BrowserTabViewModel *tab in self.viewModel.tabs) {
+        BrowserWebView *webView = self.webViewsByTabIdentifier[tab.identifier];
+        if (webView != nil && !webView.loading && tab.pendingNavigationIndex == NSNotFound) {
+            [self updateNavigationHistoryForTab:tab webView:webView];
+        }
         [self updateStoredScrollOffsetForTab:tab];
     }
     [self.sessionStore saveSessionForViewModel:self.viewModel];
+}
+
+- (void)updateNavigationHistoryForTab:(BrowserTabViewModel *)tab webView:(BrowserWebView *)webView {
+    NSString *URLString = webView.request.URL.absoluteString;
+    if (URLString.length == 0) return;
+    NSURL *URL = [NSURL URLWithString:URLString];
+    if (URL.host.length == 0 || ![@[@"http", @"https"] containsObject:URL.scheme.lowercaseString]) return;
+    NSDictionary *snapshot = tab.navigationHistoryRestored ? nil : [webView navigationHistorySnapshot];
+    // A request may be saved before WebKit has committed its first page.
+    if (!tab.navigationHistoryRestored && snapshot == nil) return;
+    if (snapshot != nil) {
+        // WebKit's list includes same-document navigation and repeated URLs.
+        tab.navigationURLs = snapshot[@"navigationURLs"];
+        tab.navigationIndex = [snapshot[@"navigationIndex"] integerValue];
+        tab.pendingNavigationIndex = NSNotFound;
+    } else {
+        [tab recordNavigationURLString:URLString];
+    }
+    tab.URLString = URLString;
+    tab.requestURL = URLString;
+    tab.title = webView.title.length > 0 ? webView.title : tab.title;
+}
+
+- (void)webViewDidChangeNavigationHistory:(id)webView {
+    BrowserTabViewModel *tab = [self tabForWebView:webView];
+    if (tab == nil || [webView isLoading]) return;
+    [self updateNavigationHistoryForTab:tab webView:webView];
+    [self persistSession];
 }
 
 - (BOOL)canGoBack {
@@ -508,8 +540,8 @@ static NSString *BrowserNewTabSectionHTML(NSArray *entries, BOOL favorites, NSUI
                [self.activeWebView.forwardURLString isEqualToString:request.URL.absoluteString]) {
         [self.activeWebView goForward];
     } else {
-        [self.activeWebView loadRequest:request];
         tab.navigationHistoryRestored = YES;
+        [self.activeWebView loadRequest:request];
     }
 }
 
@@ -547,6 +579,12 @@ static NSString *BrowserNewTabSectionHTML(NSArray *entries, BOOL favorites, NSUI
 
     NSURLRequest *request = [self.navigationService requestForURLString:URLString];
     if (request != nil) {
+        if (tab.navigationIndex != NSNotFound && tab.navigationIndex >= 0 &&
+            tab.navigationIndex < tab.navigationURLs.count) {
+            // Reload the saved entry in place, including any server redirect.
+            tab.navigationHistoryRestored = YES;
+            tab.pendingNavigationIndex = tab.navigationIndex;
+        }
         [webView loadRequest:request];
     } else if (fallbackToHomePage) {
         NSURLRequest *homePageRequest = [self.navigationService homePageRequest];
@@ -901,7 +939,7 @@ static NSString *BrowserNewTabSectionHTML(NSArray *entries, BOOL favorites, NSUI
         }
     } else {
         [self.navigationService updateTab:tab withPageTitle:theTitle currentURLString:currentURL];
-        [tab recordNavigationURLString:currentURL];
+        [self updateNavigationHistoryForTab:tab webView:webView];
     }
 
     if (tab == self.activeTab) {

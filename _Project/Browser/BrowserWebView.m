@@ -11,6 +11,7 @@ static NSString * const kBrowserUserContentControllerClassName = @"WKUserContent
 static NSString * const kBrowserUserScriptClassName = @"WKUserScript";
 static NSString * const kBrowserAdBlockEnabledDefaultsKey = @"AdBlockEnabled";
 static NSString * const kBrowserAdBlockRuleListIdentifier = @"BrowserAdBlock-v3";
+static char kBrowserNavigationURLObservationContext;
 
 static void BrowserEnsureWebKitRuntimeLoaded(void) {
     static dispatch_once_t onceToken;
@@ -913,6 +914,8 @@ static void BrowserLoadAdBlockRuleList(BrowserAdBlockRuleListCompletion completi
     }
 
     self.runtimeWebView = webViewObject;
+    [webViewObject addObserver:self forKeyPath:@"URL" options:0 context:&kBrowserNavigationURLObservationContext];
+    [webViewObject addObserver:self forKeyPath:@"loading" options:0 context:&kBrowserNavigationURLObservationContext];
     UIView *runtimeView = (UIView *)webViewObject;
     runtimeView.frame = self.bounds;
     runtimeView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
@@ -1031,6 +1034,58 @@ static void BrowserLoadAdBlockRuleList(BrowserAdBlockRuleListCompletion completi
     }
     NSString *title = ((id (*)(id, SEL))objc_msgSend)(self.runtimeWebView, selector);
     return title ?: self.lastTitle;
+}
+
+- (void)dealloc {
+    [self.runtimeWebView removeObserver:self forKeyPath:@"URL" context:&kBrowserNavigationURLObservationContext];
+    [self.runtimeWebView removeObserver:self forKeyPath:@"loading" context:&kBrowserNavigationURLObservationContext];
+}
+
+- (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object
+                      change:(NSDictionary *)change context:(void *)context {
+    if (context != &kBrowserNavigationURLObservationContext) {
+        [super observeValueForKeyPath:keyPath ofObject:object change:change context:context];
+        return;
+    }
+    __weak typeof(self) weakSelf = self;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        BrowserWebView *webView = weakSelf;
+        SEL loadingSelector = NSSelectorFromString(@"isLoading");
+        if (webView == nil || webView.loading ||
+            ([webView.runtimeWebView respondsToSelector:loadingSelector] &&
+             ((BOOL (*)(id, SEL))objc_msgSend)(webView.runtimeWebView, loadingSelector))) return;
+        if ([webView.delegate respondsToSelector:@selector(webViewDidChangeNavigationHistory:)]) {
+            [webView.delegate webViewDidChangeNavigationHistory:webView];
+        }
+    });
+}
+
+- (NSDictionary *)navigationHistorySnapshot {
+    SEL listSelector = NSSelectorFromString(@"backForwardList");
+    if (![self.runtimeWebView respondsToSelector:listSelector]) return nil;
+    id list = ((id (*)(id, SEL))objc_msgSend)(self.runtimeWebView, listSelector);
+    SEL backSelector = NSSelectorFromString(@"backList");
+    SEL currentSelector = NSSelectorFromString(@"currentItem");
+    SEL forwardSelector = NSSelectorFromString(@"forwardList");
+    if (![list respondsToSelector:backSelector] || ![list respondsToSelector:currentSelector] ||
+        ![list respondsToSelector:forwardSelector]) return nil;
+    id current = ((id (*)(id, SEL))objc_msgSend)(list, currentSelector);
+    if (current == nil) return nil;
+    NSMutableArray *items = [NSMutableArray arrayWithArray:((id (*)(id, SEL))objc_msgSend)(list, backSelector)];
+    [items addObject:current];
+    [items addObjectsFromArray:((id (*)(id, SEL))objc_msgSend)(list, forwardSelector)];
+    NSMutableArray *URLs = [NSMutableArray array];
+    NSInteger index = NSNotFound;
+    for (id item in items) {
+        SEL URLSelector = NSSelectorFromString(@"URL");
+        if (![item respondsToSelector:URLSelector]) continue;
+        NSURL *URL = ((id (*)(id, SEL))objc_msgSend)(item, URLSelector);
+        if (URL.host.length == 0 || ![@[@"http", @"https"] containsObject:URL.scheme.lowercaseString]) continue;
+        if (item == current) index = URLs.count;
+        [URLs addObject:URL.absoluteString];
+    }
+    if (index == NSNotFound) return nil;
+    return @{@"navigationURLs": URLs, @"navigationIndex": @(index)};
 }
 
 - (BOOL)canGoBack {
