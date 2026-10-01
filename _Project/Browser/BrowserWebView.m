@@ -1,4 +1,5 @@
 #import "BrowserWebView.h"
+#import "BrowserPreferencesStore.h"
 
 #import <dlfcn.h>
 #import <objc/message.h>
@@ -721,6 +722,109 @@ static NSString *BrowserFrameClickBridgeScript(NSString *secret) {
             "})();", secret];
 }
 
+static void BrowserWriteWebsiteDiagnostic(NSDictionary *entry) {
+    if (!BrowserPreferencesStore.websiteLoggingEnabled) return;
+    NSData *data = [NSJSONSerialization dataWithJSONObject:entry options:0 error:nil];
+    if (data == nil || data.length > 4096) return;
+    NSURL *cache = [NSFileManager.defaultManager URLsForDirectory:NSCachesDirectory inDomains:NSUserDomainMask].firstObject;
+    NSString *path = [[cache URLByAppendingPathComponent:@"BrowserWebsiteDiagnostics.log"] path];
+    if (!path) return;
+    NSString *line = [NSString stringWithFormat:@"%@ %@\n", NSDate.date,
+        [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding]];
+    NSFileManager *manager = NSFileManager.defaultManager;
+    if ([[manager attributesOfItemAtPath:path error:nil][NSFileSize] unsignedIntegerValue] > 128 * 1024) {
+        NSString *previous = [path stringByAppendingString:@".previous"];
+        [manager removeItemAtPath:previous error:nil];
+        [manager moveItemAtPath:path toPath:previous error:nil];
+    }
+    if (![manager fileExistsAtPath:path]) [manager createFileAtPath:path contents:nil attributes:nil];
+    NSFileHandle *file = [NSFileHandle fileHandleForWritingAtPath:path];
+    @try {
+        [file seekToEndOfFile];
+        [file writeData:[line dataUsingEncoding:NSUTF8StringEncoding]];
+        [file closeFile];
+    } @catch (NSException *exception) { NSLog(@"[WebsiteDiagnostics] Log write failed: %@", exception.name); }
+}
+
+// Shared handler avoids retaining a web view through its message controller.
+@interface BrowserWebsiteDiagnosticsHandler : NSObject
+- (void)userContentController:(id)controller didReceiveScriptMessage:(id)message;
+@end
+@implementation BrowserWebsiteDiagnosticsHandler
+- (void)userContentController:(id)controller didReceiveScriptMessage:(id)message {
+    if (!BrowserPreferencesStore.websiteLoggingEnabled) return;
+    id body = [message valueForKey:@"body"];
+    if (![body isKindOfClass:NSDictionary.class]) return;
+    NSMutableDictionary *entry = [NSMutableDictionary dictionary];
+    for (NSString *key in @[@"event", @"origin", @"episode", @"season", @"seconds",
+                            @"storageCount", @"storageError", @"key", @"length"]) {
+        id value = body[key];
+        if ([value isKindOfClass:NSString.class]) entry[key] = [value substringToIndex:MIN([value length], 160)];
+        else if ([value isKindOfClass:NSNumber.class]) entry[key] = value;
+    }
+    if (entry.count) BrowserWriteWebsiteDiagnostic(entry);
+}
+@end
+
+static NSString *BrowserWebsiteDiagnosticsScript(void) {
+    return @"(function(){"
+        "function send(e){try{e.origin=location.origin;window.webkit.messageHandlers.browserWebsiteDiagnostics.postMessage(e)}catch(x){}}"
+        "try{send({event:'document',storageCount:localStorage.length})}catch(e){send({event:'document',storageError:String(e)})}"
+        "try{var get=Storage.prototype.getItem,set=Storage.prototype.setItem;"
+        "Storage.prototype.getItem=function(k){try{var v=get.call(this,k);send({event:'storage-get',key:String(k),length:v===null?0:v.length});return v}catch(e){send({event:'storage-get',key:String(k),storageError:String(e)});throw e}};"
+        "Storage.prototype.setItem=function(k,v){try{var r=set.call(this,k,v);send({event:'storage-set',key:String(k),length:String(v).length});return r}catch(e){send({event:'storage-set',key:String(k),storageError:String(e)});throw e}}"
+        "}catch(e){send({event:'storage-hook',storageError:String(e)})}"
+        "var last='';function state(){try{var text=document.body?document.body.innerText:'';"
+        "var episode=text.match(/Серія\\s*\\d+/),season=text.match(/Сезон\\s*\\d+/),video=document.querySelector('video');"
+        "if(!episode&&!video)return;var e={event:'player',episode:episode?episode[0]:'',season:season?season[0]:''};"
+        "if(video)e.seconds=Math.floor(video.currentTime/15)*15;var key=JSON.stringify(e);if(key!==last){last=key;send(e)}}catch(x){}}"
+        "setInterval(state,2000);"
+        "addEventListener('message',function(e){try{var d=e.data&&e.data.payload&&e.data.payload.data;"
+        "if(!d||typeof d!=='object')return;var v={event:'player-info'};"
+        "if(typeof d.e==='string')v.episode=d.e;if(typeof d.s==='string')v.season=d.s;if(typeof d.t==='number')v.seconds=d.t;"
+        "if(v.episode||v.season||typeof v.seconds==='number')send(v)}catch(x){}});"
+        "})();";
+}
+
+// tvOS denies WebKit's default Library/WebKit directory. Use one shared
+// persistent store rooted in the app's writable cache directory instead.
+static id BrowserPersistentWebsiteDataStore(void) {
+    BrowserEnsureWebKitRuntimeLoaded();
+    static id store;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        Class storeClass = NSClassFromString(kBrowserWebsiteDataStoreClassName);
+        Class configurationClass = NSClassFromString(@"_WKWebsiteDataStoreConfiguration");
+        SEL directoryInitializer = NSSelectorFromString(@"initWithDirectory:");
+        SEL storeFactory = NSSelectorFromString(@"_storeWithConfiguration:");
+        SEL storeInitializer = NSSelectorFromString(@"_initWithConfiguration:");
+        NSURL *cache = [NSFileManager.defaultManager URLsForDirectory:NSCachesDirectory inDomains:NSUserDomainMask].firstObject;
+        NSURL *directory = [cache URLByAppendingPathComponent:@"BrowserWebsiteData" isDirectory:YES];
+        NSError *error = nil;
+        if (directory && [configurationClass instancesRespondToSelector:directoryInitializer] &&
+            ([storeClass respondsToSelector:storeFactory] || [storeClass instancesRespondToSelector:storeInitializer]) &&
+            [NSFileManager.defaultManager createDirectoryAtURL:directory withIntermediateDirectories:YES attributes:nil error:&error]) {
+            id configuration = ((id (*)(id, SEL))objc_msgSend)((id)configurationClass, @selector(alloc));
+            configuration = ((id (*)(id, SEL, id))objc_msgSend)(configuration, directoryInitializer, directory);
+            if ([storeClass respondsToSelector:storeFactory])
+                store = ((id (*)(id, SEL, id))objc_msgSend)((id)storeClass, storeFactory, configuration);
+            else {
+                id allocated = ((id (*)(id, SEL))objc_msgSend)((id)storeClass, @selector(alloc));
+                store = ((id (*)(id, SEL, id))objc_msgSend)(allocated, storeInitializer, configuration);
+            }
+            if (store) {
+                NSLog(@"[WebsiteData] Persistent store at %@", directory.path);
+                BrowserWriteWebsiteDiagnostic(@{@"event": @"store-start", @"directory": directory.path, @"process": @(NSProcessInfo.processInfo.processIdentifier)});
+            }
+        }
+        if (store == nil && [storeClass respondsToSelector:NSSelectorFromString(@"defaultDataStore")]) {
+            NSLog(@"[WebsiteData] Custom persistent store unavailable: %@", error);
+            store = ((id (*)(id, SEL))objc_msgSend)((id)storeClass, NSSelectorFromString(@"defaultDataStore"));
+        }
+    });
+    return store;
+}
+
 static void BrowserInstallUserScripts(id configuration) {
     if (configuration == nil) {
         return;
@@ -750,6 +854,17 @@ static void BrowserInstallUserScripts(id configuration) {
         ![userContentController respondsToSelector:addUserScriptSelector] ||
         ![userScriptClass instancesRespondToSelector:userScriptInitializer]) {
         return;
+    }
+
+    SEL addHandler = NSSelectorFromString(@"addScriptMessageHandler:name:");
+    if ([userContentController respondsToSelector:addHandler]) {
+        static BrowserWebsiteDiagnosticsHandler *handler;
+        static dispatch_once_t handlerToken;
+        dispatch_once(&handlerToken, ^{ handler = [BrowserWebsiteDiagnosticsHandler new]; });
+        ((void (*)(id, SEL, id, id))objc_msgSend)(userContentController, addHandler, handler, @"browserWebsiteDiagnostics");
+        id diagnosticScript = ((id (*)(id, SEL))objc_msgSend)((id)userScriptClass, @selector(alloc));
+        diagnosticScript = ((id (*)(id, SEL, id, NSInteger, BOOL))objc_msgSend)(diagnosticScript, userScriptInitializer, BrowserWebsiteDiagnosticsScript(), 0, NO);
+        if (diagnosticScript) ((void (*)(id, SEL, id))objc_msgSend)(userContentController, addUserScriptSelector, diagnosticScript);
     }
 
     id userScript = ((id (*)(id, SEL))objc_msgSend)((id)userScriptClass, @selector(alloc));
@@ -899,6 +1014,10 @@ static void BrowserLoadAdBlockRuleList(BrowserAdBlockRuleListCompletion completi
     if (configuration != nil && [configuration respondsToSelector:allowsInlineMediaPlaybackSelector]) {
         ((void (*)(id, SEL, BOOL))objc_msgSend)(configuration, allowsInlineMediaPlaybackSelector, allowsInlineMediaPlayback);
     }
+    SEL dataStoreSetter = NSSelectorFromString(@"setWebsiteDataStore:");
+    id dataStore = BrowserPersistentWebsiteDataStore();
+    if (dataStore && [configuration respondsToSelector:dataStoreSetter])
+        ((void (*)(id, SEL, id))objc_msgSend)(configuration, dataStoreSetter, dataStore);
     BrowserConfigurePrivateMediaPreferences(configuration);
     BrowserInstallUserScripts(configuration);
     SEL userContentControllerSelector = NSSelectorFromString(@"userContentController");
@@ -1596,13 +1715,7 @@ windowFeatures:(id)windowFeatures {
 }
 
 + (id)defaultWebsiteDataStore {
-    BrowserEnsureWebKitRuntimeLoaded();
-    Class dataStoreClass = NSClassFromString(kBrowserWebsiteDataStoreClassName);
-    SEL selector = NSSelectorFromString(@"defaultDataStore");
-    if (dataStoreClass == Nil || ![dataStoreClass respondsToSelector:selector]) {
-        return nil;
-    }
-    return ((id (*)(id, SEL))objc_msgSend)((id)dataStoreClass, selector);
+    return BrowserPersistentWebsiteDataStore();
 }
 
 + (id)defaultCookieStore {

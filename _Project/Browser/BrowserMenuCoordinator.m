@@ -1371,6 +1371,13 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
 
 - (void)presentDebugOptions {
     UIAlertController *menu = [self browserAlertControllerWithTitle:@"Debug" message:nil];
+    NSString *loggingTitle = [NSString stringWithFormat:@"Website Logging: %@",
+        self.preferencesStore.websiteLoggingEnabled ? @"ON" : @"OFF"];
+    [menu addAction:[self browserActionWithTitle:loggingTitle
+                                       style:UIAlertActionStyleDefault
+                                     handler:^(__unused UIAlertAction *action) {
+        self.preferencesStore.websiteLoggingEnabled = !self.preferencesStore.websiteLoggingEnabled;
+    }]];
     [menu addAction:[self browserActionWithTitle:@"Media Diagnostics"
                                        style:UIAlertActionStyleDefault
                                      handler:^(__unused UIAlertAction *action) {

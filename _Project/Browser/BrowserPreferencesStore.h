@@ -6,6 +6,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 + (NSString *)desktopUserAgent;
 + (NSString *)mobileUserAgent;
++ (BOOL)websiteLoggingEnabled;
 
 @property (nonatomic, copy) NSString *userAgent;
 @property (nonatomic) BOOL mobileModeEnabled;
@@ -15,6 +16,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) BOOL adBlockEnabled;
 @property (nonatomic) BOOL cursorMagnifierEnabled;
 @property (nonatomic) BOOL dontShowHintsOnLaunch;
+@property (nonatomic) BOOL websiteLoggingEnabled;
 @property (nonatomic, copy) NSString *homePageURLString;
 
 - (void)ensureUserAgentConsistency;
