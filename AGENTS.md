@@ -48,3 +48,16 @@ After installing a history change, visit a new page on the device and verify tha
 ## Git policy
 
 Do not create Git commits or push this repository. Leave changes in the working tree for the user.
+
+## Documentation and versioning
+
+- Write and maintain project documentation in English. Use the fork name **just-better-code version**.
+- Follow [Common Changelog](https://common-changelog.org/) in `CHANGELOG.md`: `# Changelog`, newest versions first, `## VERSION - YYYY-MM-DD`, and only `Changed`, `Added`, `Removed`, `Fixed` groups in that order, omitting empty groups.
+- Write each change as one unnumbered, single-line item starting with an imperative verb, explaining its user impact and ending with relevant Markdown references in parentheses. Order changes by importance, with breaking changes first and prefixed `**Breaking:**`. Merge related changes; omit reverted experiments with no effect on the resulting version.
+- Keep release bodies limited to change groups and, when needed, one single-sentence notice before them. Put long explanations in linked documents; do not add roadmap, process, timeline or source-table sections to `CHANGELOG.md`.
+- Keep detailed dialogue history, implementation reasoning, verification evidence and reversals in `DEVELOPMENT_HISTORY.md`; keep planned and rejected directions in `ROADMAP.md`; keep usage instructions in `USER_GUIDE.md`. Link these documents from the changelog when useful.
+- Keep process and versioning rules in `AGENTS.md`, rather than mixing them into the changelog or user documentation.
+- Use `major.minor.patch`: increment minor for each substantial feature and reset patch to zero; increment patch for each subsequent logical bug fix. The next fix after `2.15.22` is `2.15.23`; the next substantial feature is `2.16.0`, followed by `2.16.1` for its first fix.
+- Documentation or formatting changes alone do not increment the application version. Keep Debug and Release `MARKETING_VERSION` consistent. Treat `CURRENT_PROJECT_VERSION` as a separate technical build number, not the user-facing fix number.
+- Preserve the initial retrospective baseline: upstream `9b90e0e` is `2.0.0`; the initial snapshot is `2.15.22`, cataloguing 15 feature groups and 22 fix groups. These are reconstructed logical versions, not proof of separately published binaries. Historical fix IDs do not imply every fix occurred after feature 2.15.
+- Distinguish commit/package dates from implementation dates in dialogue history. Do not invent release dates, Git tags, published releases or verification results. This private project's retrospective changelog has no matching release tags; explain that status in its release notice.
