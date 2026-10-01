@@ -61,7 +61,7 @@ This project has a knowledge graph under `graphify-out/`.
 - Keep process and versioning rules in `AGENTS.md`, rather than mixing them into the changelog or user documentation.
 - Use `major.minor.patch`: increment minor for each substantial feature and reset patch to zero; increment patch for each subsequent logical bug fix. The next fix after `2.15.23` is `2.15.24`; the next substantial feature is `2.16.0`, followed by `2.16.1` for its first fix.
 - Documentation or formatting changes alone do not increment the application version. Keep Debug and Release `MARKETING_VERSION` consistent. Treat `CURRENT_PROJECT_VERSION` as a separate technical build number, not the user-facing fix number.
-- Preserve the initial retrospective baseline: upstream `9b90e0e` is `2.0.0`; the initial snapshot is `2.15.22`, cataloguing 15 feature groups and 22 fix groups. These are reconstructed logical versions, not proof of separately published binaries. Historical fix IDs do not imply every fix occurred after feature 2.15.
+- Preserve the initial retrospective baseline: upstream `97c801a` is `2.0.0`; the initial snapshot is `2.15.22`, cataloguing 15 feature groups and 22 fix groups. These are reconstructed logical versions, not proof of separately published binaries. Historical fix IDs do not imply every fix occurred after feature 2.15.
 - Distinguish commit/package dates from implementation dates in dialogue history. Do not invent release dates, Git tags, published releases or verification results. This personal-use project's retrospective changelog has no matching release tags; explain that status in its release notice.
 
 ## Instruction maintenance references

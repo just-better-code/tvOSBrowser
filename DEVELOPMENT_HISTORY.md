@@ -4,9 +4,9 @@ Detailed background for [CHANGELOG.md](CHANGELOG.md): user requests, implementat
 
 ## Historical context
 
-The baseline is upstream commit `9b90e0e`, dated 2026-03-08, with Xcode version 2.0.0 and build 3000. Earlier fork commits continued to carry those values until retrospective numbering was introduced on 2026-10-01. The reconstructed feature stages below are not evidence that separate binaries were published for each version.
+The baseline is upstream commit `97c801a`, dated 2026-03-08, with Xcode version 2.0.0 and build 3000. Earlier fork commits continued to carry those values until retrospective numbering was introduced on 2026-10-01. The reconstructed feature stages below are not evidence that separate binaries were published for each version.
 
-The first eleven feature groups were combined in squash commit `0e1d6b5` on 2026-09-29. Their catalogue order does not establish their implementation order inside that commit. The initial snapshot groups 15 substantial features and 22 logical fixes into 2.15.22. Ongoing documentation and versioning instructions are in [AGENTS.md](AGENTS.md).
+The first eleven feature groups were combined in squash commit `bf4ef6b` on 2026-09-29. Their catalogue order does not establish their implementation order inside that commit. The initial snapshot groups 15 substantial features and 22 logical fixes into 2.15.22. Ongoing documentation and versioning instructions are in [AGENTS.md](AGENTS.md).
 
 Dates in the chronological account describe project discussions in Europe/Kiev. They can differ from commit dates. Shared messages in the archived video investigation and its continuation are counted once.
 
@@ -14,19 +14,19 @@ Dates in the chronological account describe project discussions in Europe/Kiev. 
 
 ### 2026-10-01 — restoring the browsing and viewing session
 
-**Back still exited to the Apple TV home screen.** The user again reported that Back should behave as the browser menu. Global input handling was changed to consume all Menu/Back phases so the system would not exit after a browser action. Back closes a presented screen, returns from New Tab when possible, turns off the magnifier, or opens the menu. This continued the September 28 fixes; it was not the first introduction of menu behavior. Implementation: `cdee449`, fix 16.
+**Back still exited to the Apple TV home screen.** The user again reported that Back should behave as the browser menu. Global input handling was changed to consume all Menu/Back phases so the system would not exit after a browser action. Back closes a presented screen, returns from New Tab when possible, turns off the magnifier, or opens the menu. This continued the September 28 fixes; it was not the first introduction of menu behavior. Implementation: `2bdb5a2`, fix 16.
 
-**Tab Back/Forward still failed across launches.** The user asked why tab history could not be saved in SQLite instead of repeatedly repairing preferences restoration. The complete session moved to SQLite: ordinary tabs, active index, navigation URLs/titles and each tab's current navigation position. Native WebKit history snapshots and URL/loading observation capture transitions missed by a full-load-only approach, including pushState. Restoring the current page or following its redirect preserves Forward. An empty session is saved so previously closed tabs do not reappear. Implementation: `cdee449`, feature 2.13 and fixes 17–19. A build alone was not treated as proof of all navigation scenarios.
+**Tab Back/Forward still failed across launches.** The user asked why tab history could not be saved in SQLite instead of repeatedly repairing preferences restoration. The complete session moved to SQLite: ordinary tabs, active index, navigation URLs/titles and each tab's current navigation position. Native WebKit history snapshots and URL/loading observation capture transitions missed by a full-load-only approach, including pushState. Restoring the current page or following its redirect preserves Forward. An empty session is saved so previously closed tabs do not reappear. Implementation: `2bdb5a2`, feature 2.13 and fixes 17–19. A build alone was not treated as proof of all navigation scenarios.
 
-**The main database remained in Caches; a full local backup was added.** The user was concerned about system eviction and proposed Application Support. On the inspected Apple TV, that destination was not writable, so the live database was preserved rather than moved. After discussing iCloud and the lack of a paid developer account, the user chose a local backup. A complete compressed SQLite snapshot in preferences replaced limited visit arrays. It is refreshed after mutations and used automatically if the main database disappears or is damaged. Player state was deliberately excluded. A recovery comparison covered all five tables with 288 visits, 3 Favorites and 5 tabs; a new visit remained after relaunch. Implementation: `cdee449`, feature 2.14 and fix 20.
+**The main database remained in Caches; a full local backup was added.** The user was concerned about system eviction and proposed Application Support. On the inspected Apple TV, that destination was not writable, so the live database was preserved rather than moved. After discussing iCloud and the lack of a paid developer account, the user chose a local backup. A complete compressed SQLite snapshot in preferences replaced limited visit arrays. It is refreshed after mutations and used automatically if the main database disappears or is damaged. Player state was deliberately excluded. A recovery comparison covered all five tables with 288 visits, 3 Favorites and 5 tabs; a new visit remained after relaunch. Implementation: `2bdb5a2`, feature 2.14 and fix 20.
 
-**The episode dropdown exposed a separate website-storage failure.** On a test streaming website, the user selected an episode as the acceptance example. Selection reset after another launch, unlike the mobile browser; similar websites behaved the same way. The user explicitly requested normal website storage rather than a custom backup of the dropdown or playback position. Diagnostics found that the default WebsiteData path was not writable. localStorage appeared usable during a session but a test value did not survive another process launch. All browsing WebViews were configured with one persistent store under writable Caches. The user manually checked the result and reported success. Implementation: `595c1f9`, fix 21.
+**The episode dropdown exposed a separate website-storage failure.** On a test streaming website, the user selected an episode as the acceptance example. Selection reset after another launch, unlike the mobile browser; similar websites behaved the same way. The user explicitly requested normal website storage rather than a custom backup of the dropdown or playback position. Diagnostics found that the default WebsiteData path was not writable. localStorage appeared usable during a session but a test value did not survive another process launch. All browsing WebViews were configured with one persistent store under writable Caches. The user manually checked the result and reported success. Implementation: `3cf73b8`, fix 21.
 
 **The reported page scroll offset was not fixed.** The user also observed that the page position did not restore. It was useful diagnostic context but not critical to the requested player-state fix. No separate completed fix for that case was identified. A full TV reboot was not independently confirmed during this work.
 
-**Diagnostics remained available after the successful fix.** The user asked for loggers, then a clean build, then whether the loggers had been kept. A Debug toggle was added to enable/disable Website Logging immediately without reloading and persist the choice. The file records storage operations and available player state without copying localStorage or cookie values. Implementation: `595c1f9`, feature 2.15.
+**Diagnostics remained available after the successful fix.** The user asked for loggers, then a clean build, then whether the loggers had been kept. A Debug toggle was added to enable/disable Website Logging immediately without reloading and persist the choice. The file records storage operations and available player state without copying localStorage or cookie values. Implementation: `3cf73b8`, feature 2.15.
 
-**Menu focus moved to the domain.** The user wanted the domain active by default. This makes Center immediately open address/search entry rather than requiring movement from New Tab. Focus is requested again after the panel animation. Earlier device diagnostics reported `focused=1` and `onScreen=1`. Implementation: `a4e3b21`, fix 22.
+**Menu focus moved to the domain.** The user wanted the domain active by default. This makes Center immediately open address/search entry rather than requiring movement from New Tab. Focus is requested again after the panel animation. Earlier device diagnostics reported `focused=1` and `onScreen=1`. Implementation: `74c6c0c`, fix 22.
 
 **Documentation and future directions were clarified.** The user requested a changelog from the fork baseline, clarified that the third version component is the fix number, and chose 2.15.22. The initial diff catalogue was expanded using project conversations to capture purposes, failed attempts and confirmations. The final changelog uses Common Changelog; this document retains the detailed account. The user guide was updated. Physical Apple TV work was stopped at the user's request; documentation work did not perform new device checks.
 
@@ -34,19 +34,19 @@ The user subsequently planned Firefox Sync, an integrated torrent client with si
 
 ### 2026-09-29 — history, video-input conflicts and interface simplification
 
-**Seeking was restored after unsuccessful experiments.** The user reported that Left/Right no longer sought video, although seeking had worked before the rollback. The final implementation restored ±10 seconds for accessible HTML video/iframe and the native player. The user first reported a failure, then confirmed the current implementation worked. Browser-history navigation remained disabled on those arrows. Implementation: `95e289a`, fix 14.
+**Seeking was restored after unsuccessful experiments.** The user reported that Left/Right no longer sought video, although seeking had worked before the rollback. The final implementation restored ±10 seconds for accessible HTML video/iframe and the native player. The user first reported a failure, then confirmed the current implementation worked. Browser-history navigation remained disabled on those arrows. Implementation: `7f2289c`, fix 14.
 
-**The magnifier gained a complete idle shutdown.** The user requested shutdown after 30 seconds without cursor activity, followed only by manual reactivation. A timer was added and cursor activity resets it. The user confirmed that movement must not turn it back on. The code was committed later, in `bdda665` on October 1, as fix 15.
+**The magnifier gained a complete idle shutdown.** The user requested shutdown after 30 seconds without cursor activity, followed only by manual reactivation. A timer was added and cursor activity resets it. The user confirmed that movement must not turn it back on. The code was committed later, in `b843a5d` on October 1, as fix 15.
 
-**The old top bar was actually removed.** Back/domain/Forward were combined in the menu and browser history was removed from remote arrows. When the user asked whether the old bar still existed, its files, storyboard connections, focus mode and visibility settings were deleted. The permanent URL and old loading indicator disappeared; core actions stayed in the menu. Focused navigation buttons were raised above the address field after a reported overlap. Implementation: `95e289a`, feature 2.12.
+**The old top bar was actually removed.** Back/domain/Forward were combined in the menu and browser history was removed from remote arrows. When the user asked whether the old bar still existed, its files, storyboard connections, focus mode and visibility settings were deleted. The permanent URL and old loading indicator disappeared; core actions stayed in the menu. Focused navigation buttons were raised above the address field after a reported overlap. Implementation: `7f2289c`, feature 2.12.
 
 **Universal canvas controls were attempted and rolled back.** The user wanted video arrows to reach the player instead of navigating history. Experiments included canvas/fullscreen detection, synthetic ArrowLeft/ArrowRight events, a MediaSession bridge and a native progress overlay. Reports of broken rendering, repeated Back navigation and cursor failure led to removing the overlay/bridge and reverting the problematic `666ec7e arrows` commit. The eventual solution kept simple accessible-video/iframe seeking and removed history from arrows altogether. A universal pure-canvas player bridge and the overlay are not current features.
 
-**Center opens; Play/Pause performs an option.** The user defined this model for screens other than browsing. Menu Recents became History, listing 20 recent addresses and All History at the end. In All History, Center opens and Play/Pause selects. On New Tab, Center opens and Play/Pause handles Favorite editing or visit deletion. This replaced inconsistent activation paths and an extra History Actions popup. Implementation: `d2a7bdb`, fixes 10–12.
+**Center opens; Play/Pause performs an option.** The user defined this model for screens other than browsing. Menu Recents became History, listing 20 recent addresses and All History at the end. In All History, Center opens and Play/Pause selects. On New Tab, Center opens and Play/Pause handles Favorite editing or visit deletion. This replaced inconsistent activation paths and an extra History Actions popup. Implementation: `43f8e09`, fixes 10–12.
 
-**Cursor movement recovered after arrow navigation.** The remote could click but no longer move the cursor. Unfinished arrow changes were removed; a new touch/move clears the directional hidden state. The user reported recovery. The final fix did not replace the input mechanism with a new pan recognizer. Implementation: `eca1e02`, fix 13.
+**Cursor movement recovered after arrow navigation.** The remote could click but no longer move the cursor. Unfinished arrow changes were removed; a new touch/move clears the directional hidden state. The user reported recovery. The final fix did not replace the input mechanism with a new pan recognizer. Implementation: `52180be`, fix 13.
 
-**History had become inaccessible, not erased.** After storage changes, the user reported that history stopped recording and appeared empty. Device inspection found the existing database in Caches with existing visits and Favorites. Restoring discovery of that file restored writes; later checks confirmed new visits were recorded with existing Favorites retained. The user asked to remove automatic cleanup completely and add Clear History alongside Cache/Cookies. Explicit clearing gained confirmation, and live-container inspection was documented as a safeguard. This work is part of `0e1d6b5`.
+**History had become inaccessible, not erased.** After storage changes, the user reported that history stopped recording and appeared empty. Device inspection found the existing database in Caches with existing visits and Favorites. Restoring discovery of that file restored writes; later checks confirmed new visits were recorded with existing Favorites retained. The user asked to remove automatic cleanup completely and add Clear History alongside Cache/Cookies. Explicit clearing gained confirmation, and live-container inspection was documented as a safeguard. This work is part of `bf4ef6b`.
 
 **The first tab-history persistence attempt was incomplete.** Earlier that day, tab URL lists and positions were stored in models/preferences, Clear Cache was narrowed, Recents used the last active week, and history older than a month was pruned while retaining 100 entries. A page restored locally, but full UI Back/Forward was not confirmed. Age cleanup was then removed at the user's request; the October 1 SQLite session replaced the initial persistence approach. These intermediate decisions explain later work and are not current settings.
 
@@ -54,7 +54,7 @@ The user subsequently planned Firefox Sync, an integrated torrent client with si
 
 ### 2026-09-28 — making website players usable
 
-**The first decisive result was delivering a click into a custom iframe player.** Work started with a question about the browser supporting few video containers. The saved `test.html` example showed that Play did not receive a click: the browser clicked the outer iframe instead of the control inside it. A frame bridge with local coordinates was added. The user reported success, then identified the next blocker: all remote control disappeared after expanding the video. The focus shifted from codec investigation to interaction with website players. Included in `0e1d6b5`, feature 2.10 and fix 02.
+**The first decisive result was delivering a click into a custom iframe player.** Work started with a question about the browser supporting few video containers. The saved `test.html` example showed that Play did not receive a click: the browser clicked the outer iframe instead of the control inside it. A frame bridge with local coordinates was added. The user reported success, then identified the next blocker: all remote control disappeared after expanding the video. The focus shifted from codec investigation to interaction with website players. Included in `bf4ef6b`, feature 2.10 and fix 02.
 
 **Fullscreen retained remote input.** Expansion used a page-managed mode rather than handing control to an unsupported system fullscreen path. The user initially saw black video and later clarified that this happened during advertising; the main video subsequently appeared. Cursor, Play/Pause and Menu were confirmed afterward. The old upstream fullscreen branch was inspected but not imported: its private memory-offset hook was older and disabled in the current baseline.
 
@@ -80,7 +80,7 @@ The user subsequently planned Firefox Sync, an integrated torrent client with si
 
 ### 2026-03-08 — fork baseline
 
-Upstream `9b90e0e` already contained WebKit browsing, cursor input, tabs, basic Favorites/history and native/WebKit media paths. Its existing video path did not make the required custom players receive remote input. Those inherited capabilities are the comparison baseline rather than new fork features.
+Upstream `97c801a` already contained WebKit browsing, cursor input, tabs, basic Favorites/history and native/WebKit media paths. Its existing video path did not make the required custom players receive remote input. Those inherited capabilities are the comparison baseline rather than new fork features.
 
 ## Implementation detail
 
@@ -164,46 +164,46 @@ No automatic age cleanup remains. The database discovery order considers Applica
 
 | Feature stage | User-facing purpose | Main source |
 | --- | --- | --- |
-| 2.1.0 | Browse with one remote using pointer, smooth scrolling and contextual input | `0e1d6b5` |
-| 2.2.0 | Find actions quickly in a tiled menu with readable focus and toggle state | `0e1d6b5` |
-| 2.3.0 | Open familiar pages through search, Favorites and recent visits on New Tab | `0e1d6b5` |
-| 2.4.0 | Keep more than five useful tabs without saving empty New Tab slots | `0e1d6b5` |
-| 2.5.0 | Retain full visits/Favorites and manage long lists through SQLite/All History | `0e1d6b5` |
-| 2.6.0 | Edit or delete Favorites directly on TV | `0e1d6b5` |
-| 2.7.0 | Make whole pages readable through adjustable zoom | `0e1d6b5` |
-| 2.8.0 | Block selected advertising/tracking requests and turn blocking off reliably | `0e1d6b5` |
-| 2.9.0 | Reach small controls accurately with a cursor magnifier | `0e1d6b5` |
-| 2.10.0 | Start and control custom website players through iframe/Shadow DOM bridging | `0e1d6b5` |
-| 2.11.0 | Learn remote gestures through the visual guide | `0e1d6b5` |
-| 2.12.0 | Give pages the whole screen and consolidate actions in the menu | `95e289a` |
-| 2.13.0 | Restore complete tab Back/Forward navigation from SQLite | `cdee449` |
-| 2.14.0 | Recover history, Favorites and tabs from a complete local backup | `cdee449` |
-| 2.15.0 | Enable website diagnostics when investigating persistent-state problems | `595c1f9` |
+| 2.1.0 | Browse with one remote using pointer, smooth scrolling and contextual input | `bf4ef6b` |
+| 2.2.0 | Find actions quickly in a tiled menu with readable focus and toggle state | `bf4ef6b` |
+| 2.3.0 | Open familiar pages through search, Favorites and recent visits on New Tab | `bf4ef6b` |
+| 2.4.0 | Keep more than five useful tabs without saving empty New Tab slots | `bf4ef6b` |
+| 2.5.0 | Retain full visits/Favorites and manage long lists through SQLite/All History | `bf4ef6b` |
+| 2.6.0 | Edit or delete Favorites directly on TV | `bf4ef6b` |
+| 2.7.0 | Make whole pages readable through adjustable zoom | `bf4ef6b` |
+| 2.8.0 | Block selected advertising/tracking requests and turn blocking off reliably | `bf4ef6b` |
+| 2.9.0 | Reach small controls accurately with a cursor magnifier | `bf4ef6b` |
+| 2.10.0 | Start and control custom website players through iframe/Shadow DOM bridging | `bf4ef6b` |
+| 2.11.0 | Learn remote gestures through the visual guide | `bf4ef6b` |
+| 2.12.0 | Give pages the whole screen and consolidate actions in the menu | `7f2289c` |
+| 2.13.0 | Restore complete tab Back/Forward navigation from SQLite | `2bdb5a2` |
+| 2.14.0 | Recover history, Favorites and tabs from a complete local backup | `2bdb5a2` |
+| 2.15.0 | Enable website diagnostics when investigating persistent-state problems | `3cf73b8` |
 
 | Historical fix ID | Result | Source |
 | --- | --- | --- |
-| 01 | Correct hover coordinates and avoid synchronous event-loop waiting | `0e1d6b5` |
-| 02 | Deliver clicks into nested iframe/Shadow DOM players | `0e1d6b5` |
-| 03 | Use cookie fallback on asynchronous-store timeout | `0e1d6b5` |
-| 04 | Preserve non-cache data on Clear Cache | `0e1d6b5` |
-| 05 | Reapply saved zoom after navigation | `0e1d6b5` |
-| 06 | Treat cancelled navigation as NSURLErrorCancelled rather than positive 999 | `0e1d6b5` |
-| 07 | Resolve filtered overview cards to the correct real tab | `0e1d6b5` |
-| 08 | Remap the restored active index after filtering transient tabs | `0e1d6b5` |
-| 09 | Guard repeated overview dismissal with dismissalInProgress | `0e1d6b5` |
-| 10 | Open with Center and select with Play/Pause in All History | `d2a7bdb` |
-| 11 | Provide recent-20 History and All History in the menu | `d2a7bdb` |
-| 12 | Provide New Tab contextual options and retain selected sections | `d2a7bdb` |
-| 13 | Restore cursor state on touch after arrows/inactivity | `eca1e02` |
-| 14 | Seek video without a following history transition | `95e289a` |
-| 15 | Turn off the magnifier after 30 seconds idle | `bdda665` |
-| 16 | Consume Back/Menu phases instead of exiting the app | `cdee449` |
-| 17 | Capture same-document tab navigation | `cdee449` |
-| 18 | Preserve Forward across restoration and redirects | `cdee449` |
-| 19 | Save an empty session to clear stale tabs | `cdee449` |
-| 20 | Keep explicit mutations and backup state consistent | `cdee449` |
-| 21 | Make persistent website data writable across launches | `595c1f9` |
-| 22 | Give initial menu focus to the domain button | `a4e3b21` |
+| 01 | Correct hover coordinates and avoid synchronous event-loop waiting | `bf4ef6b` |
+| 02 | Deliver clicks into nested iframe/Shadow DOM players | `bf4ef6b` |
+| 03 | Use cookie fallback on asynchronous-store timeout | `bf4ef6b` |
+| 04 | Preserve non-cache data on Clear Cache | `bf4ef6b` |
+| 05 | Reapply saved zoom after navigation | `bf4ef6b` |
+| 06 | Treat cancelled navigation as NSURLErrorCancelled rather than positive 999 | `bf4ef6b` |
+| 07 | Resolve filtered overview cards to the correct real tab | `bf4ef6b` |
+| 08 | Remap the restored active index after filtering transient tabs | `bf4ef6b` |
+| 09 | Guard repeated overview dismissal with dismissalInProgress | `bf4ef6b` |
+| 10 | Open with Center and select with Play/Pause in All History | `43f8e09` |
+| 11 | Provide recent-20 History and All History in the menu | `43f8e09` |
+| 12 | Provide New Tab contextual options and retain selected sections | `43f8e09` |
+| 13 | Restore cursor state on touch after arrows/inactivity | `52180be` |
+| 14 | Seek video without a following history transition | `7f2289c` |
+| 15 | Turn off the magnifier after 30 seconds idle | `b843a5d` |
+| 16 | Consume Back/Menu phases instead of exiting the app | `2bdb5a2` |
+| 17 | Capture same-document tab navigation | `2bdb5a2` |
+| 18 | Preserve Forward across restoration and redirects | `2bdb5a2` |
+| 19 | Save an empty session to clear stale tabs | `2bdb5a2` |
+| 20 | Keep explicit mutations and backup state consistent | `2bdb5a2` |
+| 21 | Make persistent website data writable across launches | `3cf73b8` |
+| 22 | Give initial menu focus to the domain button | `74c6c0c` |
 
 ## Verification evidence and remaining limits
 
@@ -223,9 +223,9 @@ These observations describe the state reported at the time. They do not imply th
 
 ## Sources
 
-Code was compared from `9b90e0e` through the current tree and each fork package: `0e1d6b5`, `e23671d`, `d2a7bdb`, `eca1e02`, `95e289a`, `bdda665`, `cdee449`, `595c1f9` and `a4e3b21`. Commit links are provided in [CHANGELOG.md](CHANGELOG.md).
+Code was compared from `97c801a` through the current tree and each fork package: `bf4ef6b`, `e3542b7`, `43f8e09`, `52180be`, `7f2289c`, `b843a5d`, `2bdb5a2`, `3cf73b8` and `74c6c0c`. Commit links are provided in [CHANGELOG.md](CHANGELOG.md).
 
-`e23671d` updated the README and screenshots. SQLite and later zlib linking support the storage features. Development instructions, regression checklists and graph integration were also added, without being counted as user-facing minor features.
+`e3542b7` updated the README and screenshots. SQLite and later zlib linking support the storage features. Development instructions, regression checklists and graph integration were also added, without being counted as user-facing minor features.
 
 | Project discussion | Evidence used |
 | --- | --- |
