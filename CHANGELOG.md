@@ -1,10 +1,16 @@
 # Changelog
 
-## 2.15.24 - 2026-10-02
+## 2.15.25 - 2026-10-02
 
 ### Fixed
 
-- Scale page content and text together with WebKit view scale, keep the left edge visible, and restore the chosen zoom after relaunch ([user guide](USER_GUIDE.md#main-menu)).
+- Enlarge page text and content together with WebKit view scale while keeping the page aligned from the left after zoom and relaunch ([user guide](USER_GUIDE.md#main-menu), [development history](DEVELOPMENT_HISTORY.md#2026-10-02--page-zoom-for-reading)).
+
+## 2.15.24 - 2026-10-01
+
+### Fixed
+
+- Prevent Zoom Out at 50% from wrapping to 200% and discard stale horizontal offsets when restoring a tab ([development history](DEVELOPMENT_HISTORY.md#2026-10-02--page-zoom-for-reading)).
 
 ## 2.15.23 - 2026-10-01
 

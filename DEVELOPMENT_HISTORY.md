@@ -1,6 +1,6 @@
 # Development history — tvOS Browser, just-better-code version
 
-Detailed background for [CHANGELOG.md](CHANGELOG.md): user requests, implementation decisions, verification evidence and reversals from the fork baseline to **2.15.24**.
+Detailed background for [CHANGELOG.md](CHANGELOG.md): user requests, implementation decisions, verification evidence and reversals from the fork baseline to **2.15.25**.
 
 ## Historical context
 
@@ -12,9 +12,9 @@ Dates in the chronological account describe project discussions in Europe/Kiev. 
 
 ## Chronological account
 
-### 2026-10-01 — page zoom for reading
+### 2026-10-02 — page zoom for reading
 
-The user narrowed the active work to readable whole-page zoom on pravda.com.ua, with no rightward drift and a stable relaunch. The previous Zoom action combined WebKit page zoom with private text zoom and used three delayed horizontal offset corrections based on the visible center. Firefox iOS research showed a single `viewScale` per tab and host-based persistence. The first fix (`5151814`) retained WebKit `pageZoom` alone, but simulator testing exposed a regression: at 140%, WebKit reduced the viewport width from 1920 to 1371 CSS pixels and the body font from 16px to about 11.43px, leaving text nearly unchanged while the page shifted. This was corrected by applying the saved global percentage through WebKit `viewScale`, as Firefox does, with a page/text zoom fallback for runtimes without that key. At 140%, the simulator showed larger text and content aligned to the left. The saved 140% preference and effective `viewScale=1.4` survived terminate and relaunch. The user called the result close to ideal. The fix also prevents Zoom Out at 50% from wrapping to 200%. Physical TV and pointer alignment were not verified.
+The user narrowed the active work on October 1 to readable whole-page zoom on pravda.com.ua, with no rightward drift and a stable relaunch. The previous Zoom action combined WebKit page zoom with private text zoom and used three delayed horizontal offset corrections based on the visible center. Firefox iOS research showed a single `viewScale` per tab and host-based persistence. Fix 2.15.24 (`5151814`) removed the center corrections, discarded stale horizontal offsets on session restore and fixed Zoom Out wrapping at 50%, but retained WebKit `pageZoom` alone. Simulator testing on October 2 exposed a regression: at 140%, WebKit reduced the viewport width from 1920 to 1371 CSS pixels and the body font from 16px to about 11.43px, leaving text nearly unchanged while the page shifted. Fix 2.15.25 (`c63e081`) applies the saved global percentage through WebKit `viewScale`, as Firefox does, with a page/text zoom fallback for runtimes without that key. At 140%, the simulator showed larger text and content aligned to the left. The saved 140% preference and effective `viewScale=1.4` survived terminate and relaunch. The user called the result close to ideal. Physical TV and pointer alignment were not verified.
 
 ### 2026-10-01 — restoring the browsing and viewing session
 
@@ -152,7 +152,7 @@ The website owns episode/season/timecode persistence. No dropdown-specific prefe
 - Focus raises buttons above neighbors, keeps icons readable and uses modest enlargement.
 - Address editing exposes the complete URL although the inactive menu shows only the domain.
 - Mobile Site changes User Agent and reopens the active tab without deliberately clearing site data.
-- Page zoom ranges from 50–200%, in 10% steps. Version 2.15.24 uses WebKit `viewScale` for the whole rendered page and removes the center-based horizontal offset recalculation. Zoom changes and restored sessions start at the left edge; loaded pages reapply the saved percentage. Cursor alignment remains planned.
+- Page zoom ranges from 50–200%, in 10% steps. Version 2.15.24 removed the center-based horizontal offset recalculation; version 2.15.25 uses WebKit `viewScale` for the whole rendered page. Zoom changes and restored sessions start at the left edge; loaded pages reapply the saved percentage. Cursor alignment remains planned.
 - Ad Block changes rules across existing WebViews, preserves their history and exposes removal failure separately from successful OFF.
 - Clear Cache removes cache types rather than all non-cookie website data.
 
@@ -218,7 +218,7 @@ No automatic age cleanup remains. The database discovery order considers Applica
 - Complete backup recovery compared all five tables with 288 visits, 3 Favorites and 5 tabs. New visits appeared in All History and survived relaunch.
 - The user confirmed test-site episode selection after website-store changes. That confirmation is not a claim of universal website behavior or a separately verified full TV reboot.
 - Earlier domain-focus diagnostics reported focused=1 and onScreen=1. No fresh physical TV checks were performed while writing these documents.
-- General page scroll restoration has a reported unresolved case. The 2.15.24 zoom change resets horizontal restoration while retaining the saved vertical offset; pravda.com.ua was visually checked at 140% in the tvOS 18.2 Simulator, while pointer and other site layouts remain pending.
+- General page scroll restoration has a reported unresolved case. The 2.15.24 zoom change resets horizontal restoration while retaining the saved vertical offset; the 2.15.25 rendering fix was visually checked on pravda.com.ua at 140% in the tvOS 18.2 Simulator, while pointer and other site layouts remain pending.
 - Main history and website files remain in Caches and can be evicted; preferences backup protects the database, not site state.
 - The torrent/Keep Alive prototype exists in another branch and is absent from the current feature/canvas-fix tree.
 - Pure canvas players, closed player APIs, codecs and DRM are not universally supported. PiP and iCloud were rejected; Firefox Sync and background torrent downloading remain planned.

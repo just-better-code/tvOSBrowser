@@ -1,6 +1,6 @@
 # User Guide — tvOS Browser, just-better-code version
 
-Current for **2.15.24**. Button names match the application.
+Current for **2.15.25**. Button names match the application.
 
 ## Quick start
 
