@@ -2,7 +2,6 @@
 #import <UIKit/UIKit.h>
 
 @class BrowserTabViewModel;
-@class BrowserTopBarView;
 @class BrowserViewModel;
 
 NS_ASSUME_NONNULL_BEGIN
@@ -26,7 +25,6 @@ NS_ASSUME_NONNULL_BEGIN
 - (instancetype)initWithHost:(id<BrowserTabOverviewControllerHost>)host
                    viewModel:(BrowserViewModel *)viewModel
                     rootView:(UIView *)rootView
-                  topMenuView:(BrowserTopBarView *)topMenuView
                   cursorView:(UIImageView *)cursorView NS_DESIGNATED_INITIALIZER;
 
 - (instancetype)init NS_UNAVAILABLE;

@@ -6,16 +6,17 @@ NS_ASSUME_NONNULL_BEGIN
 
 + (NSString *)desktopUserAgent;
 + (NSString *)mobileUserAgent;
++ (BOOL)websiteLoggingEnabled;
 
 @property (nonatomic, copy) NSString *userAgent;
 @property (nonatomic) BOOL mobileModeEnabled;
-@property (nonatomic) BOOL topNavigationBarVisible;
 @property (nonatomic) NSUInteger textFontSize;
 @property (nonatomic) NSUInteger pageZoomPercent;
 @property (nonatomic) BOOL fullscreenVideoPlaybackEnabled;
 @property (nonatomic) BOOL adBlockEnabled;
 @property (nonatomic) BOOL cursorMagnifierEnabled;
 @property (nonatomic) BOOL dontShowHintsOnLaunch;
+@property (nonatomic) BOOL websiteLoggingEnabled;
 @property (nonatomic, copy) NSString *homePageURLString;
 
 - (void)ensureUserAgentConsistency;

@@ -17,6 +17,10 @@
 - (void)browserShowHints;
 - (void)browserShowTabOverview;
 - (void)browserCreateNewTab;
+- (BOOL)browserCanGoBack;
+- (BOOL)browserCanGoForward;
+- (void)browserGoBack;
+- (void)browserGoForward;
 - (void)browserUpdateTextFontSize;
 - (void)browserCaptureSnapshotForCurrentTab;
 - (void)browserRecreateActiveWebViewPreservingCurrentURL;

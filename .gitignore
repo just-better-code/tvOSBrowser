@@ -64,3 +64,6 @@ graphify-out/
 
 # Personal, machine-local agent notes
 AGENTS.local.md
+
+# Personal signing configuration
+_Project/Browser/Config/Signing.local.xcconfig

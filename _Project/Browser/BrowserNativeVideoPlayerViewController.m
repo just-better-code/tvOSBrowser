@@ -47,6 +47,12 @@ static NSString *BrowserNativePlayerPressPhaseString(UIPressPhase phase) {
     va_start(arguments, format);
     NSString *message = [[NSString alloc] initWithFormat:format arguments:arguments];
     va_end(arguments);
+    // Object descriptions can contain credentials, signed URLs, or page content.
+    // Keep the event template instead of serializing those payloads into logs.
+    if ([format containsString:@"%@"]) {
+        NSRegularExpression *placeholders = [NSRegularExpression regularExpressionWithPattern:@"%[-+ #0]*[0-9]*(?:\\.[0-9]+)?(?:hh|ll|[hljztL])?[@diuoxXfFeEgGaAcsp]" options:0 error:NULL];
+        message = [placeholders stringByReplacingMatchesInString:format options:0 range:NSMakeRange(0, format.length) withTemplate:@"<redacted>"];
+    }
     NSLog(@"%@ %@", kBrowserNativeVideoPlayerLogPrefix, message);
 }
 

@@ -2,13 +2,13 @@
 
 static NSString * const kUserAgentDefaultsKey = @"UserAgent";
 static NSString * const kMobileModeDefaultsKey = @"MobileMode";
-static NSString * const kShowTopNavigationBarDefaultsKey = @"ShowTopNavigationBar";
 static NSString * const kTextFontSizeDefaultsKey = @"TextFontSize";
 static NSString * const kPageZoomPercentDefaultsKey = @"PageZoomPercent";
 static NSString * const kEnableFullscreenVideoPlaybackDefaultsKey = @"EnableFullscreenVideoPlayback";
 static NSString * const kAdBlockEnabledDefaultsKey = @"AdBlockEnabled";
 static NSString * const kCursorMagnifierEnabledDefaultsKey = @"CursorMagnifierEnabled";
 static NSString * const kDontShowHintsOnLaunchDefaultsKey = @"DontShowHintsOnLaunch";
+static NSString * const kWebsiteLoggingEnabledDefaultsKey = @"WebsiteLoggingEnabled";
 static NSString * const kHomepageDefaultsKey = @"homepage";
 
 static NSUInteger const kDefaultTextFontSize = 100;
@@ -23,6 +23,21 @@ static NSUInteger const kMaximumTextFontSize = 200;
 
 + (NSString *)mobileUserAgent {
     return @"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
+}
+
++ (BOOL)websiteLoggingEnabled {
+    NSNumber *value = [NSUserDefaults.standardUserDefaults objectForKey:kWebsiteLoggingEnabledDefaultsKey];
+    // Preserve existing logging until the user explicitly switches it off.
+    return value == nil ? YES : value.boolValue;
+}
+
+- (BOOL)websiteLoggingEnabled {
+    return BrowserPreferencesStore.websiteLoggingEnabled;
+}
+
+- (void)setWebsiteLoggingEnabled:(BOOL)enabled {
+    [[self defaults] setBool:enabled forKey:kWebsiteLoggingEnabledDefaultsKey];
+    [[self defaults] synchronize];
 }
 
 - (NSUserDefaults *)defaults {
@@ -55,16 +70,6 @@ static NSUInteger const kMaximumTextFontSize = 200;
 
 - (void)setMobileModeEnabled:(BOOL)mobileModeEnabled {
     [[self defaults] setBool:mobileModeEnabled forKey:kMobileModeDefaultsKey];
-    [[self defaults] synchronize];
-}
-
-- (BOOL)topNavigationBarVisible {
-    NSNumber *showTopNavBar = [[self defaults] objectForKey:kShowTopNavigationBarDefaultsKey];
-    return showTopNavBar ? showTopNavBar.boolValue : YES;
-}
-
-- (void)setTopNavigationBarVisible:(BOOL)topNavigationBarVisible {
-    [[self defaults] setObject:@(topNavigationBarVisible) forKey:kShowTopNavigationBarDefaultsKey];
     [[self defaults] synchronize];
 }
 
