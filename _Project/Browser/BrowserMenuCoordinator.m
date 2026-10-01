@@ -527,7 +527,10 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
                      animations:^{
         self.dimView.alpha = 1.0;
         [self.view layoutIfNeeded];
-    } completion:nil];
+    } completion:^(__unused BOOL finished) {
+        [self setNeedsFocusUpdate];
+        [self updateFocusIfNeeded];
+    }];
 }
 
 - (void)viewWillDisappear:(BOOL)animated {
@@ -684,14 +687,14 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
 }
 
 - (NSArray<id<UIFocusEnvironment>> *)preferredFocusEnvironments {
+    if (self.addressButton.enabled) {
+        return @[self.addressButton];
+    }
     if (self.toolbarButtons.count >= kBrowserNavigationToolbarItemCount) {
         UIButton *newTabButton = self.toolbarButtons[kBrowserNavigationToolbarItemCount - 2];
         if (newTabButton.enabled) {
             return @[newTabButton];
         }
-    }
-    if (self.addressButton.enabled) {
-        return @[self.addressButton];
     }
     for (UIButton *button in self.toolbarButtons) {
         if (button.enabled) {
