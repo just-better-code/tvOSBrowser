@@ -6,7 +6,7 @@
 
 A web browser for Apple TV, built with `WKWebView` and designed for the Siri Remote. There is no prebuilt binary; build and sign the app with Xcode for your own device.
 
-> This project uses private tvOS and WebKit APIs and is intended for personal development and sideloading. App Store distribution is not supported.
+> This project uses private tvOS and WebKit APIs and is intended for personal development and sideloading. The application will never be published on the App Store.
 
 ## Changelog
 
