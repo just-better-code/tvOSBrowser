@@ -432,10 +432,6 @@ static UIColor *kTextColor(void) {
     [self browserPresentViewController:viewController];
 }
 
-- (void)browserTabCoordinatorUpdateTextFontSize {
-    [self updateTextFontSize];
-}
-
 - (BOOL)browserTabCoordinatorIsCursorModeEnabled {
     return self.remoteInputController.cursorModeEnabled;
 }

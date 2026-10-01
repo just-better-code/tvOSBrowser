@@ -242,7 +242,6 @@ static NSString *BrowserNewTabSectionHTML(NSArray *entries, BOOL favorites, NSUI
     scrollView.scrollEnabled = NO;
 
     webView.pageZoomFactor = self.preferencesStore.pageZoomPercent / 100.0;
-    webView.textZoomFactor = 1.0;
     webView.contentMode = UIViewContentModeScaleToFill;
     webView.userInteractionEnabled = NO;
     return webView;
@@ -255,12 +254,6 @@ static NSString *BrowserNewTabSectionHTML(NSArray *entries, BOOL favorites, NSUI
     }
 
     self.activeWebView.pageZoomFactor = self.preferencesStore.pageZoomPercent / 100.0;
-    self.activeWebView.textZoomFactor = 1.0;
-
-    NSURLRequest *request = self.activeWebView.request;
-    if (request != nil) {
-        [self.host browserTabCoordinatorUpdateTextFontSize];
-    }
 }
 
 - (BOOL)restoreBrowserSession {
