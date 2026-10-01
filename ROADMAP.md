@@ -38,7 +38,7 @@ The current bridge supports some clicks and video commands. Further research cov
 
 **Purpose:** finish the interaction checks for scaled pages.
 
-Page and text now use one WebKit zoom factor, and zoom changes and session restoration reset horizontal position to the left edge. Visual verification on representative websites, including pravda.com.ua, remains pending. Investigate pointer/click coordinates on scaled pages and embedded players, plus any website layout or scroll restoration issues revealed by that verification.
+Page and text now use one WebKit view scale, and zoom changes and session restoration reset horizontal position to the left edge. The layout and relaunch were checked on pravda.com.ua in the tvOS 18.2 Simulator. Investigate pointer/click coordinates on scaled pages and embedded players, plus any website layout or scroll restoration issues found on other sites.
 
 ## Rejected
 

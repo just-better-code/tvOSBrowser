@@ -1,10 +1,10 @@
 # Changelog
 
-## 2.15.24 - 2026-10-01
+## 2.15.24 - 2026-10-02
 
 ### Fixed
 
-- Scale page content and text once when zooming, keep the left edge visible, and retain the chosen zoom after relaunch ([user guide](USER_GUIDE.md#main-menu)).
+- Scale page content and text together with WebKit view scale, keep the left edge visible, and restore the chosen zoom after relaunch ([user guide](USER_GUIDE.md#main-menu)).
 
 ## 2.15.23 - 2026-10-01
 
