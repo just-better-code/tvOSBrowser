@@ -242,7 +242,7 @@ static NSString *BrowserNewTabSectionHTML(NSArray *entries, BOOL favorites, NSUI
     scrollView.scrollEnabled = NO;
 
     webView.pageZoomFactor = self.preferencesStore.pageZoomPercent / 100.0;
-    webView.textZoomFactor = self.preferencesStore.textFontSize / 100.0;
+    webView.textZoomFactor = 1.0;
     webView.contentMode = UIViewContentModeScaleToFill;
     webView.userInteractionEnabled = NO;
     return webView;
@@ -255,7 +255,7 @@ static NSString *BrowserNewTabSectionHTML(NSArray *entries, BOOL favorites, NSUI
     }
 
     self.activeWebView.pageZoomFactor = self.preferencesStore.pageZoomPercent / 100.0;
-    self.activeWebView.textZoomFactor = self.preferencesStore.textFontSize / 100.0;
+    self.activeWebView.textZoomFactor = 1.0;
 
     NSURLRequest *request = self.activeWebView.request;
     if (request != nil) {
@@ -603,9 +603,8 @@ static NSString *BrowserNewTabSectionHTML(NSArray *entries, BOOL favorites, NSUI
     CGPoint savedScrollOffset = tab.savedScrollOffset;
     dispatch_async(dispatch_get_main_queue(), ^{
         [scrollView layoutIfNeeded];
-        CGFloat maxOffsetX = MAX(0.0, scrollView.contentSize.width - CGRectGetWidth(scrollView.bounds));
         CGFloat maxOffsetY = MAX(0.0, scrollView.contentSize.height - CGRectGetHeight(scrollView.bounds));
-        CGPoint clampedScrollOffset = CGPointMake(MIN(MAX(savedScrollOffset.x, 0.0), maxOffsetX),
+        CGPoint clampedScrollOffset = CGPointMake(0.0,
                                                   MIN(MAX(savedScrollOffset.y, 0.0), maxOffsetY));
         [scrollView setContentOffset:clampedScrollOffset animated:NO];
         tab.savedScrollOffset = clampedScrollOffset;

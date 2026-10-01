@@ -64,9 +64,7 @@ static UIColor *kTextColor(void) {
     [self.preferencesStore ensureUserAgentConsistency];
 
     self.viewModel = [BrowserViewModel new];
-    NSUInteger matchingFontSize = self.preferencesStore.pageZoomPercent;
-    self.preferencesStore.textFontSize = matchingFontSize;
-    self.viewModel.textFontSize = matchingFontSize;
+    self.viewModel.textFontSize = 100;
     self.viewModel.fullscreenVideoPlaybackEnabled = self.preferencesStore.fullscreenVideoPlaybackEnabled;
 
     self.domInteractionService = [BrowserDOMInteractionService new];

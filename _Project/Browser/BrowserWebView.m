@@ -1545,11 +1545,10 @@ static void BrowserLoadAdBlockRuleList(BrowserAdBlockRuleListCompletion completi
     if (fabs(self.lastAppliedPageZoom - zoomValue) < 0.001) {
         return;
     }
-    self.lastAppliedPageZoom = zoomValue;
-
     SEL pageZoomSelector = NSSelectorFromString(@"setPageZoom:");
     if ([self.runtimeWebView respondsToSelector:pageZoomSelector]) {
         ((void (*)(id, SEL, double))objc_msgSend)(self.runtimeWebView, pageZoomSelector, zoomValue);
+        self.lastAppliedPageZoom = zoomValue;
     }
 }
 
