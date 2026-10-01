@@ -59,8 +59,15 @@ _Project/Availability.h
 # Generated local knowledge graph
 graphify-out/
 
+# Локальний клон Firefox та нотатки дослідження
+/docs/firefox-ios-research/
+/docs/agent/FIREFOX_IOS_IFRAME_RESEARCH.md
+/docs/agent/plans/iframe-player-controls.md
+/docs/agent/plans/zoom-reading.md
+
 # Locally downloaded tvOS torrent toolchain (see scripts/bootstrap-torrent-deps.sh)
 .deps/
+.data/
 
 # Personal, machine-local agent notes
 AGENTS.local.md
