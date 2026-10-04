@@ -27,6 +27,12 @@
 @property (nonatomic) UIView *videoView;
 @property (nonatomic) int64_t lastPlaybackTime;
 @property (nonatomic) NSTimeInterval lastPlaybackProgressTime;
+@property (nonatomic) int64_t pendingResumeMs;
+@property (nonatomic) NSTimeInterval lastPositionSaveTime;
+@property (nonatomic) NSTimer *seekHoldTimer;
+@property (nonatomic) int64_t seekHoldStepMs;
+@property (nonatomic) int64_t seekHoldTargetMs;
+@property (nonatomic) NSTimeInterval seekHoldStartTime;
 @end
 
 @implementation BrowserTorrentVLCPlayerViewController
@@ -136,6 +142,10 @@ static NSInteger const kBrowserVLCControlIconTag = 9797;
     UIButton *forward = [self controlButtonWithSymbol:@"goforward.10" label:@"Forward 10 seconds" action:@selector(seekForwardPressed)];
     UIButton *forward30 = [self controlButtonWithSymbol:@"goforward.30" label:@"Forward 30 seconds" action:@selector(seekForwardThirtyPressed)];
     UIButton *next = [self controlButtonWithSymbol:@"forward.end.fill" label:@"Next file" action:@selector(nextFilePressed)];
+    back30.tag = -30;
+    back.tag = -10;
+    forward.tag = 10;
+    forward30.tag = 30;
     self.playButton = play;
     UIStackView *buttons = [[UIStackView alloc] initWithArrangedSubviews:@[close, previous, back30, back, play, forward, forward30, next]];
     buttons.translatesAutoresizingMaskIntoConstraints = NO;
@@ -169,6 +179,15 @@ static NSInteger const kBrowserVLCControlIconTag = 9797;
     contextPress.allowedPressTypes = @[@(UIPressTypeSelect)];
     contextPress.cancelsTouchesInView = YES;
     [self.view addGestureRecognizer:contextPress];
+    for (UIButton *button in @[back30, back, forward, forward30]) {
+        UILongPressGestureRecognizer *seekHold = [[UILongPressGestureRecognizer alloc]
+            initWithTarget:self action:@selector(handleSeekHold:)];
+        seekHold.minimumPressDuration = 0.6;
+        seekHold.allowedPressTypes = @[@(UIPressTypeSelect)];
+        seekHold.cancelsTouchesInView = YES;
+        [button addGestureRecognizer:seekHold];
+        [contextPress requireGestureRecognizerToFail:seekHold];
+    }
 
     [[NSNotificationCenter defaultCenter] addObserver:self
                                              selector:@selector(applicationWillResignActive:)
@@ -184,7 +203,9 @@ static NSInteger const kBrowserVLCControlIconTag = 9797;
 
 - (void)applicationWillResignActive:(NSNotification *)notification {
     (void)notification;
+    [self stopHeldSeek];
     if (!self.vlcPlayer.isPlaying) return;
+    [self savePlaybackPosition];
     [self.vlcPlayer pause];
     BrowserDebugLog(@"[TorrentVLC] paused on app deactivation");
     [self showControls];
@@ -212,8 +233,45 @@ static NSInteger const kBrowserVLCControlIconTag = 9797;
     [self presentViewController:actions animated:YES completion:nil];
 }
 
+- (void)handleSeekHold:(UILongPressGestureRecognizer *)recognizer {
+    if (recognizer.state == UIGestureRecognizerStateBegan) {
+        NSInteger seconds = recognizer.view.tag;
+        self.seekHoldStepMs = seconds * 2 * 1000;
+        self.seekHoldTargetMs = self.vlcPlayer.time.value.longLongValue;
+        self.seekHoldStartTime = NSDate.date.timeIntervalSince1970 - recognizer.minimumPressDuration;
+        [self repeatHeldSeek];
+        self.seekHoldTimer = [NSTimer timerWithTimeInterval:0.8 target:self
+            selector:@selector(repeatHeldSeek) userInfo:nil repeats:YES];
+        [[NSRunLoop mainRunLoop] addTimer:self.seekHoldTimer forMode:NSRunLoopCommonModes];
+    } else if (recognizer.state == UIGestureRecognizerStateEnded ||
+               recognizer.state == UIGestureRecognizerStateCancelled ||
+               recognizer.state == UIGestureRecognizerStateFailed) {
+        [self stopHeldSeek];
+    }
+}
+
+- (void)repeatHeldSeek {
+    int64_t step = self.seekHoldStepMs;
+    if (llabs(step) == 60000 && NSDate.date.timeIntervalSince1970 - self.seekHoldStartTime >= 10)
+        step *= 2;
+    self.seekHoldTargetMs = MAX(0, self.seekHoldTargetMs + step);
+    int64_t duration = self.vlcPlayer.media.length.value.longLongValue;
+    if (duration > 0) self.seekHoldTargetMs = MIN(self.seekHoldTargetMs, duration);
+    self.vlcPlayer.time = [VLCTime timeWithNumber:@(self.seekHoldTargetMs)];
+    [self showControls];
+    [self refreshProgress];
+}
+
+- (void)stopHeldSeek {
+    [self.seekHoldTimer invalidate];
+    self.seekHoldTimer = nil;
+    self.seekHoldStepMs = 0;
+}
+
 - (void)prepareCurrentFile {
     BrowserTorrentManager *manager = [BrowserTorrentManager sharedManager];
+    self.pendingResumeMs = [manager playbackPositionForTorrent:self.identifier fileIndex:self.fileIndex];
+    self.lastPositionSaveTime = NSDate.date.timeIntervalSince1970;
     NSURL *mediaURL = nil;
     if ([manager isFileCompleteForTorrent:self.identifier fileIndex:self.fileIndex]) {
         mediaURL = [manager fileURLForTorrent:self.identifier fileIndex:self.fileIndex];
@@ -237,6 +295,9 @@ static NSInteger const kBrowserVLCControlIconTag = 9797;
     self.lastPlaybackTime = 0;
     self.lastPlaybackProgressTime = NSDate.date.timeIntervalSince1970;
     BrowserDebugLog(@"[TorrentVLC] prepared fileIndex=%ld local=%d", (long)self.fileIndex, mediaURL.isFileURL);
+    if (self.pendingResumeMs > 0)
+        BrowserDebugLog(@"[TorrentVLC] resume pending fileIndex=%ld positionMs=%lld",
+            (long)self.fileIndex, (long long)self.pendingResumeMs);
 }
 
 - (void)viewDidAppear:(BOOL)animated {
@@ -249,6 +310,8 @@ static NSInteger const kBrowserVLCControlIconTag = 9797;
 
 - (void)viewWillDisappear:(BOOL)animated {
     [super viewWillDisappear:animated];
+    [self stopHeldSeek];
+    [self savePlaybackPosition];
     self.vlcPlayer.delegate = nil;
     [self.vlcPlayer stop];
     [self.server stop];
@@ -315,7 +378,29 @@ static NSInteger const kBrowserVLCControlIconTag = 9797;
     return [NSString stringWithFormat:@"%@ · Complete: %ld%%", prefix, (long)percent];
 }
 
+- (void)savePlaybackPosition {
+    BrowserTorrentManager *manager = [BrowserTorrentManager sharedManager];
+    if (self.vlcPlayer.state == VLCMediaPlayerStateEnded) {
+        [manager savePlaybackPosition:0 forTorrent:self.identifier fileIndex:self.fileIndex];
+        return;
+    }
+    int64_t position = self.vlcPlayer.time.value.longLongValue;
+    if (position < 5000 || self.pendingResumeMs > 0) return;
+    int64_t duration = self.vlcPlayer.media.length.value.longLongValue;
+    if (duration > 0 && duration - position <= MIN(30000, duration / 20)) position = 0;
+    [manager savePlaybackPosition:position forTorrent:self.identifier fileIndex:self.fileIndex];
+    self.lastPositionSaveTime = NSDate.date.timeIntervalSince1970;
+}
+
 - (void)refreshProgress {
+    if (self.pendingResumeMs >= 5000 && self.vlcPlayer.isPlaying && self.vlcPlayer.isSeekable) {
+        int64_t target = self.pendingResumeMs;
+        self.pendingResumeMs = 0;
+        self.lastPositionSaveTime = NSDate.date.timeIntervalSince1970;
+        self.vlcPlayer.time = [VLCTime timeWithNumber:@(target)];
+        BrowserDebugLog(@"[TorrentVLC] resume seek fileIndex=%ld positionMs=%lld",
+            (long)self.fileIndex, (long long)target);
+    }
     int64_t elapsed = self.vlcPlayer.time.value.longLongValue;
     int64_t duration = self.vlcPlayer.media.length.value.longLongValue;
     int64_t remaining = self.vlcPlayer.remainingTime.value.longLongValue;
@@ -338,6 +423,8 @@ static NSInteger const kBrowserVLCControlIconTag = 9797;
         self.statusLabel.text = [self downloadStatusWithPrefix:streaming ? @"Streaming" : @"Buffering"];
     }
     self.lastPlaybackTime = elapsed;
+    if (self.pendingResumeMs == 0 && elapsed >= 5000 && now - self.lastPositionSaveTime >= 10)
+        [self savePlaybackPosition];
     if (now - self.lastDurationLogTime >= 15) {
         BrowserDebugLog(@"[TorrentVLC] elapsedMs=%lld durationMs=%lld remainingMs=%lld playing=%d",
             (long long)elapsed, (long long)duration, (long long)remaining, self.vlcPlayer.isPlaying);
@@ -381,7 +468,10 @@ static NSInteger const kBrowserVLCControlIconTag = 9797;
 
 - (void)closePressed { [self dismissViewControllerAnimated:YES completion:nil]; }
 - (void)playPausePressed {
-    if (self.vlcPlayer.isPlaying) [self.vlcPlayer pause]; else [self.vlcPlayer play];
+    if (self.vlcPlayer.isPlaying) {
+        [self savePlaybackPosition];
+        [self.vlcPlayer pause];
+    } else [self.vlcPlayer play];
     [self showControls];
     [self refreshProgress];
 }
@@ -393,6 +483,9 @@ static NSInteger const kBrowserVLCControlIconTag = 9797;
 - (void)startOrPreviousPressed {
     if (self.vlcPlayer.time.value.longLongValue > 5000) {
         self.vlcPlayer.time = [VLCTime timeWithNumber:@0];
+        self.pendingResumeMs = 0;
+        [[BrowserTorrentManager sharedManager] savePlaybackPosition:0 forTorrent:self.identifier fileIndex:self.fileIndex];
+        self.lastPositionSaveTime = NSDate.date.timeIntervalSince1970;
         [self showControls];
         return;
     }
@@ -415,6 +508,7 @@ static NSInteger const kBrowserVLCControlIconTag = 9797;
         return;
     }
     self.vlcPlayer.delegate = nil;
+    [self savePlaybackPosition];
     [self.vlcPlayer stop];
     [self.server stop];
     self.fileIndex = candidate.index;
@@ -452,7 +546,10 @@ static NSInteger const kBrowserVLCControlIconTag = 9797;
             case VLCMediaPlayerStatePlaying: self.statusLabel.text = @""; [self showControls]; break;
             case VLCMediaPlayerStatePaused: self.statusLabel.text = @"Paused"; break;
             case VLCMediaPlayerStateError: self.statusLabel.text = @"Playback failed. Check torrent availability or file format."; break;
-            case VLCMediaPlayerStateEnded: self.statusLabel.text = @"Playback finished"; break;
+            case VLCMediaPlayerStateEnded:
+                self.statusLabel.text = @"Playback finished";
+                [self savePlaybackPosition];
+                break;
             default: break;
         }
         if (state == VLCMediaPlayerStateOpening || state == VLCMediaPlayerStateBuffering ||

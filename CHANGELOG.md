@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.20.0 - 2026-10-04
+
+### Added
+
+- Resume each torrent media file from its saved playback position and clear that position when playback finishes or its torrent data is removed ([user guide](USER_GUIDE.md#torrents), [torrent architecture](TORRENTS.md)).
+- Rewind or fast-forward continuously while holding a player seek button, with larger steps after holding the 30-second button for ten seconds ([user guide](USER_GUIDE.md#torrents)).
+
 ## 2.19.1 - 2026-10-04
 
 ### Fixed

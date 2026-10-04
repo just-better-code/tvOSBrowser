@@ -21,6 +21,12 @@
 
 namespace lt = libtorrent;
 
+static NSString * const BrowserTorrentPlaybackPositionsKey = @"BrowserTorrentPlaybackPositions";
+
+static NSString *BrowserTorrentPlaybackKey(NSString *identifier, NSInteger index) {
+    return [NSString stringWithFormat:@"%@:%ld", identifier, (long)index];
+}
+
 @implementation BrowserTorrentSnapshot
 @end
 
@@ -211,6 +217,7 @@ static NSString *BrowserTorrentHashString(lt::sha1_hash const& hash) {
     NSMutableDictionary *source = [original mutableCopy];
     if (!deletionError) {
         [[NSFileManager defaultManager] removeItemAtPath:[self resumePathForHash:hash] error:nil];
+        [self clearPlaybackPositionsForTorrent:hash];
         [self.appliedFileSelections removeObject:hash];
         [self.activePlaybackFiles removeObjectForKey:hash];
         [self.lastResumeRequest removeObjectForKey:hash];
@@ -715,6 +722,34 @@ static NSString *BrowserTorrentHashString(lt::sha1_hash const& hash) {
     return std::min(1.0, std::max(0.0, (double)progress[(size_t)index] / size));
 }
 
+- (int64_t)playbackPositionForTorrent:(NSString *)identifier fileIndex:(NSInteger)index {
+    NSDictionary *positions = [NSUserDefaults.standardUserDefaults dictionaryForKey:BrowserTorrentPlaybackPositionsKey];
+    return [positions[BrowserTorrentPlaybackKey(identifier, index)] longLongValue];
+}
+
+- (void)savePlaybackPosition:(int64_t)milliseconds forTorrent:(NSString *)identifier fileIndex:(NSInteger)index {
+    if (!identifier.length || index < 0) return;
+    NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
+    NSMutableDictionary *positions = [[defaults dictionaryForKey:BrowserTorrentPlaybackPositionsKey] mutableCopy]
+        ?: [NSMutableDictionary dictionary];
+    NSString *key = BrowserTorrentPlaybackKey(identifier, index);
+    if (milliseconds > 0) positions[key] = @(milliseconds);
+    else [positions removeObjectForKey:key];
+    [defaults setObject:positions forKey:BrowserTorrentPlaybackPositionsKey];
+}
+
+- (void)clearPlaybackPositionsForTorrent:(NSString *)identifier {
+    if (!identifier.length) return;
+    NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
+    NSMutableDictionary *positions = [[defaults dictionaryForKey:BrowserTorrentPlaybackPositionsKey] mutableCopy];
+    if (!positions) return;
+    NSString *prefix = [identifier stringByAppendingString:@":"];
+    for (NSString *key in positions.allKeys) {
+        if ([key hasPrefix:prefix]) [positions removeObjectForKey:key];
+    }
+    [defaults setObject:positions forKey:BrowserTorrentPlaybackPositionsKey];
+}
+
 - (NSData *)availableDataForTorrent:(NSString *)identifier
                           fileIndex:(NSInteger)index
                              offset:(int64_t)offset
@@ -780,6 +815,7 @@ static NSString *BrowserTorrentHashString(lt::sha1_hash const& hash) {
         [self.activePlaybackFiles removeObjectForKey:identifier];
         [self.lastResumeRequest removeObjectForKey:identifier];
         [self.completedResumeRequested removeObject:identifier];
+        [self clearPlaybackPositionsForTorrent:identifier];
     }
     return YES;
 }
@@ -886,6 +922,7 @@ static NSString *BrowserTorrentHashString(lt::sha1_hash const& hash) {
         [self.lastLoggedFilePercent removeAllObjects];
         [self.lastResumeRequest removeAllObjects];
         [self.completedResumeRequested removeAllObjects];
+        [NSUserDefaults.standardUserDefaults removeObjectForKey:BrowserTorrentPlaybackPositionsKey];
         lt::settings_pack settings;
         settings.set_int(lt::settings_pack::alert_mask, int(lt::alert_category::error | lt::alert_category::storage));
         _session = std::make_unique<lt::session>(settings);
