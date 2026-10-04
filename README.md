@@ -1,42 +1,36 @@
-# tvOS Browser
+# tvOSofaBrowse
 
-**Compared with the [upstream project](https://github.com/jvanakker/tvOSBrowser), this fork adds a redesigned Siri Remote interface, a tiled browser menu, a New Tab page with Favorites and recent visits, custom iframe video player controls, persistent tab navigation, and automatic local history recovery.**
+A personal-use web browser for Apple TV, built around `WKWebView` and the Siri Remote. This fork extends the [upstream tvOS Browser](https://github.com/jvanakker/tvOSBrowser) to make ordinary websites, embedded video, and torrent media practical to use from a sofa. There is no prebuilt app or App Store release.
 
-[Read the upstream project’s README](https://github.com/jvanakker/tvOSBrowser/blob/master/README.mdown).
+**A touchpad-equipped remote is required. The browser cannot be used without a touchpad.**
 
-A web browser for Apple TV, built with `WKWebView` and designed for the Siri Remote. There is no prebuilt binary; build and sign the app with Xcode for your own device.
+## Why this fork
 
-> This project uses private tvOS and WebKit APIs and is intended for personal development and sideloading. The application will never be published on the App Store.
+- **Mouse-like control with a TV remote:** slide on the touchpad to move a pointer, press Center to click website controls, and use Up/Down for smooth scrolling. A cursor magnifier helps target small controls.
+- **Custom video players in iframes:** interact with supported player controls inside embedded frames, including some cross-origin frames and Shadow DOM, using the pointer and remote playback buttons.
+- **Torrent streaming:** open magnet and `.torrent` links from websites, choose files or folders, and play selected media through TVVLCKit as verified pieces arrive, before the whole file finishes downloading.
+- **Ad blocking:** turn WebKit content rules on or off from the browser menu to block advertising and tracking requests.
+- **Comfortable reading:** scale the whole page and its text from 50% to 200% in 10% steps, with a saved zoom level and an easy reset to 100%.
+- **A menu made for Apple TV:** use a tiled panel for address entry, tabs, history, Favorites, Torrents, zoom, settings, and data-clearing actions without a desktop-style toolbar covering the page.
 
-## Changelog
+The browser also restores tabs and their Back/Forward navigation, shows Favorites and recent visits on a native New Tab page, and keeps full local history without automatic age-based deletion. A compressed local backup can recover history, Favorites, and tab navigation if the main database is missing or damaged.
 
-See [CHANGELOG.md](CHANGELOG.md) for versioned changes in the [Common Changelog](https://common-changelog.org/) format. Current version: **2.15.23**.
+Playback and website interaction depend on each site's player, format, codec, and DRM. Torrent downloads may pause when tvOS suspends the app; Background App Refresh and the experimental Keep Alive setting do not guarantee continuous background transfers. Website cookies and storage are separate from the browser database backup.
 
-Detailed development history, decisions, and verification notes: [DEVELOPMENT_HISTORY.md](DEVELOPMENT_HISTORY.md). Planned features and rejected directions: [ROADMAP.md](ROADMAP.md).
+## Build for personal use
 
-## Build
+Open [`_Project/Browser.xcodeproj`](_Project/Browser.xcodeproj) in Xcode and select the `Browser` scheme. The Apple TV Simulator is the easiest starting point. For a physical Apple TV, use your own local automatic-signing settings by copying `_Project/Browser/Config/Signing.local.xcconfig.example` to `Signing.local.xcconfig` and filling in your development team and bundle identifier. The local file is ignored by Git. A paid Apple Developer membership and App Store publication are not part of this project.
 
-Open [`_Project/Browser.xcodeproj`](_Project/Browser.xcodeproj) in Xcode, select the `Browser` scheme, then build for an Apple TV Simulator or a paired Apple TV. For device signing, copy `_Project/Browser/Config/Signing.local.xcconfig.example` to `Signing.local.xcconfig` in the same directory and set your own team and bundle identifier. The local configuration is ignored by Git. Agents use the simulator unless physical-device work is authorized.
+The torrent feature needs the pinned dependencies installed by `scripts/bootstrap-torrent-deps.sh` and `scripts/bootstrap-vlc-deps.sh` before building. These install libtorrent, Boost, and TVVLCKit into ignored `.deps/` with pinned checksums. Preserve their upstream licenses when distributing source or binaries.
 
-## User guide
+The app uses private tvOS and WebKit APIs and is intended for personal development and sideloading.
 
-![The in-app Siri Remote guide](screenshots/user-guide.png)
+## Using the remote
 
-Read the detailed [User Guide](USER_GUIDE.md) for remote controls, tabs, history, video, local recovery, and diagnostic logging. Open the quick guide in the app from **Menu → Tools → User Guide**.
+Slide on the touchpad to move the pointer, press Center to click, and use Up/Down to scroll. Back/Menu opens the browser menu. The menu provides address entry, tabs, Favorites, history, Torrents, zoom, settings, and data-clearing actions. App-owned pages use tvOS focus: Center activates, holding Center opens context actions, and Play/Pause performs the page's shortcut.
 
-The screenshots below show the interface; the written guide describes the current controls.
+The visual quick guide is available in the app's Tools menu. On New Tab, Center opens a Favorite or recent visit; Play/Pause opens its actions. In All History, Center opens a row and Play/Pause marks it for selection. In Torrents, Center or Play/Pause plays a focused media file, while the download icon selects it without playback. Hold Center on app-owned rows for more actions.
 
-![The tiled browser menu](screenshots/menu.png)
+## Project status
 
-## Features and limits
-
-- Multiple tabs with session restoration
-- Local Favorites and browsing history
-- Pointer navigation, smooth scrolling, and a cursor magnifier
-- Content blocking and page zoom
-- Custom iframe player interaction, including players inside Shadow DOM
-- In-page theater/fullscreen with remote playback controls
-- Full-screen video playback through tvOS WebKit and AVPlayer
-- Automatic local backup and recovery of history, Favorites, and tab navigation
-
-Video playback depends on the source format, codecs, delivery method, DRM, and the website’s player. Full-screen mode cannot make an unsupported stream playable.
+Current source version: **2.17.9**. The version number describes the current source state; this personal-use fork has no corresponding published releases or Git tags. Detailed development notes, changelog, roadmap, and user guide are kept locally under the ignored `docs/agent/` directory.

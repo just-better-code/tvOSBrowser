@@ -63,9 +63,7 @@ graphify-out/
 /.references/
 
 # Локальний клон Firefox та нотатки дослідження
-/docs/agent/FIREFOX_IOS_IFRAME_RESEARCH.md
-/docs/agent/plans/iframe-player-controls.md
-/docs/agent/plans/zoom-reading.md
+/docs/agent/*
 
 # Locally downloaded tvOS torrent toolchain (see scripts/bootstrap-torrent-deps.sh)
 .deps/
