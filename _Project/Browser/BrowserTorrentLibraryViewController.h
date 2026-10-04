@@ -4,4 +4,5 @@
 - (void)promptToAddTorrent;
 - (void)selectTorrent:(NSString *)identifier;
 - (void)importTorrentRequest:(NSURLRequest *)request;
+- (void)showImportError:(NSString *)message;
 @end

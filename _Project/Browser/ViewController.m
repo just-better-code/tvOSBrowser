@@ -360,7 +360,36 @@ static UIColor *kTextColor(void) {
 }
 
 - (void)browserShowTorrents {
-    [self browserPresentViewController:[BrowserTorrentLibraryViewController new]];
+    [self presentTorrentLibrary];
+}
+
+- (BrowserTorrentLibraryViewController *)presentTorrentLibrary {
+    if ([self.presentedViewController isKindOfClass:BrowserTorrentLibraryViewController.class]) {
+        return (BrowserTorrentLibraryViewController *)self.presentedViewController;
+    }
+    BrowserTorrentLibraryViewController *library = [BrowserTorrentLibraryViewController new];
+    [self browserPresentViewController:library];
+    return library;
+}
+
+- (BOOL)handleTorrentRequest:(NSURLRequest *)request {
+    NSURL *URL = request.URL;
+    NSString *scheme = URL.scheme.lowercaseString;
+    BOOL magnet = [scheme isEqualToString:@"magnet"];
+    BOOL torrentFile = ([@[@"http", @"https"] containsObject:scheme ?: @""] &&
+                        [URL.pathExtension.lowercaseString isEqualToString:@"torrent"]);
+    if (!magnet && !torrentFile) return NO;
+
+    BrowserTorrentLibraryViewController *library = [self presentTorrentLibrary];
+    if (magnet) {
+        NSError *error = nil;
+        NSString *identifier = [[BrowserTorrentManager sharedManager] identifierForMagnetString:URL.absoluteString error:&error];
+        if (identifier) [library selectTorrent:identifier];
+        else [library showImportError:error.localizedDescription];
+    } else {
+        [library importTorrentRequest:request];
+    }
+    return YES;
 }
 
 - (void)browserCreateNewTab {
@@ -483,6 +512,7 @@ static UIColor *kTextColor(void) {
 }
 
 - (BOOL)browserPageActionCoordinatorCreateNewTabWithRequest:(NSURLRequest *)request {
+    if ([self handleTorrentRequest:request]) return YES;
     return [self.tabCoordinator createNewTabWithRequest:request];
 }
 
@@ -675,31 +705,36 @@ static UIColor *kTextColor(void) {
 
 - (BOOL)webView:(id)webView shouldCreateNewTabWithRequest:(NSURLRequest *)request navigationType:(NSInteger)navigationType {
     (void)webView;
+    if ([self handleTorrentRequest:request]) return YES;
     return [self.tabCoordinator createNewTabWithRequest:request];
+}
+
+- (BOOL)webView:(id)webView shouldImportTorrentResponse:(NSURLResponse *)response request:(NSURLRequest *)request {
+    (void)webView;
+    BOOL torrentMIME = [response.MIMEType.lowercaseString isEqualToString:@"application/x-bittorrent"];
+    NSString *disposition = [response isKindOfClass:NSHTTPURLResponse.class]
+        ? [(NSHTTPURLResponse *)response valueForHTTPHeaderField:@"Content-Disposition"] : nil;
+    BOOL torrentFilename = [disposition.lowercaseString containsString:@"attachment"] &&
+        [response.suggestedFilename.pathExtension.lowercaseString isEqualToString:@"torrent"];
+    if (!torrentMIME && !torrentFilename) return NO;
+    NSURL *URL = response.URL;
+    if (![@[@"http", @"https"] containsObject:URL.scheme.lowercaseString ?: @""]) return NO;
+
+    BrowserTorrentLibraryViewController *library = [self presentTorrentLibrary];
+    BOOL sameURL = [request.URL isEqual:URL];
+    NSString *method = request.HTTPMethod.uppercaseString ?: @"GET";
+    if (![method isEqualToString:@"GET"] && !sameURL) {
+        [library showImportError:@"This torrent download was redirected after a form submission. Open its direct .torrent URL instead."];
+        return YES;
+    }
+    NSURLRequest *importRequest = sameURL ? request : [NSURLRequest requestWithURL:URL];
+    [library importTorrentRequest:importRequest];
+    return YES;
 }
 
 - (BOOL)webView:(id)webView shouldStartLoadWithRequest:(NSURLRequest *)request navigationType:(NSInteger)navigationType {
     (void)navigationType;
-    NSString *scheme = request.URL.scheme.lowercaseString;
-    if ([scheme isEqualToString:@"magnet"]) {
-        NSError *error = nil;
-        BOOL added = [[BrowserTorrentManager sharedManager] addMagnetString:request.URL.absoluteString error:&error];
-        [self showTorrentImportMessage:added ? @"Torrent added. Open Torrents from the menu to view its files." : error.localizedDescription];
-        return NO;
-    }
-    if (([scheme isEqualToString:@"http"] || [scheme isEqualToString:@"https"]) &&
-        [request.URL.pathExtension.lowercaseString isEqualToString:@"torrent"]) {
-        __weak typeof(self) weakSelf = self;
-        [[[NSURLSession sharedSession] dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *downloadError) {
-            NSError *torrentError = nil;
-            BOOL added = data && !downloadError && [[BrowserTorrentManager sharedManager] addTorrentData:data error:&torrentError];
-            dispatch_async(dispatch_get_main_queue(), ^{
-                [weakSelf showTorrentImportMessage:added ? @"Torrent added. Open Torrents from the menu to view its files."
-                                                          : (downloadError ?: torrentError).localizedDescription];
-            });
-        }] resume];
-        return NO;
-    }
+    if ([self handleTorrentRequest:request]) return NO;
     if ([request.URL.scheme.lowercaseString isEqualToString:@"tvosbrowser"] &&
         [request.URL.host.lowercaseString isEqualToString:@"manage"] &&
         [self browserRemoteInputControllerNewTabVisible]) {
@@ -753,13 +788,6 @@ static UIColor *kTextColor(void) {
     }
     [self.tabCoordinator prepareTabForRequest:request webView:webView navigationType:navigationType];
     return YES;
-}
-
-- (void)showTorrentImportMessage:(NSString *)message {
-    if (self.presentedViewController) return;
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Torrents" message:message ?: @"Could not add torrent." preferredStyle:UIAlertControllerStyleAlert];
-    [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
-    [self browserPresentViewController:alert];
 }
 
 - (void)browserRefreshNewTabPageSelectingGroup:(NSString *)group index:(NSUInteger)index {

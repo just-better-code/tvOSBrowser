@@ -1,6 +1,6 @@
 # Roadmap — tvOS Browser, just-better-code version
 
-Updated from the user's decisions on **2026-10-01**. These capabilities are planned and are not included in version 2.15.22.
+Updated on **2026-10-04**. These entries describe work still planned after version 2.16.0.
 
 ## Planned
 
@@ -10,17 +10,16 @@ Updated from the user's decisions on **2026-10-01**. These capabilities are plan
 
 Investigate Firefox Account/Sync integration, authentication, and synchronization of Favorites, history and tabs. The exact scope and conflict resolution remain to be determined.
 
-### Built-in torrent client with background downloading and playback while downloading
+### Extend the built-in torrent client
 
 **Purpose:** open a magnet or `.torrent` link on a website, choose files and start watching on Apple TV before the download finishes, without a PC client.
 
-- Continue the prototype from the project's torrent discussion: intercept website links, open the built-in client and select files to download or play.
 - Implement background downloading using **Keep Alive through silent audio playback in the background**. An earlier branch experimented with this mechanism; sustaining an actual download remains to be verified.
-- Prioritize the selected playback file and the pieces needed for startup and seeking, allowing playback while downloading.
-- Integrate download management into the browser menu and keep playback inside the application. Handoff to a separate VLC app was rejected in the earlier discussion because it would take focus away from the browser.
+- Verify seeking, restart, torrent removal and cache cleanup on the physical Apple TV, and address any issues observed.
+- Review manager concurrency and resume persistence beyond the current saved file selection.
 - Later, consider an indicator listing torrent/magnet links found on the page to avoid precise cursor targeting.
 
-A prototype exists, but the complete website-click-to-background-download-and-playback flow is not implemented. The [torrent-client plan and reference map](docs/agent/plans/torrent-client.md) records the relevant sources and remaining work.
+Version 2.16.0 opens website torrent links in the library and plays a selected file through embedded VLC while pieces download. A physical Apple TV playback start was observed; background downloading and the checks above remain. The [torrent-client plan and reference map](docs/agent/plans/torrent-client.md) records the relevant sources and remaining work.
 
 ### Mobile Firefox and its WebKit integration
 

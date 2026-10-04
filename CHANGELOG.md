@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.16.0 - 2026-10-04
+
+### Changed
+
+- Wait for file selection before downloading payloads of newly imported torrents so unwanted files stay skipped ([user guide](USER_GUIDE.md#torrents), [development history](DEVELOPMENT_HISTORY.md#2026-10-04--built-in-torrent-playback-on-apple-tv)).
+
+### Added
+
+- Open the built-in torrent library from website magnet and `.torrent` links, including new windows and recognized torrent download responses ([user guide](USER_GUIDE.md#torrents)).
+- Play selected torrent media through embedded TVVLCKit with buffering, remote controls, file navigation and direct opening of completed files ([user guide](USER_GUIDE.md#torrents), [torrent architecture](TORRENTS.md)).
+- Resume verified torrent pieces across app launches to avoid repeating full checks of cached files ([torrent architecture](TORRENTS.md)).
+- Reclaim unlisted torrent cache files with a confirmation action and remove cached payloads when deleting a torrent ([user guide](USER_GUIDE.md#torrents)).
+
 ## 2.15.26 - 2026-10-04
 
 ### Fixed

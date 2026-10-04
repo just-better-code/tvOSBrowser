@@ -49,12 +49,30 @@
 		C0D3A0010000000000000008 /* BrowserTorrentLibraryViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = C0D3A0010000000000000009 /* BrowserTorrentLibraryViewController.m */; };
 		C0D3A001000000000000000B /* BrowserTorrentKeepAlive.m in Sources */ = {isa = PBXBuildFile; fileRef = C0D3A001000000000000000C /* BrowserTorrentKeepAlive.m */; };
 		C0D3A001000000000000000E /* libtorrent.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = C0D3A001000000000000000F /* libtorrent.xcframework */; };
+		C0D3A0010000000000000010 /* TVVLCKit.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = C0D3A0010000000000000012 /* TVVLCKit.xcframework */; };
+		C0D3A0010000000000000011 /* TVVLCKit.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = C0D3A0010000000000000012 /* TVVLCKit.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		C0D3A0010000000000000015 /* BrowserTorrentHTTPServer.m in Sources */ = {isa = PBXBuildFile; fileRef = C0D3A0010000000000000014 /* BrowserTorrentHTTPServer.m */; };
+		C0D3A0010000000000000018 /* BrowserTorrentVLCPlayerViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = C0D3A0010000000000000017 /* BrowserTorrentVLCPlayerViewController.m */; };
 		B002B8671BAE420500C744AF /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = B002B8661BAE420500C744AF /* main.m */; };
 		B002B86A1BAE420500C744AF /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = B002B8691BAE420500C744AF /* AppDelegate.m */; };
 		B002B86D1BAE420500C744AF /* ViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = B002B86C1BAE420500C744AF /* ViewController.m */; };
 		B002B8701BAE420500C744AF /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = B002B86E1BAE420500C744AF /* Main.storyboard */; };
 		B002B8721BAE420500C744AF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B002B8711BAE420500C744AF /* Assets.xcassets */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		C0D3A0010000000000000019 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				C0D3A0010000000000000011 /* TVVLCKit.xcframework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		C0DE00000000000000000001 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Browser/Config/Signing.xcconfig; sourceTree = SOURCE_ROOT; };
@@ -124,6 +142,11 @@
 		C0D3A001000000000000000C /* BrowserTorrentKeepAlive.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserTorrentKeepAlive.m; sourceTree = "<group>"; };
 		C0D3A001000000000000000D /* BrowserTorrentKeepAlive.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserTorrentKeepAlive.h; sourceTree = "<group>"; };
 		C0D3A001000000000000000F /* libtorrent.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = libtorrent.xcframework; path = ../.deps/libtorrent.xcframework; sourceTree = "<group>"; };
+		C0D3A0010000000000000012 /* TVVLCKit.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = TVVLCKit.xcframework; path = ../.deps/TVVLCKit.xcframework; sourceTree = "<group>"; };
+		C0D3A0010000000000000013 /* BrowserTorrentHTTPServer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserTorrentHTTPServer.h; sourceTree = "<group>"; };
+		C0D3A0010000000000000014 /* BrowserTorrentHTTPServer.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserTorrentHTTPServer.m; sourceTree = "<group>"; };
+		C0D3A0010000000000000016 /* BrowserTorrentVLCPlayerViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserTorrentVLCPlayerViewController.h; sourceTree = "<group>"; };
+		C0D3A0010000000000000017 /* BrowserTorrentVLCPlayerViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserTorrentVLCPlayerViewController.m; sourceTree = "<group>"; };
 		B002B8621BAE420500C744AF /* Browser.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Browser.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B002B8661BAE420500C744AF /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
 		B002B8681BAE420500C744AF /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
@@ -142,6 +165,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				C0D3A001000000000000000E /* libtorrent.xcframework in Frameworks */,
+				C0D3A0010000000000000010 /* TVVLCKit.xcframework in Frameworks */,
 				9675E1FF20857AEF00A4A84A /* UIKit.framework in Frameworks */,
 				9675E1FC20855F6500A4A84A /* Foundation.framework in Frameworks */,
 			);
@@ -172,6 +196,7 @@
 			isa = PBXGroup;
 			children = (
 				C0D3A001000000000000000F /* libtorrent.xcframework */,
+				C0D3A0010000000000000012 /* TVVLCKit.xcframework */,
 				9675E1FE20857AEF00A4A84A /* UIKit.framework */,
 				9675E1FB20855F6500A4A84A /* Foundation.framework */,
 			);
@@ -266,6 +291,8 @@
 				A1B49A602D6A1000001D58A1 /* BrowserWKWebViewProofOfConceptViewController.m */,
 				C0D3A001000000000000000A /* BrowserTorrentLibraryViewController.h */,
 				C0D3A0010000000000000009 /* BrowserTorrentLibraryViewController.m */,
+				C0D3A0010000000000000016 /* BrowserTorrentVLCPlayerViewController.h */,
+				C0D3A0010000000000000017 /* BrowserTorrentVLCPlayerViewController.m */,
 			);
 			name = Controllers;
 			sourceTree = "<group>";
@@ -299,6 +326,8 @@
 				C0D3A0010000000000000002 /* BrowserTorrentManager.mm */,
 				C0D3A001000000000000000D /* BrowserTorrentKeepAlive.h */,
 				C0D3A001000000000000000C /* BrowserTorrentKeepAlive.m */,
+				C0D3A0010000000000000013 /* BrowserTorrentHTTPServer.h */,
+				C0D3A0010000000000000014 /* BrowserTorrentHTTPServer.m */,
 			);
 			name = Torrents;
 			sourceTree = "<group>";
@@ -370,6 +399,7 @@
 			buildPhases = (
 				B002B85E1BAE420500C744AF /* Sources */,
 				B002B85F1BAE420500C744AF /* Frameworks */,
+				C0D3A0010000000000000019 /* Embed Frameworks */,
 				B002B8601BAE420500C744AF /* Resources */,
 				9693F8451BF5A99E00077BAB /* ShellScript */,
 			);
@@ -472,6 +502,8 @@
 				C0D3A0010000000000000005 /* BrowserTorrentAssetLoader.m in Sources */,
 				C0D3A0010000000000000008 /* BrowserTorrentLibraryViewController.m in Sources */,
 				C0D3A001000000000000000B /* BrowserTorrentKeepAlive.m in Sources */,
+				C0D3A0010000000000000015 /* BrowserTorrentHTTPServer.m in Sources */,
+				C0D3A0010000000000000018 /* BrowserTorrentVLCPlayerViewController.m in Sources */,
 				A1B49A872D6D2000001D58A1 /* BrowserVideoPlaybackCoordinator.m in Sources */,
 				A1B49A842D6D2000001D58A1 /* BrowserDOMInteractionService.m in Sources */,
 				A1B49A4E2D680900001D58A1 /* BrowserNavigationService.m in Sources */,
@@ -638,7 +670,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.15.26;
+				MARKETING_VERSION = 2.16.0;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SCAN_ALL_SOURCE_FILES_FOR_INCLUDES = NO;
 				TVOS_DEPLOYMENT_TARGET = 15.6;
@@ -668,7 +700,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.15.26;
+				MARKETING_VERSION = 2.16.0;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SCAN_ALL_SOURCE_FILES_FOR_INCLUDES = NO;
 				TVOS_DEPLOYMENT_TARGET = 15.6;

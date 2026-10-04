@@ -41,6 +41,7 @@ NS_ASSUME_NONNULL_BEGIN
                                     length:(NSUInteger)length;
 - (void)prioritizeTorrent:(NSString *)identifier fileIndex:(NSInteger)index offset:(int64_t)offset;
 - (BOOL)removeTorrent:(NSString *)identifier deleteFiles:(BOOL)deleteFiles;
+- (uint64_t)cleanUnlistedCacheFilesWithRemovedCount:(NSUInteger *)removedCount;
 - (BOOL)setPaused:(BOOL)paused forTorrent:(NSString *)identifier;
 @end
 

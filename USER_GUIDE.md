@@ -45,8 +45,8 @@ The toolbar contains **Home**, **Reload Page**, the address, **New Tab** and **T
 
 | Section | Actions |
 | --- | --- |
-| Quick Actions | Zoom Out, Reset Zoom, Zoom In, Add Favorite, History |
-| Settings | Ad Block, Magnifier, Full Screen Player, Mobile Site |
+| Quick Actions | Zoom Out, Reset Zoom, Zoom In, Add Favorite, History, Torrents |
+| Settings | Ad Block, Magnifier, Full Screen Player, Mobile Site, Keep Alive |
 | Tools | Debug, User Guide, Clear Cache, Clear Cookies, Clear History |
 
 Zoom ranges from **50% to 200%**, in **10%** steps. It scales the text and page together, starts at the left edge after a change, and remembers the chosen percentage across tabs and launches. Reset Zoom shows the current percentage, updates after each zoom action, and restores **100%** when pressed. Mobile Site changes the User Agent; presentation depends on the website. If Ad Block interferes with a page or player, try disabling it and reloading.
@@ -105,6 +105,14 @@ On New Tab, select a Favorite and press Play/Pause for editing and deletion opti
 The browser forwards clicks into supported iframe players, including cross-origin frames inside web components. Point at the player's Play, episode selector or fullscreen button and press Center.
 
 Availability depends on the player, stream format and website. A pure canvas player without accessible video does not have guaranteed seeking support. DRM and unsupported formats may prevent playback.
+
+## Torrents
+
+Select a magnet or `.torrent` link on a website to open **Torrents** immediately. You can also use **Menu → Quick Actions → Torrents → Add Torrent** to paste a magnet or HTTP(S) `.torrent` URL. The library selects a new or already imported torrent and shows its files after metadata arrives.
+
+New torrents start with files skipped. Select a file and choose **Download File** to fetch it, or **Play Now (Priority)** to fetch it and open the embedded VLC player. Press Play/Pause on a focused media file in the list as a shortcut for Play Now. The player offers MP4, M4V, MOV, MP3, M4A, MKV and AVI files. If libtorrent is checking an existing file, playback waits for that check; otherwise it starts as verified pieces arrive and may show **Buffering torrent…**. The format and codec still need to be supported by the embedded player and Apple TV hardware. The bottom panel has Close, previous/start, 10- and 30-second seek, Play/Pause, next file and progress controls. It and the file title hide during playback after inactivity; use Center or Up/Down to show them again. Previous returns to the start of the current file when more than five seconds have played, or opens the previous playable file near the start. Play/Pause toggles playback, Left/Right seek by 10 seconds while the panel is hidden, and Back/Menu returns to the library.
+
+From a torrent's file list, choose **Skip Download** to stop requesting that file, **Pause/Resume** to control the torrent, or **Remove** to delete the torrent and request removal of its cached files. From the library's main list, **Clean Cache** removes unlisted torrent files and reports space reclaimed after confirmation. It keeps files used by listed torrents and does not touch browser history or website data. Torrent payloads and metadata are in tvOS's purgeable cache, so the system may remove them when space is needed. **Settings → Keep Alive** is experimental and does not guarantee background downloading.
 
 ### Episode, season and playback position
 

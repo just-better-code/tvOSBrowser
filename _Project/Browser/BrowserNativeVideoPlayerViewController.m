@@ -204,6 +204,7 @@ static NSString *BrowserNativePlayerPressPhaseString(UIPressPhase phase) {
 - (void)handlePlayerItemFailedToPlayToEndTime:(NSNotification *)notification {
     NSError *error = notification.userInfo[AVPlayerItemFailedToPlayToEndTimeErrorKey];
     [self log:@"failedToPlayToEnd error=%@", error];
+    if (self.torrentAssetLoader) [self log:@"torrent failedToEnd code=%ld underlyingCode=%ld", (long)error.code, (long)[error.userInfo[NSUnderlyingErrorKey] code]];
 }
 
 - (void)handlePlayerItemNewErrorLogEntry:(NSNotification *)notification {
@@ -231,6 +232,10 @@ static NSString *BrowserNativePlayerPressPhaseString(UIPressPhase phase) {
                 break;
             case AVPlayerItemStatusFailed:
                 [self log:@"item status=failed error=%@", self.player.currentItem.error];
+                if (self.torrentAssetLoader) {
+                    NSError *error = self.player.currentItem.error;
+                    [self log:@"torrent item failed code=%ld underlyingCode=%ld", (long)error.code, (long)[error.userInfo[NSUnderlyingErrorKey] code]];
+                }
                 break;
         }
         return;

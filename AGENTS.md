@@ -18,6 +18,8 @@
 - Prefer `rg` and `rg --files` for targeted text and file discovery.
 - Xcode project: `_Project/Browser.xcodeproj`; scheme: `Browser`. Use `xcodebuild` for requested builds and `xcrun devicectl` for device work only with the user’s permission.
 - For authorized device builds, installation, launch, and history-container backups, read [Apple TV runbook](docs/agent/APPLE_TV_RUNBOOK.md).
+- If a paired Apple TV appears in destination discovery but a sandboxed build cannot see it, follow the Xcode service recovery note in that runbook before changing signing or device settings.
+- Torrent playback uses pinned [TVVLCKit](https://github.com/videolan/vlckit) 3.7.3 through a loopback HTTP range server backed by verified libtorrent pieces; completed files open locally. `scripts/bootstrap-vlc-deps.sh` installs the ignored binary. Diagnose playback with safe numeric `[TorrentHTTP]`, `[TorrentVLC]`, and `[TorrentState]` events; the [Apple TV runbook](docs/agent/APPLE_TV_RUNBOOK.md) explains fast-resume versus repeated downloading. Keep device observations and the user’s media-engine decision in the [torrent plan](docs/agent/plans/torrent-client.md).
 - For complex features, substantial refactors, or work spanning sessions, use [planning guidance](docs/agent/PLANS.md). Small fixes and documentation edits do not need a plan file.
 - Read `USER_GUIDE.md` for existing user-facing controls, `ROADMAP.md` for planned and rejected directions, and `DEVELOPMENT_HISTORY.md` when past decisions or verification matter. Read only what the task needs.
 - Repository skills live under `.codex/skills/`. Load a skill's `SKILL.md` when its workflow applies; keep reusable workflow details and supporting scripts with the skill.
