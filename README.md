@@ -14,7 +14,7 @@
 
 ![Torrent library and video playback shown as two separate screens with a diagonal cut](assets/readme/torrent-approved.png)
 
-**Choose a torrent. Watch while it downloads.** The diagonal cut presents two separate app screens. Keep the app open for uninterrupted transfers; tvOS may suspend downloads in the background. [Details](docs/USER_GUIDE.md#background-downloads).
+**Choose a torrent. Watch while it downloads.** The diagonal cut presents two separate app screens. Torrents also download in the background with experimental **Keep Alive** enabled. [Details](docs/USER_GUIDE.md#background-downloads).
 
 ![The in-app tvOSofaBrowse User Guide showing touchpad gestures and remote controls](assets/readme/user-guide.png)
 
