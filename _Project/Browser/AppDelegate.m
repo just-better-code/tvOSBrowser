@@ -86,7 +86,7 @@ static NSTimeInterval const kBackgroundProbeInterval = 5;
         usingQueue:dispatch_get_main_queue() launchHandler:^(BGTask *task) {
             [weakSelf handleTorrentRefreshTask:(BGAppRefreshTask *)task];
         }];
-    NSLog(@"[BackgroundTask] processingRegistered=%d refreshRegistered=%d refreshStatus=%ld",
+    BrowserDebugLog(@"[BackgroundTask] processingRegistered=%d refreshRegistered=%d refreshStatus=%ld",
         self.torrentProcessingRegistered, self.torrentRefreshRegistered,
         (long)application.backgroundRefreshStatus);
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(backgroundRefreshStatusChanged:)
@@ -129,6 +129,7 @@ static NSTimeInterval const kBackgroundProbeInterval = 5;
 }
 
 - (void)beginBackgroundProbe {
+    if (!BrowserPreferencesStore.debugEnabled) return;
     if (self.backgroundProbeTimer) return;
     NSTimeInterval now = NSDate.date.timeIntervalSince1970;
     self.backgroundProbeStarted = now;
@@ -141,7 +142,7 @@ static NSTimeInterval const kBackgroundProbeInterval = 5;
         selector:@selector(backgroundProbeTick) userInfo:nil repeats:YES];
     [[NSRunLoop mainRunLoop] addTimer:self.backgroundProbeTimer forMode:NSRunLoopCommonModes];
     [self writeBackgroundProbeRunning:YES interrupted:NO];
-    NSLog(@"[BackgroundProbe] began keepAlive=%d", self.backgroundProbeKeepAliveEnabled);
+    BrowserDebugLog(@"[BackgroundProbe] began keepAlive=%d", self.backgroundProbeKeepAliveEnabled);
 }
 
 - (void)backgroundProbeTick {
@@ -152,7 +153,7 @@ static NSTimeInterval const kBackgroundProbeInterval = 5;
     self.backgroundProbeLastTick = now;
     self.backgroundProbeTicks++;
     [self writeBackgroundProbeRunning:YES interrupted:NO];
-    NSLog(@"[BackgroundProbe] tick=%lu active=%.0f elapsed=%.0f gap=%.1f",
+    BrowserDebugLog(@"[BackgroundProbe] tick=%lu active=%.0f elapsed=%.0f gap=%.1f",
         (unsigned long)self.backgroundProbeTicks, self.backgroundProbeActiveSeconds,
         now - self.backgroundProbeStarted, gap);
 }
@@ -164,7 +165,7 @@ static NSTimeInterval const kBackgroundProbeInterval = 5;
     NSTimeInterval gap = MAX(0, NSDate.date.timeIntervalSince1970 - self.backgroundProbeLastTick);
     self.backgroundProbeMaxGap = MAX(self.backgroundProbeMaxGap, gap);
     [self writeBackgroundProbeRunning:NO interrupted:NO];
-    NSLog(@"[BackgroundProbe] ended ticks=%lu active=%.0f elapsed=%.0f maxGap=%.1f",
+    BrowserDebugLog(@"[BackgroundProbe] ended ticks=%lu active=%.0f elapsed=%.0f maxGap=%.1f",
         (unsigned long)self.backgroundProbeTicks, self.backgroundProbeActiveSeconds,
         NSDate.date.timeIntervalSince1970 - self.backgroundProbeStarted, self.backgroundProbeMaxGap);
 }
@@ -172,7 +173,7 @@ static NSTimeInterval const kBackgroundProbeInterval = 5;
 - (void)backgroundRefreshStatusChanged:(NSNotification *)notification {
     (void)notification;
     UIBackgroundRefreshStatus status = UIApplication.sharedApplication.backgroundRefreshStatus;
-    NSLog(@"[BackgroundTask] refreshStatus=%ld", (long)status);
+    BrowserDebugLog(@"[BackgroundTask] refreshStatus=%ld", (long)status);
     if (status == UIBackgroundRefreshStatusAvailable) return;
     [BGTaskScheduler.sharedScheduler cancelTaskRequestWithIdentifier:kTorrentProcessingTaskIdentifier];
     [BGTaskScheduler.sharedScheduler cancelTaskRequestWithIdentifier:kTorrentRefreshTaskIdentifier];
@@ -185,14 +186,14 @@ static NSTimeInterval const kBackgroundProbeInterval = 5;
     int64_t downloaded = 0;
     [[BrowserTorrentManager sharedManager] backgroundTransferPending:&pending downloadedBytes:&downloaded];
 #if DEBUG
-    BOOL probeOnly = !pending;
+    BOOL probeOnly = BrowserPreferencesStore.debugEnabled && !pending;
 #else
     BOOL probeOnly = NO;
 #endif
     if (!pending && !probeOnly) return;
     UIBackgroundRefreshStatus status = UIApplication.sharedApplication.backgroundRefreshStatus;
     if (!self.torrentRefreshRegistered || status != UIBackgroundRefreshStatusAvailable) {
-        NSLog(@"[BackgroundTask] refresh not submitted registered=%d status=%ld pending=%d probe=%d",
+        BrowserDebugLog(@"[BackgroundTask] refresh not submitted registered=%d status=%ld pending=%d probe=%d",
             self.torrentRefreshRegistered, (long)status, pending, probeOnly);
         return;
     }
@@ -201,7 +202,7 @@ static NSTimeInterval const kBackgroundProbeInterval = 5;
     [BGTaskScheduler.sharedScheduler cancelTaskRequestWithIdentifier:kTorrentRefreshTaskIdentifier];
     NSError *error = nil;
     BOOL submitted = [BGTaskScheduler.sharedScheduler submitTaskRequest:request error:&error];
-    NSLog(@"[BackgroundTask] refresh submitted=%d code=%ld pending=%d probe=%d downloaded=%lld",
+    BrowserDebugLog(@"[BackgroundTask] refresh submitted=%d code=%ld pending=%d probe=%d downloaded=%lld",
         submitted, (long)error.code, pending, probeOnly, (long long)downloaded);
 }
 
@@ -222,7 +223,7 @@ static NSTimeInterval const kBackgroundProbeInterval = 5;
     task.expirationHandler = ^{
         dispatch_async(dispatch_get_main_queue(), ^{ [weakSelf finishTorrentRefreshTask:NO]; });
     };
-    NSLog(@"[BackgroundTask] refresh launched pending=%d downloaded=%lld", pending, (long long)downloaded);
+    BrowserDebugLog(@"[BackgroundTask] refresh launched pending=%d downloaded=%lld", pending, (long long)downloaded);
     if (pending) [self scheduleTorrentRefreshIfNeeded];
     self.torrentRefreshTimer = [NSTimer timerWithTimeInterval:15 target:self
         selector:@selector(torrentRefreshTick) userInfo:nil repeats:NO];
@@ -243,7 +244,7 @@ static NSTimeInterval const kBackgroundProbeInterval = 5;
     self.torrentRefreshTimer = nil;
     int64_t downloaded = 0;
     [[BrowserTorrentManager sharedManager] backgroundTransferPending:nil downloadedBytes:&downloaded];
-    NSLog(@"[BackgroundTask] refresh completed success=%d elapsed=%.0f delta=%lld",
+    BrowserDebugLog(@"[BackgroundTask] refresh completed success=%d elapsed=%.0f delta=%lld",
         success, NSDate.date.timeIntervalSince1970 - self.torrentRefreshStarted,
         (long long)MAX(0, downloaded - self.torrentRefreshStartBytes));
     self.torrentRefreshTask = nil;
@@ -255,14 +256,14 @@ static NSTimeInterval const kBackgroundProbeInterval = 5;
     int64_t downloaded = 0;
     [[BrowserTorrentManager sharedManager] backgroundTransferPending:&pending downloadedBytes:&downloaded];
 #if DEBUG
-    BOOL probeOnly = !pending;
+    BOOL probeOnly = BrowserPreferencesStore.debugEnabled && !pending;
 #else
     BOOL probeOnly = NO;
 #endif
     if (!pending && !probeOnly) return;
     UIBackgroundRefreshStatus status = UIApplication.sharedApplication.backgroundRefreshStatus;
     if (!self.torrentProcessingRegistered || status != UIBackgroundRefreshStatusAvailable) {
-        NSLog(@"[BackgroundTask] not submitted registered=%d status=%ld pending=%d probe=%d",
+        BrowserDebugLog(@"[BackgroundTask] not submitted registered=%d status=%ld pending=%d probe=%d",
             self.torrentProcessingRegistered, (long)status, pending, probeOnly);
         return;
     }
@@ -272,7 +273,7 @@ static NSTimeInterval const kBackgroundProbeInterval = 5;
     [BGTaskScheduler.sharedScheduler cancelTaskRequestWithIdentifier:kTorrentProcessingTaskIdentifier];
     NSError *error = nil;
     BOOL submitted = [BGTaskScheduler.sharedScheduler submitTaskRequest:request error:&error];
-    NSLog(@"[BackgroundTask] submitted=%d code=%ld pending=%d probe=%d downloaded=%lld",
+    BrowserDebugLog(@"[BackgroundTask] submitted=%d code=%ld pending=%d probe=%d downloaded=%lld",
         submitted, (long)error.code, pending, probeOnly, (long long)downloaded);
 }
 
@@ -282,7 +283,7 @@ static NSTimeInterval const kBackgroundProbeInterval = 5;
         return;
     }
     if (UIApplication.sharedApplication.backgroundRefreshStatus != UIBackgroundRefreshStatusAvailable) {
-        NSLog(@"[BackgroundTask] launched without refresh permission");
+        BrowserDebugLog(@"[BackgroundTask] launched without refresh permission");
         [task setTaskCompletedWithSuccess:NO];
         return;
     }
@@ -298,7 +299,7 @@ static NSTimeInterval const kBackgroundProbeInterval = 5;
     task.expirationHandler = ^{
         dispatch_async(dispatch_get_main_queue(), ^{ [weakSelf finishTorrentProcessingTask:NO]; });
     };
-    NSLog(@"[BackgroundTask] launched pending=%d probe=%d downloaded=%lld",
+    BrowserDebugLog(@"[BackgroundTask] launched pending=%d probe=%d downloaded=%lld",
         pending, self.torrentProcessingProbeOnly, (long long)downloaded);
     if (pending) [self scheduleTorrentProcessingIfNeeded];
     self.torrentProcessingTimer = [NSTimer timerWithTimeInterval:10 target:self
@@ -316,7 +317,7 @@ static NSTimeInterval const kBackgroundProbeInterval = 5;
     int64_t downloaded = 0;
     [[BrowserTorrentManager sharedManager] backgroundTransferPending:&pending downloadedBytes:&downloaded];
     NSTimeInterval elapsed = NSDate.date.timeIntervalSince1970 - self.torrentProcessingStarted;
-    NSLog(@"[BackgroundTask] tick elapsed=%.0f pending=%d delta=%lld",
+    BrowserDebugLog(@"[BackgroundTask] tick elapsed=%.0f pending=%d delta=%lld",
         elapsed, pending, (long long)MAX(0, downloaded - self.torrentProcessingStartBytes));
     if ((!pending && !self.torrentProcessingProbeOnly) ||
         (self.torrentProcessingProbeOnly && elapsed >= 60)) {
@@ -334,7 +335,7 @@ static NSTimeInterval const kBackgroundProbeInterval = 5;
     BrowserTorrentManager *manager = [BrowserTorrentManager sharedManager];
     [manager backgroundTransferPending:&pending downloadedBytes:&downloaded];
     if (pending) [manager requestFastResumeCheckpoint];
-    NSLog(@"[BackgroundTask] completed success=%d elapsed=%.0f pending=%d delta=%lld",
+    BrowserDebugLog(@"[BackgroundTask] completed success=%d elapsed=%.0f pending=%d delta=%lld",
         success, NSDate.date.timeIntervalSince1970 - self.torrentProcessingStarted,
         pending, (long long)MAX(0, downloaded - self.torrentProcessingStartBytes));
     self.torrentProcessingTask = nil;

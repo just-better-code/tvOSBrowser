@@ -1,3 +1,4 @@
+#import "BrowserPreferencesStore.h"
 #import "BrowserTorrentVLCPlayerViewController.h"
 
 #import "BrowserTorrentHTTPServer.h"
@@ -217,7 +218,7 @@ static NSInteger const kBrowserVLCControlIconTag = 9797;
     self.vlcPlayer.media = media;
     self.lastPlaybackTime = 0;
     self.lastPlaybackProgressTime = NSDate.date.timeIntervalSince1970;
-    NSLog(@"[TorrentVLC] prepared fileIndex=%ld local=%d", (long)self.fileIndex, mediaURL.isFileURL);
+    BrowserDebugLog(@"[TorrentVLC] prepared fileIndex=%ld local=%d", (long)self.fileIndex, mediaURL.isFileURL);
 }
 
 - (void)viewDidAppear:(BOOL)animated {
@@ -303,7 +304,7 @@ static NSInteger const kBrowserVLCControlIconTag = 9797;
     }
     self.lastPlaybackTime = elapsed;
     if (now - self.lastDurationLogTime >= 15) {
-        NSLog(@"[TorrentVLC] elapsedMs=%lld durationMs=%lld remainingMs=%lld playing=%d",
+        BrowserDebugLog(@"[TorrentVLC] elapsedMs=%lld durationMs=%lld remainingMs=%lld playing=%d",
             (long long)elapsed, (long long)duration, (long long)remaining, self.vlcPlayer.isPlaying);
         self.lastDurationLogTime = now;
     }
@@ -403,7 +404,7 @@ static NSInteger const kBrowserVLCControlIconTag = 9797;
     VLCMediaPlayerState state = self.vlcPlayer.state;
     if (self.lastReportedState == state) return;
     self.lastReportedState = state;
-    NSLog(@"[TorrentVLC] state=%ld", (long)state);
+    BrowserDebugLog(@"[TorrentVLC] state=%ld", (long)state);
     dispatch_async(dispatch_get_main_queue(), ^{
         switch (state) {
             case VLCMediaPlayerStateOpening: self.statusLabel.text = @"Opening media…"; break;

@@ -1,6 +1,7 @@
 #import "BrowserTorrentLibraryViewController.h"
 
 #import "BrowserTorrentManager.h"
+#import "BrowserPreferencesStore.h"
 #import "BrowserTorrentVLCPlayerViewController.h"
 #import "BrowserWebView.h"
 #import "BrowserTVAppearance.h"
@@ -53,13 +54,16 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
 @property (nonatomic) UIButton *purgeButton;
 @property (nonatomic) UIButton *backButton;
 @property (nonatomic) UIButton *pauseButton;
-@property (nonatomic) UIButton *deleteButton;
 @property (nonatomic) UIView *actionsPanel;
+@property (nonatomic) UIView *fileActionsPanel;
+@property (nonatomic) UIButton *fileDownloadButton;
 @property (nonatomic) NSArray<UIButton *> *torrentActionButtons;
 @property (nonatomic) NSLayoutConstraint *tableTrailingConstraint;
 @property (nonatomic, copy) NSString *cacheSizeText;
 @property (nonatomic) NSArray<BrowserTorrentSnapshot *> *torrents;
 @property (nonatomic) NSArray<BrowserTorrentFile *> *files;
+@property (nonatomic) NSArray *visibleEntries;
+@property (nonatomic, copy) NSString *folderPath;
 @property (nonatomic, copy) NSString *selectedIdentifier;
 @property (nonatomic, copy) NSString *focusedTorrentIdentifier;
 @property (nonatomic, copy) NSString *loadingMessage;
@@ -125,9 +129,8 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
     self.purgeButton = [self button:@"Purge All" action:@selector(purgePressed)];
     self.backButton = [self button:@"Back" action:@selector(backPressed)];
     self.pauseButton = [self button:@"Pause" action:@selector(pausePressed)];
-    self.deleteButton = [self button:@"Remove" action:@selector(deletePressed)];
     UIButton *done = [self button:@"Done" action:@selector(donePressed)];
-    for (UIButton *button in @[self.purgeButton, self.backButton, self.pauseButton, self.deleteButton, done]) {
+    for (UIButton *button in @[self.purgeButton, self.backButton, self.pauseButton, done]) {
         [self.view addSubview:button];
     }
 
@@ -141,6 +144,7 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
     [self.view addSubview:table];
     self.tableView = table;
     [self installTorrentActionsPanel];
+    [self installFileActionsPanel];
     self.displayedRowCount = -1;
     UILongPressGestureRecognizer *contextPress = [[UILongPressGestureRecognizer alloc] initWithTarget:self
                                                                                                action:@selector(handleContextPress:)];
@@ -171,21 +175,17 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
         [self.purgeButton.topAnchor constraintEqualToAnchor:self.subtitle.bottomAnchor constant:30],
         [self.backButton.leadingAnchor constraintEqualToAnchor:self.heading.leadingAnchor],
         [self.pauseButton.leadingAnchor constraintEqualToAnchor:self.backButton.trailingAnchor constant:18],
-        [self.deleteButton.leadingAnchor constraintEqualToAnchor:self.pauseButton.trailingAnchor constant:18],
         [done.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-110],
         [self.backButton.centerYAnchor constraintEqualToAnchor:self.purgeButton.centerYAnchor],
         [self.pauseButton.centerYAnchor constraintEqualToAnchor:self.purgeButton.centerYAnchor],
-        [self.deleteButton.centerYAnchor constraintEqualToAnchor:self.purgeButton.centerYAnchor],
         [done.centerYAnchor constraintEqualToAnchor:self.purgeButton.centerYAnchor],
         [self.purgeButton.widthAnchor constraintEqualToConstant:190],
         [self.backButton.widthAnchor constraintEqualToConstant:160],
         [self.pauseButton.widthAnchor constraintEqualToConstant:160],
-        [self.deleteButton.widthAnchor constraintEqualToConstant:170],
         [done.widthAnchor constraintEqualToConstant:150],
         [self.purgeButton.heightAnchor constraintEqualToConstant:68],
         [self.backButton.heightAnchor constraintEqualToAnchor:self.purgeButton.heightAnchor],
         [self.pauseButton.heightAnchor constraintEqualToAnchor:self.purgeButton.heightAnchor],
-        [self.deleteButton.heightAnchor constraintEqualToAnchor:self.purgeButton.heightAnchor],
         [done.heightAnchor constraintEqualToAnchor:self.purgeButton.heightAnchor],
         [table.leadingAnchor constraintEqualToAnchor:self.heading.leadingAnchor],
         [table.topAnchor constraintEqualToAnchor:self.purgeButton.bottomAnchor constant:32],
@@ -222,18 +222,50 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
     }
 }
 
+- (NSArray<BrowserTorrentFile *> *)filesInFolder:(NSString *)folder {
+    NSString *prefix = [folder stringByAppendingString:@"/"];
+    NSPredicate *predicate = [NSPredicate predicateWithBlock:^BOOL(BrowserTorrentFile *file, NSDictionary *bindings) {
+        (void)bindings;
+        return !file.padFile && [file.path hasPrefix:prefix];
+    }];
+    return [self.files filteredArrayUsingPredicate:predicate];
+}
+
+- (void)rebuildVisibleEntries {
+    NSString *prefix = self.folderPath.length ? [self.folderPath stringByAppendingString:@"/"] : @"";
+    NSMutableSet<NSString *> *folders = [NSMutableSet set];
+    NSMutableArray<BrowserTorrentFile *> *files = [NSMutableArray array];
+    for (BrowserTorrentFile *file in self.files) {
+        if (file.padFile || ![file.path hasPrefix:prefix]) continue;
+        NSString *remaining = [file.path substringFromIndex:prefix.length];
+        NSRange slash = [remaining rangeOfString:@"/"];
+        if (slash.location == NSNotFound) [files addObject:file];
+        else [folders addObject:[prefix stringByAppendingString:[remaining substringToIndex:slash.location]]];
+    }
+    NSArray *sortedFolders = [[folders allObjects] sortedArrayUsingSelector:@selector(localizedStandardCompare:)];
+    [files sortUsingComparator:^NSComparisonResult(BrowserTorrentFile *a, BrowserTorrentFile *b) {
+        return [a.name localizedStandardCompare:b.name];
+    }];
+    self.visibleEntries = [sortedFolders arrayByAddingObjectsFromArray:files];
+    if (self.visibleEntries.count == 0 && self.files.count > 0) {
+        self.visibleEntries = self.files;
+        BrowserDebugLog(@"[TorrentState] folder grouping fallback files=%lu", (unsigned long)self.files.count);
+    }
+}
+
 - (void)refresh {
     if (NSDate.date.timeIntervalSince1970 - self.lastCacheSizeUpdate > 20) [self updateCacheSizeNote];
     self.torrents = [[BrowserTorrentManager sharedManager] torrents];
     if (self.selectedIdentifier.length > 0) {
         self.files = [[BrowserTorrentManager sharedManager] filesForTorrent:self.selectedIdentifier];
+        [self rebuildVisibleEntries];
         BrowserTorrentSnapshot *selected = nil;
         for (BrowserTorrentSnapshot *torrent in self.torrents) {
             if ([torrent.identifier isEqualToString:self.selectedIdentifier]) { selected = torrent; break; }
         }
-        if (!selected) { self.selectedIdentifier = nil; self.files = nil; }
+        if (!selected) { self.selectedIdentifier = nil; self.files = nil; self.visibleEntries = nil; self.folderPath = nil; }
         self.heading.text = selected.name.length > 0 ? selected.name : @"Torrents";
-        self.subtitle.text = selected ? [NSString stringWithFormat:@"%@ • %.0f%% • %ld peers • %.1f MB/s", selected.state, selected.progress * 100, (long)selected.peers, selected.downloadRate / 1048576.0] : @"";
+        self.subtitle.text = selected ? [NSString stringWithFormat:@"%@ • %.0f%% • %ld peers • %.1f MB/s%@\nCenter: open folder/play file • Play/Pause: download folder/play file • Hold Center: actions", selected.state, selected.progress * 100, (long)selected.peers, selected.downloadRate / 1048576.0, self.folderPath.length ? [@"  •  " stringByAppendingString:self.folderPath] : @""] : @"";
         if (self.pendingPlaybackFile && [self.pendingPlaybackIdentifier isEqualToString:self.selectedIdentifier]) {
             self.subtitle.text = [selected.state isEqualToString:@"Checking files"]
                 ? [NSString stringWithFormat:@"Checking cached file before playback… %.0f%%", selected.progress * 100]
@@ -248,14 +280,15 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
     BOOL details = self.selectedIdentifier.length > 0;
     self.backButton.hidden = !details;
     self.pauseButton.hidden = !details;
-    self.deleteButton.hidden = !details;
     self.purgeButton.hidden = details;
     self.actionsPanel.hidden = details || self.torrents.count == 0;
-    self.tableTrailingConstraint.constant = details ? 0 : -360;
-    NSInteger count = details ? self.files.count : self.torrents.count;
-    if (self.displayedRowCount != count || ![(self.displayedIdentifier ?: @"") isEqualToString:(self.selectedIdentifier ?: @"")]) {
+    self.tableTrailingConstraint.constant = details ? -96 : -276;
+    NSInteger count = details ? MAX(1, self.visibleEntries.count) : self.torrents.count;
+    NSString *displayKey = details ? [NSString stringWithFormat:@"%@/%@", self.selectedIdentifier, self.folderPath ?: @""] : @"";
+    if (self.displayedRowCount != count || ![(self.displayedIdentifier ?: @"") isEqualToString:displayKey]) {
         self.displayedRowCount = count;
-        self.displayedIdentifier = self.selectedIdentifier;
+        self.displayedIdentifier = displayKey;
+        if (details) BrowserDebugLog(@"[TorrentState] library files=%lu visible=%lu", (unsigned long)self.files.count, (unsigned long)self.visibleEntries.count);
         [self.tableView reloadData];
     } else {
         for (UITableViewCell *cell in self.tableView.visibleCells) {
@@ -290,18 +323,9 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
 }
 
 - (NSString *)torrentListHint {
-    NSString *hint = [NSString stringWithFormat:
+    return [NSString stringWithFormat:
         @"Center: files • Play/Pause: Start • Hold Center: actions  •  Cache: %@ total (tvOS may remove files)",
         self.cacheSizeText ?: @"0 bytes"];
-    NSDictionary *probe = [[NSUserDefaults standardUserDefaults] dictionaryForKey:@"BrowserBackgroundProbeSummary"];
-    if (![probe isKindOfClass:NSDictionary.class]) return hint;
-    NSString *state = [probe[@"running"] boolValue] ? @"running" :
-        [probe[@"interrupted"] boolValue] ? @"interrupted" : @"finished";
-    NSString *mode = [probe[@"keepAlive"] boolValue] ? @"Keep Alive on" : @"Keep Alive off";
-    return [hint stringByAppendingFormat:
-        @"\nBackground probe (%@, %@): %.0f s elapsed • %.0f s active • %.0f s longest gap • %lu ticks",
-        mode, state, [probe[@"elapsed"] doubleValue], [probe[@"active"] doubleValue],
-        [probe[@"maxGap"] doubleValue], (unsigned long)[probe[@"ticks"] unsignedIntegerValue]];
 }
 
 - (void)selectTorrent:(NSString *)identifier {
@@ -309,12 +333,14 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
     self.focusedTorrentIdentifier = nil;
     self.focusedFileRow = NSNotFound;
     self.selectedIdentifier = [identifier copy];
+    self.folderPath = @"";
     [self refresh];
 }
 
 - (void)focusTorrent:(NSString *)identifier {
     self.loadingMessage = nil;
     self.selectedIdentifier = nil;
+    self.folderPath = nil;
     self.focusedTorrentIdentifier = [identifier copy];
     self.focusedFileRow = NSNotFound;
     [self refresh];
@@ -344,7 +370,7 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
-    return self.selectedIdentifier ? self.files.count : self.torrents.count;
+    return self.selectedIdentifier ? MAX(1, self.visibleEntries.count) : self.torrents.count;
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
@@ -393,20 +419,18 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
 }
 
 - (void)installTorrentActionsPanel {
-    UIView *container = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 324, 72)];
+    UIView *container = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 240, 72)];
     container.backgroundColor = UIColor.clearColor;
     [self.view addSubview:container];
     self.actionsPanel = container;
-    UIButton *download = [self torrentActionButtonWithSymbol:@"play.fill" label:@"Start download"
+    UIButton *download = [self torrentActionButtonWithSymbol:@"arrow.down.to.line" label:@"Download all files"
                                                    action:@selector(downloadTorrentButtonPressed:) row:0];
     UIButton *up = [self torrentActionButtonWithSymbol:@"arrow.up" label:@"Raise priority"
                                              action:@selector(raiseTorrentButtonPressed:) row:0];
     UIButton *down = [self torrentActionButtonWithSymbol:@"arrow.down" label:@"Lower priority"
                                                action:@selector(lowerTorrentButtonPressed:) row:0];
-    UIButton *remove = [self torrentActionButtonWithSymbol:@"trash" label:@"Delete torrent"
-                                                 action:@selector(deleteTorrentButtonPressed:) row:0];
-    self.torrentActionButtons = @[download, up, down, remove];
-    UIStackView *buttons = [[UIStackView alloc] initWithArrangedSubviews:@[download, up, down, remove]];
+    self.torrentActionButtons = @[download, up, down];
+    UIStackView *buttons = [[UIStackView alloc] initWithArrangedSubviews:@[download, up, down]];
     buttons.translatesAutoresizingMaskIntoConstraints = NO;
     buttons.axis = UILayoutConstraintAxisHorizontal;
     buttons.spacing = 12;
@@ -419,7 +443,65 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
     ]];
 }
 
+- (void)installFileActionsPanel {
+    UIView *container = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 72, 72)];
+    container.backgroundColor = UIColor.clearColor;
+    [self.view addSubview:container];
+    self.fileActionsPanel = container;
+    UIButton *download = [self torrentActionButtonWithSymbol:@"arrow.down.to.line" label:@"Download file or folder"
+                                                   action:@selector(downloadFileButtonPressed:) row:0];
+    [container addSubview:download];
+    [NSLayoutConstraint activateConstraints:@[
+        [download.leadingAnchor constraintEqualToAnchor:container.leadingAnchor],
+        [download.trailingAnchor constraintEqualToAnchor:container.trailingAnchor],
+        [download.topAnchor constraintEqualToAnchor:container.topAnchor],
+        [download.bottomAnchor constraintEqualToAnchor:container.bottomAnchor],
+    ]];
+    self.fileDownloadButton = download;
+    container.hidden = YES;
+}
+
+- (void)updateFileActionsPanelPosition {
+    if (!self.selectedIdentifier || self.visibleEntries.count == 0) {
+        self.fileActionsPanel.hidden = YES;
+        return;
+    }
+    NSInteger row = self.focusedFileRow;
+    if (row == NSNotFound || row < 0 || row >= self.visibleEntries.count) row = 0;
+    id entry = self.visibleEntries[row];
+    if ([entry isKindOfClass:BrowserTorrentFile.class] && ((BrowserTorrentFile *)entry).padFile) {
+        self.fileActionsPanel.hidden = YES;
+        return;
+    }
+    NSIndexPath *path = [NSIndexPath indexPathForRow:row inSection:0];
+    CGRect rowRect = [self.tableView rectForRowAtIndexPath:path];
+    if (!CGRectIntersectsRect(self.tableView.bounds, rowRect)) {
+        self.fileActionsPanel.hidden = YES;
+        return;
+    }
+    CGRect inView = [self.tableView convertRect:rowRect toView:self.view];
+    self.fileActionsPanel.frame = CGRectMake(CGRectGetMaxX(self.tableView.frame) + 18,
+                                              CGRectGetMidY(inView) - 36, 72, 72);
+    self.fileDownloadButton.tag = row;
+    self.fileActionsPanel.hidden = NO;
+}
+
+- (void)downloadFileButtonPressed:(UIButton *)button {
+    if (!self.selectedIdentifier || button.tag < 0 || button.tag >= self.visibleEntries.count) return;
+    id entry = self.visibleEntries[button.tag];
+    if ([entry isKindOfClass:NSString.class]) {
+        [self setFolder:entry downloadEnabled:YES];
+    } else {
+        BrowserTorrentFile *file = entry;
+        if (file.padFile) return;
+        [[BrowserTorrentManager sharedManager] setDownloadEnabled:YES
+            forTorrent:self.selectedIdentifier fileIndex:file.index];
+        [self refresh];
+    }
+}
+
 - (void)updateTorrentActionsPanelPosition {
+    [self updateFileActionsPanelPosition];
     if (self.selectedIdentifier || self.torrents.count == 0) { self.actionsPanel.hidden = YES; return; }
     NSInteger row = self.focusedFileRow;
     if (row == NSNotFound || row < 0 || row >= self.torrents.count) {
@@ -434,7 +516,7 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
     if (!CGRectIntersectsRect(self.tableView.bounds, rowRect)) { self.actionsPanel.hidden = YES; return; }
     CGRect inView = [self.tableView convertRect:rowRect toView:self.view];
     CGRect target = CGRectMake(CGRectGetMaxX(self.tableView.frame) + 18,
-                               CGRectGetMidY(inView) - 36, 324, 72);
+                               CGRectGetMidY(inView) - 36, 240, 72);
     if (!CGRectEqualToRect(self.actionsPanel.frame, target)) self.actionsPanel.frame = target;
     self.actionsPanel.hidden = NO;
     for (UIButton *button in self.torrentActionButtons) button.tag = row;
@@ -447,11 +529,6 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
 - (void)downloadTorrentButtonPressed:(UIButton *)button {
     if (button.tag < 0 || button.tag >= self.torrents.count) return;
     [self startDownloadForTorrent:self.torrents[button.tag]];
-}
-
-- (void)deleteTorrentButtonPressed:(UIButton *)button {
-    if (button.tag < 0 || button.tag >= self.torrents.count) return;
-    [self confirmRemovalForTorrent:self.torrents[button.tag]];
 }
 
 - (void)raiseTorrentButtonPressed:(UIButton *)button { [self moveTorrentAtRow:button.tag by:-1]; }
@@ -478,9 +555,33 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
 
 - (void)configureCell:(UITableViewCell *)cell atIndexPath:(NSIndexPath *)indexPath {
     if (self.selectedIdentifier) {
-        BrowserTorrentFile *file = self.files[indexPath.row];
-        cell.textLabel.text = file.path;
-        cell.detailTextLabel.text = file.padFile ? @"Padding file" : [NSString stringWithFormat:@"%@ • %.0f%% • %.1f MB", file.downloadEnabled ? @"Downloading" : @"Skipped", file.size > 0 ? 100.0 * file.downloaded / file.size : 0, file.size / 1048576.0];
+        if (self.visibleEntries.count == 0) {
+            cell.textLabel.text = @"Finding torrent files…";
+            cell.detailTextLabel.text = [NSString stringWithFormat:@"Manager: %lu files • Visible: %lu rows • Folder: %@",
+                (unsigned long)self.files.count, (unsigned long)self.visibleEntries.count,
+                self.folderPath.length ? @"inside" : @"root"];
+            return;
+        }
+        id entry = self.visibleEntries[indexPath.row];
+        if ([entry isKindOfClass:NSString.class]) {
+            NSString *folder = entry;
+            NSArray<BrowserTorrentFile *> *children = [self filesInFolder:folder];
+            int64_t total = 0, downloaded = 0;
+            NSUInteger selected = 0;
+            for (BrowserTorrentFile *file in children) {
+                total += file.size;
+                downloaded += file.downloaded;
+                if (file.downloadEnabled) selected++;
+            }
+            cell.textLabel.text = [NSString stringWithFormat:@"▸ %@", folder.lastPathComponent];
+            cell.detailTextLabel.text = [NSString stringWithFormat:@"Folder • %lu of %lu selected • %@ / %@ downloaded", (unsigned long)selected, (unsigned long)children.count,
+                [NSByteCountFormatter stringFromByteCount:downloaded countStyle:NSByteCountFormatterCountStyleFile],
+                [NSByteCountFormatter stringFromByteCount:total countStyle:NSByteCountFormatterCountStyleFile]];
+        } else {
+            BrowserTorrentFile *file = entry;
+            cell.textLabel.text = file.name;
+            cell.detailTextLabel.text = [NSString stringWithFormat:@"%@ • %.0f%% • %.1f MB", file.downloadEnabled ? @"Downloading" : @"Skipped", file.size > 0 ? 100.0 * file.downloaded / file.size : 0, file.size / 1048576.0];
+        }
     } else {
         BrowserTorrentSnapshot *torrent = self.torrents[indexPath.row];
         cell.textLabel.text = torrent.name;
@@ -501,8 +602,15 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
         [self selectTorrent:self.torrents[indexPath.row].identifier];
         return;
     }
-    BrowserTorrentFile *file = self.files[indexPath.row];
-    if (file.padFile) return;
+    if (self.visibleEntries.count == 0) return;
+    id entry = self.visibleEntries[indexPath.row];
+    if ([entry isKindOfClass:NSString.class]) {
+        self.folderPath = entry;
+        self.focusedFileRow = NSNotFound;
+        [self refresh];
+        return;
+    }
+    BrowserTorrentFile *file = entry;
     if ([self isPlayableFile:file]) {
         [self playFile:file];
         return;
@@ -518,8 +626,10 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
     }
     if (!path) return;
     if (self.selectedIdentifier) {
-        BrowserTorrentFile *file = self.files[path.row];
-        if (!file.padFile) [self presentActionsForFile:file];
+        if (self.visibleEntries.count == 0) return;
+        id entry = self.visibleEntries[path.row];
+        if ([entry isKindOfClass:NSString.class]) [self presentActionsForFolder:entry];
+        else [self presentActionsForFile:entry];
     } else {
         [self presentActionsForTorrent:self.torrents[path.row]];
     }
@@ -541,6 +651,12 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
         [[BrowserTorrentManager sharedManager] setPaused:!paused forTorrent:torrent.identifier];
         [weakSelf refresh];
     }]];
+    [actions addAction:[UIAlertAction actionWithTitle:@"Reset Torrent" style:UIAlertActionStyleDestructive handler:^(__unused UIAlertAction *action) {
+        [weakSelf confirmResetForTorrent:torrent];
+    }]];
+    [actions addAction:[UIAlertAction actionWithTitle:@"Remove Torrent" style:UIAlertActionStyleDestructive handler:^(__unused UIAlertAction *action) {
+        [weakSelf confirmRemovalForTorrent:torrent];
+    }]];
     [actions addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
     [self presentViewController:actions animated:YES completion:nil];
 }
@@ -558,6 +674,37 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
         [[BrowserTorrentManager sharedManager] setDownloadEnabled:!file.downloadEnabled forTorrent:weakSelf.selectedIdentifier fileIndex:file.index];
         [weakSelf refresh];
     }]];
+    [actions addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+    [self presentViewController:actions animated:YES completion:nil];
+}
+
+- (void)setFolder:(NSString *)folder downloadEnabled:(BOOL)enabled {
+    NSArray<BrowserTorrentFile *> *children = [self filesInFolder:folder];
+    NSMutableArray<NSNumber *> *indexes = [NSMutableArray arrayWithCapacity:children.count];
+    for (BrowserTorrentFile *file in children) [indexes addObject:@(file.index)];
+    if (![[BrowserTorrentManager sharedManager] setDownloadEnabled:enabled
+        forTorrent:self.selectedIdentifier fileIndexes:indexes]) {
+        [self showMessage:@"Wait for torrent metadata, then try again."];
+    }
+    [self refresh];
+}
+
+- (void)presentActionsForFolder:(NSString *)folder {
+    NSArray<BrowserTorrentFile *> *children = [self filesInFolder:folder];
+    NSUInteger selected = 0;
+    for (BrowserTorrentFile *file in children) if (file.downloadEnabled) selected++;
+    UIAlertController *actions = [UIAlertController alertControllerWithTitle:folder.lastPathComponent
+        message:[NSString stringWithFormat:@"%lu files • %lu selected", (unsigned long)children.count, (unsigned long)selected]
+        preferredStyle:UIAlertControllerStyleAlert];
+    __weak typeof(self) weakSelf = self;
+    [actions addAction:[UIAlertAction actionWithTitle:@"Download Folder" style:UIAlertActionStyleDefault handler:^(__unused UIAlertAction *action) {
+        [weakSelf setFolder:folder downloadEnabled:YES];
+    }]];
+    if (selected > 0) {
+        [actions addAction:[UIAlertAction actionWithTitle:@"Skip Folder" style:UIAlertActionStyleDefault handler:^(__unused UIAlertAction *action) {
+            [weakSelf setFolder:folder downloadEnabled:NO];
+        }]];
+    }
     [actions addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
     [self presentViewController:actions animated:YES completion:nil];
 }
@@ -585,7 +732,7 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
         } else if ([view isKindOfClass:UIButton.class]) {
             UIButton *button = (UIButton *)view;
             button.backgroundColor = focused ? BrowserTVFocusedSurfaceColor()
-                : [button isDescendantOfView:self.actionsPanel]
+                : ([button isDescendantOfView:self.actionsPanel] || [button isDescendantOfView:self.fileActionsPanel])
                     ? [UIColor colorWithWhite:0.18 alpha:0.85] : BrowserTVRestingSurfaceColor();
             [button setTitleColor:focused ? BrowserTVFocusedTextColor() : UIColor.whiteColor forState:UIControlStateNormal];
             UIImageView *icon = (UIImageView *)[button viewWithTag:kTorrentRowActionIconTag];
@@ -593,6 +740,7 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
             UIView *parent = button.superview;
             while (parent && ![parent isKindOfClass:UITableViewCell.class]) parent = parent.superview;
             if (focused && [parent isKindOfClass:UITableViewCell.class]) focusedCell = (UITableViewCell *)parent;
+            if (focused && button == self.fileDownloadButton) self.focusedFileRow = button.tag;
         }
     }
     NSIndexPath *path = focusedCell ? [self.tableView indexPathForCell:focusedCell] : nil;
@@ -600,7 +748,8 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
         self.focusedFileRow = path.row;
         if (!self.selectedIdentifier && path.row < self.torrents.count)
             self.focusedTorrentIdentifier = self.torrents[path.row].identifier;
-    } else if (![context.nextFocusedView isDescendantOfView:self.actionsPanel]) {
+    } else if (![context.nextFocusedView isDescendantOfView:self.actionsPanel] &&
+               ![context.nextFocusedView isDescendantOfView:self.fileActionsPanel]) {
         self.focusedFileRow = NSNotFound;
     }
     [self updateTorrentActionsPanelPosition];
@@ -612,12 +761,20 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
         return;
     }
     if (presses.anyObject.type == UIPressTypePlayPause && self.focusedFileRow >= 0) {
-        if (self.selectedIdentifier && self.focusedFileRow < self.files.count) {
-            BrowserTorrentFile *file = self.files[self.focusedFileRow];
+        if (self.selectedIdentifier && self.focusedFileRow < self.visibleEntries.count) {
+            id entry = self.visibleEntries[self.focusedFileRow];
+            if ([entry isKindOfClass:NSString.class]) {
+                [self setFolder:entry downloadEnabled:YES];
+                return;
+            }
+            BrowserTorrentFile *file = entry;
             if ([self isPlayableFile:file]) {
                 [self playFile:file];
                 return;
             }
+            [[BrowserTorrentManager sharedManager] setDownloadEnabled:YES forTorrent:self.selectedIdentifier fileIndex:file.index];
+            [self refresh];
+            return;
         } else if (!self.selectedIdentifier && self.focusedFileRow < self.torrents.count) {
             [self startDownloadForTorrent:self.torrents[self.focusedFileRow]];
             return;
@@ -709,11 +866,19 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
 }
 
 - (void)backPressed {
+    if (self.folderPath.length > 0) {
+        NSString *parent = [self.folderPath stringByDeletingLastPathComponent];
+        self.folderPath = [parent isEqualToString:@"."] ? @"" : parent;
+        self.focusedFileRow = NSNotFound;
+        [self refresh];
+        return;
+    }
     self.pendingPlaybackFile = nil;
     self.pendingPlaybackIdentifier = nil;
     self.focusedTorrentIdentifier = self.selectedIdentifier;
     self.focusedFileRow = NSNotFound;
     self.selectedIdentifier = nil;
+    self.folderPath = nil;
     self.files = nil;
     [self refresh];
 }
@@ -743,13 +908,22 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
     [self refresh];
 }
 
-- (void)deletePressed {
-    for (BrowserTorrentSnapshot *torrent in self.torrents) {
-        if ([torrent.identifier isEqualToString:self.selectedIdentifier]) {
-            [self confirmRemovalForTorrent:torrent];
-            return;
-        }
-    }
+- (void)confirmResetForTorrent:(BrowserTorrentSnapshot *)torrent {
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Reset Torrent"
+        message:@"Delete this torrent's cached files, then add it again with every file skipped? Its .torrent or magnet source will be kept."
+        preferredStyle:UIAlertControllerStyleAlert];
+    __weak typeof(self) weakSelf = self;
+    [alert addAction:[UIAlertAction actionWithTitle:@"Reset" style:UIAlertActionStyleDestructive handler:^(__unused UIAlertAction *action) {
+        BOOL started = [[BrowserTorrentManager sharedManager] resetTorrent:torrent.identifier completion:^(NSError *error) {
+            [weakSelf refresh];
+            [weakSelf updateCacheSizeNote];
+            if (error) [weakSelf showMessage:error.localizedDescription];
+        }];
+        if (!started) [weakSelf showMessage:@"Could not start reset. Check that the torrent source is available."];
+        else [weakSelf refresh];
+    }]];
+    [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+    [self presentViewController:alert animated:YES completion:nil];
 }
 
 - (void)confirmRemovalForTorrent:(BrowserTorrentSnapshot *)torrent {

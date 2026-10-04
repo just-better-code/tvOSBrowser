@@ -39,6 +39,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable NSURL *)fileURLForTorrent:(NSString *)identifier fileIndex:(NSInteger)index;
 - (void)prioritizePlaybackForTorrent:(NSString *)identifier fileIndex:(NSInteger)index;
 - (BOOL)setDownloadEnabled:(BOOL)enabled forTorrent:(NSString *)identifier fileIndex:(NSInteger)index;
+- (BOOL)setDownloadEnabled:(BOOL)enabled forTorrent:(NSString *)identifier fileIndexes:(NSArray<NSNumber *> *)indexes;
 - (BOOL)downloadAllFilesForTorrent:(NSString *)identifier;
 - (BOOL)moveTorrent:(NSString *)identifier by:(NSInteger)direction;
 - (BOOL)isFileCompleteForTorrent:(NSString *)identifier fileIndex:(NSInteger)index;
@@ -48,6 +49,7 @@ NS_ASSUME_NONNULL_BEGIN
                                     length:(NSUInteger)length;
 - (void)prioritizeTorrent:(NSString *)identifier fileIndex:(NSInteger)index offset:(int64_t)offset;
 - (BOOL)removeTorrent:(NSString *)identifier deleteFiles:(BOOL)deleteFiles;
+- (BOOL)resetTorrent:(NSString *)identifier completion:(void (^)(NSError * _Nullable error))completion;
 - (uint64_t)clearAllTorrentDownloadsWithRemovedCount:(NSUInteger *)removedCount error:(NSError **)error;
 - (uint64_t)totalTorrentCacheBytes;
 - (BOOL)setPaused:(BOOL)paused forTorrent:(NSString *)identifier;

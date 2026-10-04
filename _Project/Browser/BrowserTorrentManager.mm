@@ -1,4 +1,5 @@
 #import "BrowserTorrentManager.h"
+#import "BrowserPreferencesStore.h"
 
 #import <libtorrent/add_torrent_params.hpp>
 #import <libtorrent/download_priority.hpp>
@@ -6,6 +7,7 @@
 #import <libtorrent/magnet_uri.hpp>
 #import <libtorrent/read_resume_data.hpp>
 #import <libtorrent/session.hpp>
+#import <libtorrent/settings_pack.hpp>
 #import <libtorrent/torrent_handle.hpp>
 #import <libtorrent/torrent_info.hpp>
 #import <libtorrent/torrent_status.hpp>
@@ -27,6 +29,19 @@ namespace lt = libtorrent;
 
 static NSString *BrowserTorrentString(std::string const& value) {
     return [[NSString alloc] initWithBytes:value.data() length:value.size() encoding:NSUTF8StringEncoding] ?: @"";
+}
+
+static BOOL BrowserTorrentIsPaddingFile(lt::file_storage const& storage, lt::file_index_t index) {
+    if (!storage.pad_file_at(index)) return NO;
+    NSString *path = BrowserTorrentString(storage.file_path(index));
+    BOOL inPaddingDirectory = NO;
+    for (NSString *component in path.pathComponents) {
+        if ([component.lowercaseString isEqualToString:@".pad"]) { inPaddingDirectory = YES; break; }
+    }
+    if (!inPaddingDirectory) return NO;
+    // Never hide a playable file solely because a padding flag was reported.
+    return ![@[@"mp4", @"m4v", @"mov", @"mp3", @"m4a", @"mkv", @"avi"]
+        containsObject:path.pathExtension.lowercaseString];
 }
 
 static NSError *BrowserTorrentError(NSString *message) {
@@ -52,6 +67,8 @@ static NSString *BrowserTorrentHashString(lt::sha1_hash const& hash) {
 @property (nonatomic) NSTimer *resumeTimer;
 @property (nonatomic) NSMutableDictionary<NSString *, NSDate *> *lastResumeRequest;
 @property (nonatomic) NSMutableSet<NSString *> *completedResumeRequested;
+@property (nonatomic) NSMutableDictionary<NSString *, NSDictionary *> *pendingResetSources;
+@property (nonatomic) NSMutableDictionary<NSString *, id> *pendingResetCompletions;
 @end
 
 @implementation BrowserTorrentManager
@@ -78,9 +95,13 @@ static NSString *BrowserTorrentHashString(lt::sha1_hash const& hash) {
         _lastLoggedFilePercent = [NSMutableDictionary dictionary];
         _lastResumeRequest = [NSMutableDictionary dictionary];
         _completedResumeRequested = [NSMutableSet set];
+        _pendingResetSources = [NSMutableDictionary dictionary];
+        _pendingResetCompletions = [NSMutableDictionary dictionary];
         [[NSFileManager defaultManager] createDirectoryAtPath:_storagePath withIntermediateDirectories:YES attributes:nil error:nil];
         [[NSFileManager defaultManager] createDirectoryAtPath:_metadataPath withIntermediateDirectories:YES attributes:nil error:nil];
-        _session = std::make_unique<lt::session>();
+        lt::settings_pack settings;
+        settings.set_int(lt::settings_pack::alert_mask, int(lt::alert_category::error | lt::alert_category::storage));
+        _session = std::make_unique<lt::session>(settings);
         [self restoreSources];
         _resumeTimer = [NSTimer timerWithTimeInterval:10 target:self
             selector:@selector(checkpointTorrents) userInfo:nil repeats:YES];
@@ -112,12 +133,12 @@ static NSString *BrowserTorrentHashString(lt::sha1_hash const& hash) {
         {(char const *)data.bytes, (std::ptrdiff_t)data.length}, ec);
     NSString *savedHash = BrowserTorrentHashString(saved.ti ? saved.ti->info_hash() : saved.info_hash);
     if (ec || ![savedHash isEqualToString:hash]) {
-        NSLog(@"[TorrentState] resume rejected code=%d", ec.value());
+        BrowserDebugLog(@"[TorrentState] resume rejected code=%d", ec.value());
         return NO;
     }
     params = std::move(saved);
     params.save_path = self.storagePath.UTF8String;
-    NSLog(@"[TorrentState] resume loaded bytes=%lu", (unsigned long)data.length);
+    BrowserDebugLog(@"[TorrentState] resume loaded bytes=%lu", (unsigned long)data.length);
     return YES;
 }
 
@@ -126,23 +147,28 @@ static NSString *BrowserTorrentHashString(lt::sha1_hash const& hash) {
     _session->pop_alerts(&alerts);
     NSDictionary *sources = [self storedSources];
     for (lt::alert *alert : alerts) {
-        if (auto *saved = lt::alert_cast<lt::save_resume_data_alert>(alert)) {
+        if (auto *deleted = lt::alert_cast<lt::torrent_deleted_alert>(alert)) {
+            [self finishResetForHash:BrowserTorrentHashString(deleted->info_hash) deletionError:nil];
+        } else if (auto *failedDelete = lt::alert_cast<lt::torrent_delete_failed_alert>(alert)) {
+            [self finishResetForHash:BrowserTorrentHashString(failedDelete->info_hash)
+                deletionError:BrowserTorrentError(@"Could not remove cached torrent files; the original torrent was restored.")];
+        } else if (auto *saved = lt::alert_cast<lt::save_resume_data_alert>(alert)) {
             if (!saved->handle.is_valid()) continue;
             NSString *hash = BrowserTorrentHashString(saved->handle.info_hash());
             if (!sources[hash]) continue;
             std::vector<char> bytes = lt::write_resume_data_buf(saved->params);
             NSData *data = [NSData dataWithBytes:bytes.data() length:bytes.size()];
             BOOL written = [data writeToFile:[self resumePathForHash:hash] atomically:YES];
-            NSLog(@"[TorrentState] resume saved=%d bytes=%lu", written, (unsigned long)data.length);
+            BrowserDebugLog(@"[TorrentState] resume saved=%d bytes=%lu", written, (unsigned long)data.length);
         } else if (auto *failed = lt::alert_cast<lt::save_resume_data_failed_alert>(alert)) {
-            NSLog(@"[TorrentState] resume save failed code=%d", failed->error.value());
+            BrowserDebugLog(@"[TorrentState] resume save failed code=%d", failed->error.value());
         }
     }
     for (lt::torrent_handle const& handle : _session->get_torrents()) {
         if (!handle.is_valid()) continue;
         [self applyStoredFileSelectionsForHandle:handle];
         lt::torrent_status status = handle.status();
-        NSLog(@"[TorrentState] tick metadata=%d progress=%.4f down=%d peers=%d paused=%d",
+        BrowserDebugLog(@"[TorrentState] tick metadata=%d progress=%.4f down=%d peers=%d paused=%d",
             status.has_metadata, status.progress, status.download_payload_rate,
             status.num_peers, bool(status.flags & lt::torrent_flags::paused));
         if (!status.has_metadata) continue;
@@ -155,7 +181,7 @@ static NSString *BrowserTorrentHashString(lt::sha1_hash const& hash) {
                 lt::file_index_t fileIndex(index);
                 std::int64_t size = info->files().file_size(fileIndex);
                 std::int64_t downloaded = index < fileProgress.size() ? fileProgress[index] : 0;
-                NSLog(@"[TorrentState] tick fileIndex=%d priority=%d downloaded=%lld size=%lld",
+                BrowserDebugLog(@"[TorrentState] tick fileIndex=%d priority=%d downloaded=%lld size=%lld",
                     index, int(handle.file_priority(fileIndex)), (long long)downloaded, (long long)size);
             }
         }
@@ -175,6 +201,73 @@ static NSString *BrowserTorrentHashString(lt::sha1_hash const& hash) {
     }
 }
 
+- (void)finishResetForHash:(NSString *)hash deletionError:(NSError *)deletionError {
+    NSDictionary *original = self.pendingResetSources[hash];
+    void (^completion)(NSError *) = self.pendingResetCompletions[hash];
+    if (!original) return;
+    [self.pendingResetSources removeObjectForKey:hash];
+    [self.pendingResetCompletions removeObjectForKey:hash];
+    NSMutableDictionary *sources = [self storedSources];
+    NSMutableDictionary *source = [original mutableCopy];
+    if (!deletionError) {
+        [[NSFileManager defaultManager] removeItemAtPath:[self resumePathForHash:hash] error:nil];
+        [self.appliedFileSelections removeObject:hash];
+        [self.activePlaybackFiles removeObjectForKey:hash];
+        [self.lastResumeRequest removeObjectForKey:hash];
+        [self.completedResumeRequested removeObject:hash];
+        if ([source[@"magnet"] isKindOfClass:NSString.class]) {
+            source[@"selectionPending"] = @YES;
+            [self.pendingFileSelections addObject:hash];
+        } else {
+            NSString *filename = source[@"torrent"];
+            NSData *data = [NSData dataWithContentsOfFile:[self.metadataPath stringByAppendingPathComponent:filename ?: @""]];
+            lt::error_code ec;
+            auto info = data ? std::make_shared<lt::torrent_info>((char const *)data.bytes, (int)data.length, ec) : nullptr;
+            if (!info || ec) deletionError = BrowserTorrentError(@"Cached files were removed, but torrent metadata could not be reopened.");
+            else {
+                NSMutableArray *skipped = [NSMutableArray array];
+                for (int index = 0; index < info->files().num_files(); ++index) [skipped addObject:@(index)];
+                source[@"skipped"] = skipped;
+                self.skippedFilesByHash[hash] = [NSMutableSet setWithArray:skipped];
+            }
+        }
+        source[@"selectionPolicy"] = @"manual";
+    }
+    [source removeObjectForKey:@"resetPending"];
+    sources[hash] = source;
+    if (![sources writeToFile:self.indexPath atomically:YES]) deletionError = BrowserTorrentError(@"Could not save the reset torrent entry.");
+    if (!deletionError) {
+        NSError *addError = nil;
+        NSString *added = nil;
+        if ([source[@"magnet"] isKindOfClass:NSString.class]) {
+            added = [self addMagnetString:source[@"magnet"] persist:NO error:&addError];
+        } else {
+            NSData *data = [NSData dataWithContentsOfFile:[self.metadataPath stringByAppendingPathComponent:source[@"torrent"]]];
+            added = [self addTorrentData:data persist:NO error:&addError];
+        }
+        if (!added) deletionError = addError ?: BrowserTorrentError(@"Could not reopen the reset torrent.");
+    } else {
+        NSMutableDictionary *restoredSources = [self storedSources];
+        restoredSources[hash] = original;
+        [restoredSources writeToFile:self.indexPath atomically:YES];
+        [self.skippedFilesByHash removeObjectForKey:hash];
+        NSArray *skipped = original[@"skipped"];
+        if ([skipped isKindOfClass:NSArray.class]) self.skippedFilesByHash[hash] = [NSMutableSet setWithArray:skipped];
+        [self.pendingFileSelections removeObject:hash];
+        if ([original[@"selectionPending"] boolValue]) [self.pendingFileSelections addObject:hash];
+        if ([original[@"magnet"] isKindOfClass:NSString.class]) {
+            [self addMagnetString:original[@"magnet"] persist:NO error:nil];
+        } else {
+            NSData *data = [NSData dataWithContentsOfFile:[self.metadataPath stringByAppendingPathComponent:original[@"torrent"]]];
+            [self addTorrentData:data persist:NO error:nil];
+        }
+        lt::torrent_handle restored = [self handleForIdentifier:hash];
+        if (restored.is_valid()) restored.force_recheck();
+    }
+    BrowserDebugLog(@"[TorrentState] reset completed success=%d", deletionError == nil);
+    if (completion) completion(deletionError);
+}
+
 - (void)restoreSources {
     NSDictionary<NSString *, NSDictionary *> *sources = [self storedSources];
     [sources enumerateKeysAndObjectsUsingBlock:^(NSString *hash, NSDictionary *source, BOOL *stop) {
@@ -190,6 +283,18 @@ static NSString *BrowserTorrentHashString(lt::sha1_hash const& hash) {
         } else if ([filename isKindOfClass:NSString.class]) {
             NSData *data = [NSData dataWithContentsOfFile:[self.metadataPath stringByAppendingPathComponent:filename]];
             if (data) [self addTorrentData:data persist:NO error:nil];
+        }
+        if ([source[@"resetPending"] boolValue]) {
+            lt::torrent_handle restored = [self handleForIdentifier:hash];
+            if (restored.is_valid()) {
+                restored.force_recheck();
+                NSMutableDictionary *updated = [self storedSources];
+                NSMutableDictionary *entry = [updated[hash] mutableCopy];
+                [entry removeObjectForKey:@"resetPending"];
+                updated[hash] = entry;
+                [updated writeToFile:self.indexPath atomically:YES];
+                BrowserDebugLog(@"[TorrentState] interrupted reset recovered with recheck");
+            }
         }
     }];
     [self applyStoredQueueOrder];
@@ -331,7 +436,7 @@ static NSString *BrowserTorrentHashString(lt::sha1_hash const& hash) {
                 source[@"selectionPolicy"] = @"manual";
                 sources[hash] = source;
                 [sources writeToFile:self.indexPath atomically:YES];
-                NSLog(@"[TorrentState] restored manual start for single-file torrent");
+                BrowserDebugLog(@"[TorrentState] restored manual start for single-file torrent");
             }
         }
         skipped = [self.skippedFilesByHash[hash] copy];
@@ -420,7 +525,7 @@ static NSString *BrowserTorrentHashString(lt::sha1_hash const& hash) {
     [order exchangeObjectAtIndex:current withObjectAtIndex:(NSUInteger)((NSInteger)current + direction)];
     if (![order writeToFile:self.orderPath atomically:YES]) return NO;
     [self applyStoredQueueOrder];
-    NSLog(@"[TorrentState] moved torrent priority direction=%ld", (long)direction);
+    BrowserDebugLog(@"[TorrentState] moved torrent priority direction=%ld", (long)direction);
     return YES;
 }
 
@@ -448,12 +553,12 @@ static NSString *BrowserTorrentHashString(lt::sha1_hash const& hash) {
         NSNumber *lastPercent = self.lastLoggedFilePercent[logKey];
         if (!lastPercent || percent >= lastPercent.integerValue + 5 || percent <= lastPercent.integerValue - 5 ||
             (percent == 100 && lastPercent.integerValue != 100)) {
-            NSLog(@"[TorrentState] fileIndex=%d progress=%ld downloaded=%lld size=%lld state=%d rate=%d",
+            BrowserDebugLog(@"[TorrentState] fileIndex=%d progress=%ld downloaded=%lld size=%lld state=%d rate=%d",
                 i, (long)percent, (long long)file.downloaded, (long long)file.size,
                 (int)torrentStatus.state, torrentStatus.download_payload_rate);
             self.lastLoggedFilePercent[logKey] = @(percent);
         }
-        file.padFile = storage.pad_file_at(index);
+        file.padFile = BrowserTorrentIsPaddingFile(storage, index);
         @synchronized (self) {
             file.downloadEnabled = !file.padFile && ![self.skippedFilesByHash[identifier] containsObject:@(i)];
         }
@@ -474,7 +579,7 @@ static NSString *BrowserTorrentHashString(lt::sha1_hash const& hash) {
     lt::torrent_handle handle = [self handleForIdentifier:identifier];
     auto info = handle.is_valid() ? handle.torrent_file() : nullptr;
     if (!info || index < 0 || index >= info->files().num_files()) return;
-    if (info->files().pad_file_at(lt::file_index_t((int)index))) return;
+    if (BrowserTorrentIsPaddingFile(info->files(), lt::file_index_t((int)index))) return;
     [self setDownloadEnabled:YES forTorrent:identifier fileIndex:index];
     @synchronized (self) {
         NSNumber *previous = self.activePlaybackFiles[identifier];
@@ -504,33 +609,49 @@ static NSString *BrowserTorrentHashString(lt::sha1_hash const& hash) {
 }
 
 - (BOOL)setDownloadEnabled:(BOOL)enabled forTorrent:(NSString *)identifier fileIndex:(NSInteger)index {
+    return [self setDownloadEnabled:enabled forTorrent:identifier fileIndexes:@[@(index)]];
+}
+
+- (BOOL)setDownloadEnabled:(BOOL)enabled forTorrent:(NSString *)identifier fileIndexes:(NSArray<NSNumber *> *)indexes {
     lt::torrent_handle handle = [self handleForIdentifier:identifier];
     auto info = handle.is_valid() ? handle.torrent_file() : nullptr;
-    if (!info || index < 0 || index >= info->files().num_files()) return NO;
-    lt::file_index_t fileIndex((int)index);
-    if (info->files().pad_file_at(fileIndex)) return NO;
+    if (!info || indexes.count == 0) return NO;
+    for (NSNumber *number in indexes) {
+        NSInteger index = number.integerValue;
+        if (index < 0 || index >= info->files().num_files() ||
+            BrowserTorrentIsPaddingFile(info->files(), lt::file_index_t((int)index))) return NO;
+    }
     [self applyStoredFileSelectionsForHandle:handle];
     @synchronized (self) {
-        handle.file_priority(fileIndex, enabled ? lt::default_priority : lt::dont_download);
         NSMutableSet<NSNumber *> *skipped = self.skippedFilesByHash[identifier];
         if (!skipped) {
             skipped = [NSMutableSet set];
             self.skippedFilesByHash[identifier] = skipped;
         }
-        if (enabled) [skipped removeObject:@(index)]; else [skipped addObject:@(index)];
+        NSNumber *activeIndex = self.activePlaybackFiles[identifier];
+        for (NSNumber *number in indexes) {
+            NSInteger index = number.integerValue;
+            handle.file_priority(lt::file_index_t((int)index), enabled ? lt::default_priority : lt::dont_download);
+            if (enabled) [skipped removeObject:number]; else [skipped addObject:number];
+            if (activeIndex && !enabled && activeIndex.integerValue == index) activeIndex = nil;
+        }
         NSMutableDictionary *sources = [self storedSources];
         NSMutableDictionary *source = [sources[identifier] mutableCopy] ?: [NSMutableDictionary dictionary];
         source[@"skipped"] = skipped.allObjects;
         source[@"selectionPolicy"] = @"explicit";
         sources[identifier] = source;
         [sources writeToFile:self.indexPath atomically:YES];
-        NSNumber *activeIndex = self.activePlaybackFiles[identifier];
-        if (activeIndex && !enabled && activeIndex.integerValue == index) {
+        if (!activeIndex) {
             [self.activePlaybackFiles removeObjectForKey:identifier];
-        } else if (activeIndex) {
+        } else {
             [self applyPlaybackPriorityForHandle:handle fileIndex:activeIndex.integerValue];
         }
     }
+    if (enabled) {
+        handle.resume();
+        [self applyStoredQueueOrder];
+    }
+    BrowserDebugLog(@"[TorrentState] selected %lu files enabled=%d", (unsigned long)indexes.count, enabled);
     return YES;
 }
 
@@ -543,7 +664,7 @@ static NSString *BrowserTorrentHashString(lt::sha1_hash const& hash) {
         NSMutableSet<NSNumber *> *skipped = [NSMutableSet set];
         for (int index = 0; index < info->files().num_files(); ++index) {
             lt::file_index_t fileIndex(index);
-            if (info->files().pad_file_at(fileIndex)) {
+            if (BrowserTorrentIsPaddingFile(info->files(), fileIndex)) {
                 [skipped addObject:@(index)];
             } else {
                 handle.file_priority(fileIndex, lt::default_priority);
@@ -561,7 +682,7 @@ static NSString *BrowserTorrentHashString(lt::sha1_hash const& hash) {
     }
     handle.resume();
     [self applyStoredQueueOrder];
-    NSLog(@"[TorrentState] enabled all files count=%d", info->files().num_files());
+    BrowserDebugLog(@"[TorrentState] enabled all files count=%d", info->files().num_files());
     return YES;
 }
 
@@ -639,6 +760,38 @@ static NSString *BrowserTorrentHashString(lt::sha1_hash const& hash) {
     return YES;
 }
 
+- (BOOL)resetTorrent:(NSString *)identifier completion:(void (^)(NSError *))completion {
+    lt::torrent_handle handle = [self handleForIdentifier:identifier];
+    if (!handle.is_valid() || self.pendingResetSources[identifier]) return NO;
+    NSMutableDictionary *sources = [self storedSources];
+    NSDictionary *source = sources[identifier];
+    NSString *filename = source[@"torrent"];
+    if (![source[@"magnet"] isKindOfClass:NSString.class] &&
+        (![filename isKindOfClass:NSString.class] ||
+         ![[NSFileManager defaultManager] fileExistsAtPath:[self.metadataPath stringByAppendingPathComponent:filename]])) return NO;
+    self.pendingResetSources[identifier] = source;
+    if (completion) self.pendingResetCompletions[identifier] = [completion copy];
+    NSMutableDictionary *pending = [source mutableCopy];
+    pending[@"resetPending"] = @YES;
+    sources[identifier] = pending;
+    if (![sources writeToFile:self.indexPath atomically:YES]) {
+        [self.pendingResetSources removeObjectForKey:identifier];
+        [self.pendingResetCompletions removeObjectForKey:identifier];
+        return NO;
+    }
+    _session->remove_torrent(handle, lt::session::delete_files);
+    BrowserDebugLog(@"[TorrentState] reset requested");
+    [self performSelector:@selector(pollResetAlerts) withObject:nil afterDelay:1.0 inModes:@[NSRunLoopCommonModes]];
+    return YES;
+}
+
+- (void)pollResetAlerts {
+    if (self.pendingResetSources.count == 0) return;
+    [self checkpointTorrents];
+    if (self.pendingResetSources.count > 0)
+        [self performSelector:@selector(pollResetAlerts) withObject:nil afterDelay:1.0 inModes:@[NSRunLoopCommonModes]];
+}
+
 - (uint64_t)clearAllTorrentDownloadsWithRemovedCount:(NSUInteger *)removedCount error:(NSError **)error {
     @synchronized (self) {
         uint64_t before = [self totalTorrentCacheBytes];
@@ -686,8 +839,10 @@ static NSString *BrowserTorrentHashString(lt::sha1_hash const& hash) {
         BOOL recreated = [manager createDirectoryAtPath:self.storagePath
                             withIntermediateDirectories:YES attributes:nil error:nil];
         if (!removed || !recreated) {
-            NSLog(@"[TorrentState] clear failed code=%ld", (long)storageError.code);
-            _session = std::make_unique<lt::session>();
+            BrowserDebugLog(@"[TorrentState] clear failed code=%ld", (long)storageError.code);
+            lt::settings_pack settings;
+            settings.set_int(lt::settings_pack::alert_mask, int(lt::alert_category::error | lt::alert_category::storage));
+            _session = std::make_unique<lt::session>(settings);
             [self restoreSources];
             if (error) *error = BrowserTorrentError(@"Could not purge the torrent downloads.");
             return 0;
@@ -707,11 +862,13 @@ static NSString *BrowserTorrentHashString(lt::sha1_hash const& hash) {
         [self.lastLoggedFilePercent removeAllObjects];
         [self.lastResumeRequest removeAllObjects];
         [self.completedResumeRequested removeAllObjects];
-        _session = std::make_unique<lt::session>();
+        lt::settings_pack settings;
+        settings.set_int(lt::settings_pack::alert_mask, int(lt::alert_category::error | lt::alert_category::storage));
+        _session = std::make_unique<lt::session>(settings);
         [self restoreSources];
         if (removedCount) *removedCount = count;
         uint64_t after = [self totalTorrentCacheBytes];
-        NSLog(@"[TorrentState] cleared downloads files=%lu freed=%llu", (unsigned long)count,
+        BrowserDebugLog(@"[TorrentState] cleared downloads files=%lu freed=%llu", (unsigned long)count,
             (unsigned long long)(before > after ? before - after : 0));
         return before > after ? before - after : 0;
     }
@@ -766,7 +923,7 @@ static NSString *BrowserTorrentHashString(lt::sha1_hash const& hash) {
         if (!handle.is_valid() || !handle.torrent_file()) continue;
         handle.save_resume_data(lt::torrent_handle::save_info_dict);
     }
-    NSLog(@"[TorrentState] background resume checkpoint requested");
+    BrowserDebugLog(@"[TorrentState] background resume checkpoint requested");
 }
 
 @end

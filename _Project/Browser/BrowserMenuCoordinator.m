@@ -1381,17 +1381,44 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
 
 - (void)presentDebugOptions {
     UIAlertController *menu = [self browserAlertControllerWithTitle:@"Debug" message:nil];
-    NSString *loggingTitle = [NSString stringWithFormat:@"Website Logging: %@",
-        self.preferencesStore.websiteLoggingEnabled ? @"ON" : @"OFF"];
-    [menu addAction:[self browserActionWithTitle:loggingTitle
+    NSString *debugTitle = [NSString stringWithFormat:@"Diagnostics: %@",
+        self.preferencesStore.debugEnabled ? @"ON" : @"OFF"];
+    [menu addAction:[self browserActionWithTitle:debugTitle
                                        style:UIAlertActionStyleDefault
                                      handler:^(__unused UIAlertAction *action) {
-        self.preferencesStore.websiteLoggingEnabled = !self.preferencesStore.websiteLoggingEnabled;
+        self.preferencesStore.debugEnabled = !self.preferencesStore.debugEnabled;
+        [self presentDebugOptions];
+    }]];
+    [menu addAction:[self browserActionWithTitle:@"Recent Diagnostic Logs"
+                                       style:UIAlertActionStyleDefault
+                                     handler:^(__unused UIAlertAction *action) {
+        NSArray<NSString *> *recent = BrowserDebugRecentLogs();
+        NSString *message = recent.count ? [recent componentsJoinedByString:@"\n"] : @"No diagnostic logs yet.";
+        UIAlertController *result = [self browserAlertControllerWithTitle:@"Recent Diagnostic Logs" message:message];
+        [result addAction:[self browserCancelAction]];
+        [self.host browserPresentViewController:result];
     }]];
     [menu addAction:[self browserActionWithTitle:@"Media Diagnostics"
                                        style:UIAlertActionStyleDefault
                                      handler:^(__unused UIAlertAction *action) {
         [self presentMediaDiagnostics];
+    }]];
+    [menu addAction:[self browserActionWithTitle:@"Background Probe"
+                                       style:UIAlertActionStyleDefault
+                                     handler:^(__unused UIAlertAction *action) {
+        NSDictionary *probe = [[NSUserDefaults standardUserDefaults] dictionaryForKey:@"BrowserBackgroundProbeSummary"];
+        NSString *message = @"No background probe result yet.";
+        if ([probe isKindOfClass:NSDictionary.class]) {
+            NSString *state = [probe[@"running"] boolValue] ? @"running" :
+                [probe[@"interrupted"] boolValue] ? @"interrupted" : @"finished";
+            NSString *mode = [probe[@"keepAlive"] boolValue] ? @"Keep Alive on" : @"Keep Alive off";
+            message = [NSString stringWithFormat:@"%@ • %@\n%.0f s elapsed • %.0f s active • %.0f s longest gap • %lu ticks",
+                mode, state, [probe[@"elapsed"] doubleValue], [probe[@"active"] doubleValue],
+                [probe[@"maxGap"] doubleValue], (unsigned long)[probe[@"ticks"] unsignedIntegerValue]];
+        }
+        UIAlertController *result = [self browserAlertControllerWithTitle:@"Background Probe" message:message];
+        [result addAction:[self browserCancelAction]];
+        [self.host browserPresentViewController:result];
     }]];
     [menu addAction:[self browserActionWithTitle:@"Inspect WebKit Media Prefs"
                                        style:UIAlertActionStyleDefault

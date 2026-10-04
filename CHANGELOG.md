@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.19.0 - 2026-10-04
+
+### Changed
+
+- Show a download symbol for starting all files in a torrent and move Remove into the torrent's context actions ([user guide](USER_GUIDE.md#torrents)).
+- Move the background runtime probe result into Debug and add a master diagnostic switch with ten recent numeric log entries ([user guide](USER_GUIDE.md#torrents)).
+
+### Added
+
+- Browse torrent folders and choose an individual file or whole folder from a focusable download icon without starting playback or every file ([user guide](USER_GUIDE.md#torrents)).
+- Reset a torrent from its context actions by deleting its cached files and restoring its source with every file skipped ([user guide](USER_GUIDE.md#torrents)).
+
 ## 2.18.0 - 2026-10-04
 
 ### Added

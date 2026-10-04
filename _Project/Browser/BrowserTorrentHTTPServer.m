@@ -1,3 +1,4 @@
+#import "BrowserPreferencesStore.h"
 #import "BrowserTorrentHTTPServer.h"
 
 #import "BrowserTorrentManager.h"
@@ -76,7 +77,7 @@ static BOOL BrowserTorrentSendAll(int socketFD, const void *bytes, NSUInteger le
     self.requestPath = [NSString stringWithFormat:@"/%@/%ld.%@", token, (long)self.fileIndex, self.fileExtension];
     self.mediaURL = [NSURL URLWithString:[NSString stringWithFormat:@"http://127.0.0.1:%u%@", ntohs(address.sin_port), self.requestPath]];
     @synchronized (self) { self.listenFD = fd; self.running = YES; }
-    NSLog(@"[TorrentHTTP] listening fileIndex=%ld size=%lld", (long)self.fileIndex, (long long)self.fileSize);
+    BrowserDebugLog(@"[TorrentHTTP] listening fileIndex=%ld size=%lld", (long)self.fileIndex, (long long)self.fileSize);
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
         [self acceptConnections];
     });
@@ -193,7 +194,7 @@ static BOOL BrowserTorrentSendAll(int socketFD, const void *bytes, NSUInteger le
         ranged ? @"206 Partial Content" : @"200 OK", contentType, (long long)(end - start + 1), rangeHeader];
     NSData *headerData = [header dataUsingEncoding:NSUTF8StringEncoding];
     if (!BrowserTorrentSendAll(client, headerData.bytes, headerData.length) || head) return;
-    NSLog(@"[TorrentHTTP] range start=%lld end=%lld", (long long)start, (long long)end);
+    BrowserDebugLog(@"[TorrentHTTP] range start=%lld end=%lld", (long long)start, (long long)end);
     BrowserTorrentManager *manager = [BrowserTorrentManager sharedManager];
     int64_t offset = start;
     NSDate *lastProgress = NSDate.date;
@@ -211,7 +212,7 @@ static BOOL BrowserTorrentSendAll(int socketFD, const void *bytes, NSUInteger le
             usleep(200000);
         }
     }
-    NSLog(@"[TorrentHTTP] range sent=%lld requested=%lld", (long long)(offset - start), (long long)(end - start + 1));
+    BrowserDebugLog(@"[TorrentHTTP] range sent=%lld requested=%lld", (long long)(offset - start), (long long)(end - start + 1));
 }
 
 - (void)dealloc { [self stop]; }
