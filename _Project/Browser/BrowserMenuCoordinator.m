@@ -83,7 +83,7 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
     if (self) {
         self.backgroundColor = UIColor.clearColor;
         self.contentView.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.13];
-        self.contentView.layer.cornerRadius = 18.0;
+        self.contentView.layer.cornerRadius = 16.0;
         self.contentView.layer.masksToBounds = YES;
 
         UIImageView *symbolView = [UIImageView new];
@@ -94,7 +94,7 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
 
         UILabel *titleLabel = [UILabel new];
         titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
-        titleLabel.font = [UIFont systemFontOfSize:24.0 weight:UIFontWeightMedium];
+        titleLabel.font = [UIFont systemFontOfSize:19.0 weight:UIFontWeightMedium];
         titleLabel.numberOfLines = 2;
         titleLabel.lineBreakMode = NSLineBreakByTruncatingTail;
         [self.contentView addSubview:titleLabel];
@@ -102,25 +102,25 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
 
         UILabel *stateLabel = [UILabel new];
         stateLabel.translatesAutoresizingMaskIntoConstraints = NO;
-        stateLabel.font = [UIFont systemFontOfSize:17.0 weight:UIFontWeightSemibold];
+        stateLabel.font = [UIFont systemFontOfSize:14.0 weight:UIFontWeightSemibold];
         stateLabel.textAlignment = NSTextAlignmentCenter;
-        stateLabel.layer.cornerRadius = 14.0;
+        stateLabel.layer.cornerRadius = 11.0;
         stateLabel.layer.masksToBounds = YES;
         [self.contentView addSubview:stateLabel];
         self.stateLabel = stateLabel;
 
         [NSLayoutConstraint activateConstraints:@[
-            [symbolView.leadingAnchor constraintEqualToAnchor:self.contentView.leadingAnchor constant:20.0],
-            [symbolView.topAnchor constraintEqualToAnchor:self.contentView.topAnchor constant:18.0],
-            [symbolView.widthAnchor constraintEqualToConstant:40.0],
-            [symbolView.heightAnchor constraintEqualToConstant:40.0],
-            [titleLabel.leadingAnchor constraintEqualToAnchor:self.contentView.leadingAnchor constant:20.0],
-            [titleLabel.trailingAnchor constraintEqualToAnchor:self.contentView.trailingAnchor constant:-16.0],
-            [titleLabel.bottomAnchor constraintEqualToAnchor:self.contentView.bottomAnchor constant:-17.0],
-            [stateLabel.trailingAnchor constraintEqualToAnchor:self.contentView.trailingAnchor constant:-16.0],
-            [stateLabel.topAnchor constraintEqualToAnchor:self.contentView.topAnchor constant:18.0],
-            [stateLabel.widthAnchor constraintEqualToConstant:52.0],
-            [stateLabel.heightAnchor constraintEqualToConstant:28.0],
+            [symbolView.leadingAnchor constraintEqualToAnchor:self.contentView.leadingAnchor constant:16.0],
+            [symbolView.topAnchor constraintEqualToAnchor:self.contentView.topAnchor constant:10.0],
+            [symbolView.widthAnchor constraintEqualToConstant:32.0],
+            [symbolView.heightAnchor constraintEqualToConstant:32.0],
+            [titleLabel.leadingAnchor constraintEqualToAnchor:self.contentView.leadingAnchor constant:16.0],
+            [titleLabel.trailingAnchor constraintEqualToAnchor:self.contentView.trailingAnchor constant:-10.0],
+            [titleLabel.bottomAnchor constraintEqualToAnchor:self.contentView.bottomAnchor constant:-10.0],
+            [stateLabel.trailingAnchor constraintEqualToAnchor:self.contentView.trailingAnchor constant:-10.0],
+            [stateLabel.topAnchor constraintEqualToAnchor:self.contentView.topAnchor constant:10.0],
+            [stateLabel.widthAnchor constraintEqualToConstant:42.0],
+            [stateLabel.heightAnchor constraintEqualToConstant:22.0],
         ]];
     }
     return self;
@@ -131,7 +131,7 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
     self.toggle = item.toggleStateProvider != nil;
     NSString *tileTitle = item.tileTitleProvider != nil ? item.tileTitleProvider() : item.tileTitle;
     self.titleLabel.text = tileTitle.length > 0 ? tileTitle : item.title;
-    UIImageSymbolConfiguration *configuration = [UIImageSymbolConfiguration configurationWithPointSize:37.0
+    UIImageSymbolConfiguration *configuration = [UIImageSymbolConfiguration configurationWithPointSize:30.0
                                                                                                  weight:UIImageSymbolWeightMedium];
     UIImage *symbol = [UIImage systemImageNamed:item.tileSymbolName ?: @"square.grid.2x2"
                              withConfiguration:configuration];
@@ -155,11 +155,13 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
 
 - (void)updateAppearance {
     BOOL focused = self.isFocused;
-    self.contentView.backgroundColor = focused ? [UIColor colorWithWhite:1.0 alpha:0.96]
-                                               : [UIColor colorWithWhite:1.0 alpha:0.13];
-    UIColor *foreground = self.destructive ? (focused ? [UIColor colorWithRed:0.65 green:0.10 blue:0.16 alpha:1.0]
-                                                    : [UIColor colorWithRed:1.0 green:0.48 blue:0.50 alpha:1.0])
-                                            : (focused ? UIColor.blackColor : UIColor.whiteColor);
+    self.contentView.backgroundColor = focused
+        ? (self.destructive ? [UIColor colorWithRed:1.0 green:0.82 blue:0.89 alpha:0.98]
+                            : [UIColor colorWithWhite:1.0 alpha:0.96])
+        : [UIColor colorWithWhite:1.0 alpha:0.13];
+    UIColor *foreground = focused
+        ? (self.destructive ? [UIColor colorWithRed:0.69 green:0.12 blue:0.36 alpha:1.0] : UIColor.blackColor)
+        : UIColor.whiteColor;
     self.symbolView.tintColor = foreground;
     self.titleLabel.textColor = foreground;
     self.stateLabel.textColor = UIColor.whiteColor;
@@ -282,7 +284,8 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
 
     UIButton *addressButton = [UIButton buttonWithType:UIButtonTypeSystem];
     addressButton.translatesAutoresizingMaskIntoConstraints = NO;
-    addressButton.backgroundColor = UIColor.clearColor;
+    addressButton.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.12];
+    addressButton.layer.cornerRadius = 16.0;
     addressButton.accessibilityLabel = @"Edit Address";
     addressButton.accessibilityValue = self.addressText;
     [addressButton addTarget:self action:@selector(addressButtonPressed:) forControlEvents:UIControlEventPrimaryActionTriggered];
@@ -310,18 +313,7 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
     addressLabel.userInteractionEnabled = NO;
     [addressButton addSubview:addressLabel];
 
-    UIView *historyNavigationGroup = [UIView new];
-    historyNavigationGroup.translatesAutoresizingMaskIntoConstraints = NO;
-    historyNavigationGroup.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.12];
-    historyNavigationGroup.layer.cornerRadius = 16.0;
-
-    UIStackView *historyNavigationStack = [UIStackView new];
-    historyNavigationStack.translatesAutoresizingMaskIntoConstraints = NO;
-    historyNavigationStack.axis = UILayoutConstraintAxisHorizontal;
-    historyNavigationStack.alignment = UIStackViewAlignmentFill;
-    historyNavigationStack.distribution = UIStackViewDistributionFill;
-    historyNavigationStack.spacing = 0.0;
-    [historyNavigationGroup addSubview:historyNavigationStack];
+    [panelView.contentView addSubview:addressButton];
 
     NSMutableArray<UIButton *> *historyButtons = [NSMutableArray arrayWithCapacity:2];
     NSArray<NSString *> *historySymbols = @[@"chevron.left", @"chevron.right"];
@@ -331,7 +323,8 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
         UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
         button.tag = 11000 + (NSInteger)index;
         button.enabled = historyEnabledStates[index].boolValue;
-        button.backgroundColor = UIColor.clearColor;
+        button.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.12];
+        button.layer.cornerRadius = 12.0;
         button.accessibilityLabel = historyLabels[index];
         UIImageSymbolConfiguration *configuration = [UIImageSymbolConfiguration configurationWithPointSize:30.0
                                                                                                       weight:UIImageSymbolWeightSemibold];
@@ -346,7 +339,6 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
         [button addSubview:iconView];
         [button addTarget:self action:@selector(historyButtonPressed:) forControlEvents:UIControlEventPrimaryActionTriggered];
         [NSLayoutConstraint activateConstraints:@[
-            [button.widthAnchor constraintEqualToConstant:58.0],
             [iconView.centerXAnchor constraintEqualToAnchor:button.centerXAnchor],
             [iconView.centerYAnchor constraintEqualToAnchor:button.centerYAnchor],
             [iconView.widthAnchor constraintEqualToConstant:36.0],
@@ -356,33 +348,15 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
     }
     self.historyButtons = historyButtons;
 
-    UIView *(^separator)(void) = ^UIView *{
-        UIView *view = [UIView new];
-        view.translatesAutoresizingMaskIntoConstraints = NO;
-        view.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.20];
-        [view.widthAnchor constraintEqualToConstant:1.0].active = YES;
-        return view;
-    };
-    [historyNavigationStack addArrangedSubview:historyButtons[0]];
-    [historyNavigationStack addArrangedSubview:separator()];
-    [historyNavigationStack addArrangedSubview:addressButton];
-    [historyNavigationStack addArrangedSubview:separator()];
-    [historyNavigationStack addArrangedSubview:historyButtons[1]];
-
-    [NSLayoutConstraint activateConstraints:@[
-        [historyNavigationStack.leadingAnchor constraintEqualToAnchor:historyNavigationGroup.leadingAnchor],
-        [historyNavigationStack.trailingAnchor constraintEqualToAnchor:historyNavigationGroup.trailingAnchor],
-        [historyNavigationStack.topAnchor constraintEqualToAnchor:historyNavigationGroup.topAnchor],
-        [historyNavigationStack.bottomAnchor constraintEqualToAnchor:historyNavigationGroup.bottomAnchor],
-    ]];
-
     UIStackView *navigationToolbar = [UIStackView new];
     navigationToolbar.translatesAutoresizingMaskIntoConstraints = NO;
     navigationToolbar.axis = UILayoutConstraintAxisHorizontal;
     navigationToolbar.alignment = UIStackViewAlignmentFill;
-    navigationToolbar.distribution = UIStackViewDistributionFill;
+    navigationToolbar.distribution = UIStackViewDistributionFillEqually;
     navigationToolbar.spacing = 8.0;
     [panelView.contentView addSubview:navigationToolbar];
+    [navigationToolbar addArrangedSubview:historyButtons[0]];
+    [navigationToolbar addArrangedSubview:historyButtons[1]];
     NSArray<NSString *> *toolbarSymbols = @[@"house.fill", @"arrow.clockwise", @"plus", @"square.on.square"];
     NSMutableArray<UIButton *> *toolbarButtons = [NSMutableArray arrayWithCapacity:self.toolbarItems.count];
     [self.toolbarItems enumerateObjectsUsingBlock:^(BrowserAdvancedMenuItem *item, NSUInteger index, __unused BOOL *stop) {
@@ -413,11 +387,7 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
         button.accessibilityLabel = item.title;
         button.accessibilityValue = item.toggleStateProvider != nil ? (item.toggleStateProvider() ? @"On" : @"Off") : nil;
         [button addTarget:self action:@selector(toolbarButtonPressed:) forControlEvents:UIControlEventPrimaryActionTriggered];
-        if (index == kBrowserNavigationToolbarItemCount - 2) {
-            [navigationToolbar addArrangedSubview:historyNavigationGroup];
-        }
         [navigationToolbar addArrangedSubview:button];
-        [button.widthAnchor constraintEqualToConstant:58.0].active = YES;
         [toolbarButtons addObject:button];
     }];
     self.toolbarButtons = toolbarButtons;
@@ -440,11 +410,11 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
     [panelView.contentView addSubview:footerLabel];
 
     UICollectionViewFlowLayout *tileLayout = [UICollectionViewFlowLayout new];
-    tileLayout.itemSize = CGSizeMake((self.panelWidth - 32.0 - 40.0 - 12.0) / 2.0, 132.0);
-    tileLayout.minimumInteritemSpacing = 12.0;
-    tileLayout.minimumLineSpacing = 14.0;
-    tileLayout.sectionInset = UIEdgeInsetsMake(4.0, 20.0, 22.0, 20.0);
-    tileLayout.headerReferenceSize = CGSizeMake(self.panelWidth - 32.0, 48.0);
+    tileLayout.itemSize = CGSizeMake((self.panelWidth - 32.0 - 32.0 - 20.0) / 3.0, 104.0);
+    tileLayout.minimumInteritemSpacing = 10.0;
+    tileLayout.minimumLineSpacing = 10.0;
+    tileLayout.sectionInset = UIEdgeInsetsMake(4.0, 16.0, 8.0, 16.0);
+    tileLayout.headerReferenceSize = CGSizeMake(self.panelWidth - 32.0, 36.0);
 
     UICollectionView *tileView = [[UICollectionView alloc] initWithFrame:CGRectZero collectionViewLayout:tileLayout];
     tileView.translatesAutoresizingMaskIntoConstraints = NO;
@@ -478,10 +448,10 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
         [panelView.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-16.0],
         self.panelTrailingConstraint,
 
-        [historyNavigationGroup.heightAnchor constraintEqualToConstant:64.0],
-        [historyNavigationGroup.widthAnchor constraintGreaterThanOrEqualToConstant:238.0],
         [addressButton.heightAnchor constraintEqualToConstant:64.0],
-        [addressButton.widthAnchor constraintGreaterThanOrEqualToConstant:120.0],
+        [addressButton.leadingAnchor constraintEqualToAnchor:panelView.leadingAnchor constant:24.0],
+        [addressButton.trailingAnchor constraintEqualToAnchor:panelView.trailingAnchor constant:-24.0],
+        [addressButton.topAnchor constraintEqualToAnchor:panelView.topAnchor constant:24.0],
         [addressIcon.leadingAnchor constraintEqualToAnchor:addressButton.leadingAnchor constant:18.0],
         [addressIcon.centerYAnchor constraintEqualToAnchor:addressButton.centerYAnchor],
         [addressIcon.widthAnchor constraintEqualToConstant:32.0],
@@ -492,7 +462,7 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
 
         [navigationToolbar.leadingAnchor constraintEqualToAnchor:panelView.leadingAnchor constant:24.0],
         [navigationToolbar.trailingAnchor constraintEqualToAnchor:panelView.trailingAnchor constant:-24.0],
-        [navigationToolbar.topAnchor constraintEqualToAnchor:panelView.topAnchor constant:24.0],
+        [navigationToolbar.topAnchor constraintEqualToAnchor:addressButton.bottomAnchor constant:12.0],
         [navigationToolbar.heightAnchor constraintEqualToConstant:64.0],
 
         [toolbarSeparator.leadingAnchor constraintEqualToAnchor:panelView.leadingAnchor constant:32.0],
@@ -592,12 +562,12 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
 - (CGSize)collectionView:(__unused UICollectionView *)collectionView
                   layout:(__unused UICollectionViewLayout *)collectionViewLayout
   sizeForItemAtIndexPath:(NSIndexPath *)indexPath {
-    CGFloat availableWidth = self.panelWidth - 32.0 - 40.0;
-    BOOL isThreeTileRow = (indexPath.section == 0 && indexPath.item < 3) ||
-                          (indexPath.section == 2 && indexPath.item >= 2);
-    CGFloat width = isThreeTileRow ? floor((availableWidth - 24.0) / 3.0) - 1.0
-                                    : floor((availableWidth - 12.0) / 2.0) - 1.0;
-    return CGSizeMake(width, 132.0);
+    CGFloat availableWidth = self.panelWidth - 32.0 - 32.0;
+    CGFloat thirdWidth = floor((availableWidth - 20.0) / 3.0);
+    CGFloat width = indexPath.section == 2 && indexPath.item == 4
+        ? availableWidth - thirdWidth - 10.0
+        : thirdWidth;
+    return CGSizeMake(width, 104.0);
 }
 
 - (UICollectionViewCell *)collectionView:(UICollectionView *)collectionView
@@ -716,12 +686,14 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
     UIView *nextView = context.nextFocusedView;
     if (previousView == self.addressButton) {
         previousView.layer.zPosition = 0.0;
+        previousView.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.12];
         ((UILabel *)[self.addressButton viewWithTag:9898]).textColor = UIColor.whiteColor;
         [self setToolbarIconColor:UIColor.whiteColor forButton:self.addressButton];
     }
     if (nextView == self.addressButton) {
         [nextView.superview bringSubviewToFront:nextView];
         nextView.layer.zPosition = 2.0;
+        nextView.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.96];
         ((UILabel *)[self.addressButton viewWithTag:9898]).textColor = UIColor.blackColor;
         [self setToolbarIconColor:UIColor.blackColor forButton:self.addressButton];
     }
@@ -734,11 +706,13 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
     }
     if ([self.historyButtons containsObject:(UIButton *)previousView]) {
         previousView.layer.zPosition = 0.0;
+        previousView.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.12];
         [self setToolbarIconColor:UIColor.whiteColor forButton:(UIButton *)previousView];
     }
     if ([self.historyButtons containsObject:(UIButton *)nextView]) {
         [nextView.superview bringSubviewToFront:nextView];
         nextView.layer.zPosition = 3.0;
+        nextView.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.96];
         [self setToolbarIconColor:UIColor.blackColor forButton:(UIButton *)nextView];
     }
     [coordinator addCoordinatedAnimations:^{
@@ -1507,11 +1481,11 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Tools"
                                                items:@[
-            [self tileItem:debugItem title:@"Debug" symbol:@"ladybug"],
-            [self tileItem:[self usageGuideMenuItem] title:@"User Guide" symbol:@"book.closed.fill"],
             [self tileItem:clearCacheItem title:@"Clear Cache" symbol:@"externaldrive"],
             [self tileItem:clearCookiesItem title:@"Clear Cookies" symbol:@"trash"],
             [self tileItem:clearHistoryItem title:@"Clear History" symbol:@"clock.arrow.circlepath"],
+            [self tileItem:debugItem title:@"Debug" symbol:@"ladybug"],
+            [self tileItem:[self usageGuideMenuItem] title:@"User Guide" symbol:@"book.closed.fill"],
         ]],
     ];
 }

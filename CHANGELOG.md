@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.17.11 - 2026-10-04
+
+### Fixed
+
+- Install the TVVLCKit simulator slice alongside the device slice so a clean Apple TV Simulator build can link torrent playback ([bootstrap script](scripts/bootstrap-vlc-deps.sh)).
+
+## 2.17.10 - 2026-10-04
+
+### Changed
+
+- Fit the browser menu on a 1080p screen with a full-width address bar, six navigation buttons, three-column actions and a wider User Guide tile ([user guide](docs/USER_GUIDE.md#main-menu)).
+
 ## 2.17.9 - 2026-10-04
 
 ### Added
