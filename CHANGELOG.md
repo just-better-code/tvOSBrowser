@@ -87,7 +87,7 @@
 
 ### Fixed
 
-- Keep the torrent session running while browsing sites and apply saved file choices without opening Torrents ([development history](DEVELOPMENT_HISTORY.md#2026-10-04--native-tvos-pages-and-torrent-library-follow-up)).
+- Continue manually started torrent downloads while browsing websites with Torrents closed, and apply saved file choices when metadata arrives ([user guide](docs/USER_GUIDE.md#background-downloads), [development history](docs/agent/DEVELOPMENT_HISTORY.md#2026-10-04--native-tvos-pages-and-torrent-library-follow-up)).
 - Return from a torrent's file list to the overall list with Back and preserve the proportions of VLC control symbols ([user guide](USER_GUIDE.md#torrents)).
 
 ## 2.16.0 - 2026-10-04
@@ -100,6 +100,7 @@
 
 - Open the built-in torrent library from website magnet and `.torrent` links, including new windows and recognized torrent download responses ([user guide](USER_GUIDE.md#torrents)).
 - Play selected torrent media through embedded TVVLCKit with buffering, remote controls, file navigation and direct opening of completed files ([user guide](USER_GUIDE.md#torrents), [torrent architecture](TORRENTS.md)).
+- Continue manually started torrent downloads after leaving the browser with experimental Keep Alive enabled; a 2 GB torrent completed after five minutes with another video app playing on Apple TV ([user guide](docs/USER_GUIDE.md#background-downloads), [development history](docs/agent/DEVELOPMENT_HISTORY.md#2026-10-04--tvos-background-task-experiment)).
 - Resume verified torrent pieces across app launches to avoid repeating full checks of cached files ([torrent architecture](TORRENTS.md)).
 - Reclaim unlisted torrent cache files with a confirmation action and remove cached payloads when deleting a torrent ([user guide](USER_GUIDE.md#torrents)).
 
