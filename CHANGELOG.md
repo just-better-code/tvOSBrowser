@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.15.26 - 2026-10-04
+
+### Fixed
+
+- Show the saved zoom percentage on Reset Zoom and refresh it immediately after Zoom In, Zoom Out, or Reset Zoom while the menu stays open ([user guide](USER_GUIDE.md#main-menu)).
+
 ## 2.15.25 - 2026-10-02
 
 ### Fixed

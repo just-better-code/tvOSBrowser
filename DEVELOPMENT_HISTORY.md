@@ -1,6 +1,6 @@
 # Development history — tvOS Browser, just-better-code version
 
-Detailed background for [CHANGELOG.md](CHANGELOG.md): user requests, implementation decisions, verification evidence and reversals from the fork baseline to **2.15.25**.
+Detailed background for [CHANGELOG.md](CHANGELOG.md): user requests, implementation decisions, verification evidence and reversals from the fork baseline to **2.15.26**.
 
 ## Historical context
 
@@ -11,6 +11,10 @@ The first eleven feature groups were combined in squash commit `ecace46` on 2026
 Dates in the chronological account describe project discussions in Europe/Kiev. They can differ from commit dates. Shared messages in the archived video investigation and its continuation are counted once.
 
 ## Chronological account
+
+### 2026-10-04 — visible zoom percentage
+
+The user asked for the Reset Zoom tile to show the current scale. Version 2.15.26 displays the saved percentage beneath Reset Zoom and refreshes visible menu tiles after each zoom action, without dismissing the menu or moving focus. The tile's accessibility label includes the percentage. This change has not yet been checked in the simulator or on Apple TV.
 
 ### 2026-10-02 — page zoom for reading
 

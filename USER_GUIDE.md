@@ -1,6 +1,6 @@
 # User Guide — tvOS Browser, just-better-code version
 
-Current for **2.15.25**. Button names match the application.
+Current for **2.15.26**. Button names match the application.
 
 ## Quick start
 
@@ -49,7 +49,7 @@ The toolbar contains **Home**, **Reload Page**, the address, **New Tab** and **T
 | Settings | Ad Block, Magnifier, Full Screen Player, Mobile Site |
 | Tools | Debug, User Guide, Clear Cache, Clear Cookies, Clear History |
 
-Zoom ranges from **50% to 200%**, in **10%** steps. It scales the text and page together, starts at the left edge after a change, and remembers the chosen percentage across tabs and launches. Reset Zoom restores **100%**. Mobile Site changes the User Agent; presentation depends on the website. If Ad Block interferes with a page or player, try disabling it and reloading.
+Zoom ranges from **50% to 200%**, in **10%** steps. It scales the text and page together, starts at the left edge after a change, and remembers the chosen percentage across tabs and launches. Reset Zoom shows the current percentage, updates after each zoom action, and restores **100%** when pressed. Mobile Site changes the User Agent; presentation depends on the website. If Ad Block interferes with a page or player, try disabling it and reloading.
 
 Remaining pointer alignment and website layout issues are tracked in the [roadmap](ROADMAP.md).
 

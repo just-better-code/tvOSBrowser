@@ -19,6 +19,7 @@ static NSUInteger const kBrowserNavigationToolbarItemCount = 4;
 
 typedef void (^BrowserAdvancedMenuItemHandler)(void);
 typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
+typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
 
 @interface BrowserAdvancedMenuItem : NSObject
 
@@ -28,6 +29,7 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
 @property (nonatomic) UIAlertActionStyle style;
 @property (nonatomic, copy) BrowserAdvancedMenuItemHandler handler;
 @property (nonatomic, copy) BrowserAdvancedMenuToggleStateProvider toggleStateProvider;
+@property (nonatomic, copy) BrowserAdvancedMenuTitleProvider tileTitleProvider;
 @property (nonatomic) BOOL enabled;
 @property (nonatomic) BOOL keepsMenuOpen;
 
@@ -126,7 +128,8 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
 - (void)configureWithItem:(BrowserAdvancedMenuItem *)item {
     self.destructive = item.style == UIAlertActionStyleDestructive;
     self.toggle = item.toggleStateProvider != nil;
-    self.titleLabel.text = item.tileTitle.length > 0 ? item.tileTitle : item.title;
+    NSString *tileTitle = item.tileTitleProvider != nil ? item.tileTitleProvider() : item.tileTitle;
+    self.titleLabel.text = tileTitle.length > 0 ? tileTitle : item.title;
     UIImageSymbolConfiguration *configuration = [UIImageSymbolConfiguration configurationWithPointSize:37.0
                                                                                                  weight:UIImageSymbolWeightMedium];
     UIImage *symbol = [UIImage systemImageNamed:item.tileSymbolName ?: @"square.grid.2x2"
@@ -145,7 +148,7 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
     } else {
         self.accessibilityValue = nil;
     }
-    self.accessibilityLabel = item.title;
+    self.accessibilityLabel = item.tileTitleProvider != nil ? [self.titleLabel.text stringByReplacingOccurrencesOfString:@"\n" withString:@", "] : item.title;
     [self updateAppearance];
 }
 
@@ -642,9 +645,10 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
         if (handler != nil) {
             handler();
         }
-        if (item.toggleStateProvider != nil) {
-            BrowserAdvancedMenuTileCell *cell = (BrowserAdvancedMenuTileCell *)[collectionView cellForItemAtIndexPath:indexPath];
-            [cell configureWithItem:item];
+        for (NSIndexPath *visibleIndexPath in collectionView.indexPathsForVisibleItems) {
+            BrowserAdvancedMenuItem *visibleItem = self.sections[(NSUInteger)visibleIndexPath.section].items[(NSUInteger)visibleIndexPath.item];
+            BrowserAdvancedMenuTileCell *cell = (BrowserAdvancedMenuTileCell *)[collectionView cellForItemAtIndexPath:visibleIndexPath];
+            [cell configureWithItem:visibleItem];
         }
         return;
     }
@@ -1413,6 +1417,9 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
     zoomOutItem.keepsMenuOpen = YES;
     zoomResetItem.keepsMenuOpen = YES;
     zoomInItem.keepsMenuOpen = YES;
+    zoomResetItem.tileTitleProvider = ^NSString *{
+        return [NSString stringWithFormat:@"Reset Zoom\n%lu%%", (unsigned long)self.preferencesStore.pageZoomPercent];
+    };
     BrowserAdvancedMenuItem *debugItem = [self advancedMenuItemWithTitle:@"Debug"
                                                                    style:UIAlertActionStyleDefault
                                                                  handler:^{
