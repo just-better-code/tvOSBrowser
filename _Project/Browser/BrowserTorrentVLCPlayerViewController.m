@@ -170,7 +170,25 @@ static NSInteger const kBrowserVLCControlIconTag = 9797;
     contextPress.cancelsTouchesInView = YES;
     [self.view addGestureRecognizer:contextPress];
 
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(applicationWillResignActive:)
+                                                 name:UIApplicationWillResignActiveNotification
+                                               object:nil];
+
     [self prepareCurrentFile];
+}
+
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+- (void)applicationWillResignActive:(NSNotification *)notification {
+    (void)notification;
+    if (!self.vlcPlayer.isPlaying) return;
+    [self.vlcPlayer pause];
+    BrowserDebugLog(@"[TorrentVLC] paused on app deactivation");
+    [self showControls];
+    [self refreshProgress];
 }
 
 - (void)handleContextPress:(UILongPressGestureRecognizer *)recognizer {
@@ -289,18 +307,35 @@ static NSInteger const kBrowserVLCControlIconTag = 9797;
     return [NSString stringWithFormat:@"%ld:%02ld", (long)(seconds / 60), (long)(seconds % 60)];
 }
 
+- (NSString *)downloadStatusWithPrefix:(NSString *)prefix {
+    double progress = [[BrowserTorrentManager sharedManager] downloadProgressForTorrent:self.identifier
+                                                                             fileIndex:self.fileIndex];
+    if (progress < 0) return prefix;
+    NSInteger percent = progress >= 1 ? 100 : MIN(99, (NSInteger)(progress * 100));
+    return [NSString stringWithFormat:@"%@ · Complete: %ld%%", prefix, (long)percent];
+}
+
 - (void)refreshProgress {
     int64_t elapsed = self.vlcPlayer.time.value.longLongValue;
     int64_t duration = self.vlcPlayer.media.length.value.longLongValue;
     int64_t remaining = self.vlcPlayer.remainingTime.value.longLongValue;
     if (duration <= 0 && remaining < 0) duration = elapsed - remaining;
     NSTimeInterval now = NSDate.date.timeIntervalSince1970;
-    if (elapsed > self.lastPlaybackTime) {
+    BOOL advanced = elapsed > self.lastPlaybackTime;
+    if (advanced) {
         self.lastPlaybackProgressTime = now;
         if (self.vlcPlayer.isPlaying) self.statusLabel.text = @"";
     } else if (self.vlcPlayer.state == VLCMediaPlayerStateBuffering &&
                now - self.lastPlaybackProgressTime > 2.5) {
-        self.statusLabel.text = @"Buffering torrent…";
+        self.statusLabel.text = [self downloadStatusWithPrefix:@"Buffering"];
+    }
+    double completion = [[BrowserTorrentManager sharedManager] downloadProgressForTorrent:self.identifier
+                                                                                 fileIndex:self.fileIndex];
+    VLCMediaPlayerState state = self.vlcPlayer.state;
+    BOOL streaming = self.vlcPlayer.isPlaying && now - self.lastPlaybackProgressTime <= 2.5;
+    if (completion >= 0 && state != VLCMediaPlayerStatePaused &&
+        state != VLCMediaPlayerStateError && state != VLCMediaPlayerStateEnded) {
+        self.statusLabel.text = [self downloadStatusWithPrefix:streaming ? @"Streaming" : @"Buffering"];
     }
     self.lastPlaybackTime = elapsed;
     if (now - self.lastDurationLogTime >= 15) {
@@ -322,6 +357,7 @@ static NSInteger const kBrowserVLCControlIconTag = 9797;
 - (void)showControls {
     self.controlsView.hidden = NO;
     self.headerView.hidden = NO;
+    self.titleLabel.hidden = NO;
     self.controlsGeneration++;
     [self scheduleControlsHideForGeneration:self.controlsGeneration after:5];
 }
@@ -337,6 +373,7 @@ static NSInteger const kBrowserVLCControlIconTag = 9797;
         }
         weakSelf.controlsView.hidden = YES;
         weakSelf.headerView.hidden = YES;
+        weakSelf.titleLabel.hidden = YES;
         [weakSelf setNeedsFocusUpdate];
         [weakSelf updateFocusIfNeeded];
     });
@@ -410,7 +447,7 @@ static NSInteger const kBrowserVLCControlIconTag = 9797;
             case VLCMediaPlayerStateOpening: self.statusLabel.text = @"Opening media…"; break;
             case VLCMediaPlayerStateBuffering:
                 if (NSDate.date.timeIntervalSince1970 - self.lastPlaybackProgressTime > 2.5)
-                    self.statusLabel.text = @"Buffering torrent…";
+                    self.statusLabel.text = [self downloadStatusWithPrefix:@"Buffering"];
                 break;
             case VLCMediaPlayerStatePlaying: self.statusLabel.text = @""; [self showControls]; break;
             case VLCMediaPlayerStatePaused: self.statusLabel.text = @"Paused"; break;
@@ -444,18 +481,9 @@ static NSInteger const kBrowserVLCControlIconTag = 9797;
         [self playPausePressed];
         return;
     }
-    if (type == UIPressTypeLeftArrow || type == UIPressTypeRightArrow) {
-        if (!self.controlsView.hidden) {
-            [super pressesEnded:presses withEvent:event];
-            return;
-        }
-        [self seekByMilliseconds:type == UIPressTypeLeftArrow ? -10000 : 10000];
-        return;
-    }
-    if (type == UIPressTypeUpArrow || type == UIPressTypeDownArrow) {
-        [self showControls];
-        [self setNeedsFocusUpdate];
-        [self updateFocusIfNeeded];
+    if (type == UIPressTypeLeftArrow || type == UIPressTypeRightArrow ||
+        type == UIPressTypeUpArrow || type == UIPressTypeDownArrow) {
+        if (!self.controlsView.hidden) [super pressesEnded:presses withEvent:event];
         return;
     }
     [super pressesEnded:presses withEvent:event];

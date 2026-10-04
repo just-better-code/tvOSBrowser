@@ -43,6 +43,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)downloadAllFilesForTorrent:(NSString *)identifier;
 - (BOOL)moveTorrent:(NSString *)identifier by:(NSInteger)direction;
 - (BOOL)isFileCompleteForTorrent:(NSString *)identifier fileIndex:(NSInteger)index;
+- (double)downloadProgressForTorrent:(NSString *)identifier fileIndex:(NSInteger)index;
 - (nullable NSData *)availableDataForTorrent:(NSString *)identifier
                                  fileIndex:(NSInteger)index
                                     offset:(int64_t)offset

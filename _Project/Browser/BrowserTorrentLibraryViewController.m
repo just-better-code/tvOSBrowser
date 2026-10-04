@@ -580,7 +580,11 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
         } else {
             BrowserTorrentFile *file = entry;
             cell.textLabel.text = file.name;
-            cell.detailTextLabel.text = [NSString stringWithFormat:@"%@ • %.0f%% • %.1f MB", file.downloadEnabled ? @"Downloading" : @"Skipped", file.size > 0 ? 100.0 * file.downloaded / file.size : 0, file.size / 1048576.0];
+            BOOL complete = file.size > 0 && file.downloaded >= file.size;
+            NSInteger percent = complete ? 100 : file.size > 0 ? MIN(99, (NSInteger)(100.0 * file.downloaded / file.size)) : 0;
+            cell.detailTextLabel.text = [NSString stringWithFormat:@"%@ • %ld%% • %.1f MB",
+                complete ? @"Complete" : file.downloadEnabled ? @"Downloading" : @"Skipped",
+                (long)percent, file.size / 1048576.0];
         }
     } else {
         BrowserTorrentSnapshot *torrent = self.torrents[indexPath.row];
@@ -591,8 +595,10 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
         NSString *sizes = torrent.hasMetadata
             ? [NSString stringWithFormat:@"%@ / %@ selected • %@ total", downloaded, selectedSize, totalSize]
             : @"Waiting for metadata";
-        cell.detailTextLabel.text = [NSString stringWithFormat:@"%@ • %.0f%% • %@\n↓ %.1f MB/s  ↑ %.1f MB/s • %ld peers / %ld seeds",
-            torrent.state, torrent.progress * 100, sizes, torrent.downloadRate / 1048576.0,
+        NSInteger percent = torrent.selectedSize > 0 && torrent.selectedDownloaded >= torrent.selectedSize
+            ? 100 : MIN(99, (NSInteger)(torrent.progress * 100));
+        cell.detailTextLabel.text = [NSString stringWithFormat:@"%@ • %ld%% • %@\n↓ %.1f MB/s  ↑ %.1f MB/s • %ld peers / %ld seeds",
+            torrent.state, (long)percent, sizes, torrent.downloadRate / 1048576.0,
             torrent.uploadRate / 1048576.0, (long)torrent.peers, (long)torrent.seeds];
     }
 }

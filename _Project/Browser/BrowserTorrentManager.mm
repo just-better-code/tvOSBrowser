@@ -479,6 +479,8 @@ static NSString *BrowserTorrentHashString(lt::sha1_hash const& hash) {
             snapshot.state = @"Paused";
         } else if (status.has_metadata && snapshot.selectedSize == 0) {
             snapshot.state = @"Waiting for Start";
+        } else if (snapshot.selectedSize > 0 && snapshot.selectedDownloaded >= snapshot.selectedSize) {
+            snapshot.state = status.state == lt::torrent_status::seeding ? @"Complete / seeding" : @"Complete";
         } else {
             switch (status.state) {
                 case lt::torrent_status::downloading_metadata: snapshot.state = @"Finding metadata"; break;
@@ -580,6 +582,7 @@ static NSString *BrowserTorrentHashString(lt::sha1_hash const& hash) {
     auto info = handle.is_valid() ? handle.torrent_file() : nullptr;
     if (!info || index < 0 || index >= info->files().num_files()) return;
     if (BrowserTorrentIsPaddingFile(info->files(), lt::file_index_t((int)index))) return;
+    handle.unset_flags(lt::torrent_flags::sequential_download);
     [self setDownloadEnabled:YES forTorrent:identifier fileIndex:index];
     @synchronized (self) {
         NSNumber *previous = self.activePlaybackFiles[identifier];
@@ -598,14 +601,21 @@ static NSString *BrowserTorrentHashString(lt::sha1_hash const& hash) {
     handle.file_priority(fileIndex, lt::download_priority_t(7));
     lt::file_storage const& files = info->files();
     int pieceLength = info->piece_length();
+    if (pieceLength <= 0 || files.file_size(fileIndex) <= 0) return;
     int first = (int)(files.file_offset(fileIndex) / pieceLength);
     int last = (int)((files.file_offset(fileIndex) + files.file_size(fileIndex) - 1) / pieceLength);
-    for (int piece = first; piece <= std::min(first + 3, last); ++piece) {
+    for (int piece = first; piece <= std::min(first + 7, last); ++piece) {
         handle.piece_priority(lt::piece_index_t(piece), lt::download_priority_t(7));
+        if (!handle.have_piece(lt::piece_index_t(piece)))
+            handle.set_piece_deadline(lt::piece_index_t(piece), (piece - first) * 250);
     }
-    for (int piece = std::max(first, last - 3); piece <= last; ++piece) {
+    int tailFirst = std::max(first + 8, last - 7);
+    for (int piece = tailFirst; piece <= last; ++piece) {
         handle.piece_priority(lt::piece_index_t(piece), lt::download_priority_t(7));
+        if (!handle.have_piece(lt::piece_index_t(piece)))
+            handle.set_piece_deadline(lt::piece_index_t(piece), (piece - tailFirst) * 250 + 2000);
     }
+    BrowserDebugLog(@"[TorrentState] playback pieces head=%d tail=%d length=%d", first, last, pieceLength);
 }
 
 - (BOOL)setDownloadEnabled:(BOOL)enabled forTorrent:(NSString *)identifier fileIndex:(NSInteger)index {
@@ -693,6 +703,18 @@ static NSString *BrowserTorrentHashString(lt::sha1_hash const& hash) {
     return NO;
 }
 
+- (double)downloadProgressForTorrent:(NSString *)identifier fileIndex:(NSInteger)index {
+    lt::torrent_handle handle = [self handleForIdentifier:identifier];
+    auto info = handle.is_valid() ? handle.torrent_file() : nullptr;
+    if (!info || index < 0 || index >= info->files().num_files()) return -1;
+    int64_t size = info->files().file_size(lt::file_index_t((int)index));
+    if (size <= 0) return -1;
+    std::vector<std::int64_t> progress;
+    handle.file_progress(progress);
+    if ((size_t)index >= progress.size()) return -1;
+    return std::min(1.0, std::max(0.0, (double)progress[(size_t)index] / size));
+}
+
 - (NSData *)availableDataForTorrent:(NSString *)identifier
                           fileIndex:(NSInteger)index
                              offset:(int64_t)offset
@@ -735,7 +757,9 @@ static NSString *BrowserTorrentHashString(lt::sha1_hash const& hash) {
     if (offset >= info->files().file_size(fileIndex)) return;
     int piece = (int)((info->files().file_offset(fileIndex) + offset) / info->piece_length());
     for (int i = piece; i < std::min(piece + 4, info->num_pieces()); ++i) {
+        if (handle.have_piece(lt::piece_index_t(i))) continue;
         handle.piece_priority(lt::piece_index_t(i), lt::download_priority_t(7));
+        handle.set_piece_deadline(lt::piece_index_t(i), (i - piece) * 250);
     }
 }
 

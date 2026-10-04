@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.19.1 - 2026-10-04
+
+### Fixed
+
+- Prioritize playback and requested torrent pieces so streaming can start before the selected file finishes downloading ([torrent architecture](TORRENTS.md), [development history](DEVELOPMENT_HISTORY.md#2026-10-04--torrent-streaming-and-player-controls)).
+- Show the selected file's completion percentage while buffering or streaming, and label files and torrents Complete only when their selected bytes are fully downloaded ([user guide](USER_GUIDE.md#torrents)).
+- Pause torrent playback when the app becomes inactive, ignore touchpad direction gestures while player controls are hidden, and hide the status header with the controls during playback ([user guide](USER_GUIDE.md#torrents)).
+
 ## 2.19.0 - 2026-10-04
 
 ### Changed
