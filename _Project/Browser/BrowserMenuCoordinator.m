@@ -3,6 +3,7 @@
 #import "BrowserHistoryViewController.h"
 #import "BrowserHistoryStore.h"
 #import "BrowserPreferencesStore.h"
+#import "BrowserTorrentKeepAlive.h"
 #import "BrowserWebView.h"
 
 static UIColor *MenuTextColor(void) {
@@ -1333,6 +1334,19 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
     return item;
 }
 
+- (BrowserAdvancedMenuItem *)torrentKeepAliveToggleMenuItem {
+    BrowserAdvancedMenuItem *item = [self advancedMenuItemWithTitle:@"Torrent Keep Alive (Experimental)"
+                                                               style:UIAlertActionStyleDefault
+                                                             handler:^{
+        BrowserTorrentKeepAlive *keepAlive = BrowserTorrentKeepAlive.sharedKeepAlive;
+        keepAlive.enabled = !keepAlive.enabled;
+    }];
+    item.toggleStateProvider = ^BOOL {
+        return BrowserTorrentKeepAlive.sharedKeepAlive.enabled;
+    };
+    return item;
+}
+
 - (NSArray<BrowserAdvancedMenuItem *> *)advancedMenuToolbarItems {
     BrowserAdvancedMenuItem *homeItem = [self advancedMenuItemWithTitle:@"Home"
                                                                   style:UIAlertActionStyleDefault
@@ -1367,17 +1381,44 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
 
 - (void)presentDebugOptions {
     UIAlertController *menu = [self browserAlertControllerWithTitle:@"Debug" message:nil];
-    NSString *loggingTitle = [NSString stringWithFormat:@"Website Logging: %@",
-        self.preferencesStore.websiteLoggingEnabled ? @"ON" : @"OFF"];
-    [menu addAction:[self browserActionWithTitle:loggingTitle
+    NSString *debugTitle = [NSString stringWithFormat:@"Diagnostics: %@",
+        self.preferencesStore.debugEnabled ? @"ON" : @"OFF"];
+    [menu addAction:[self browserActionWithTitle:debugTitle
                                        style:UIAlertActionStyleDefault
                                      handler:^(__unused UIAlertAction *action) {
-        self.preferencesStore.websiteLoggingEnabled = !self.preferencesStore.websiteLoggingEnabled;
+        self.preferencesStore.debugEnabled = !self.preferencesStore.debugEnabled;
+        [self presentDebugOptions];
+    }]];
+    [menu addAction:[self browserActionWithTitle:@"Recent Diagnostic Logs"
+                                       style:UIAlertActionStyleDefault
+                                     handler:^(__unused UIAlertAction *action) {
+        NSArray<NSString *> *recent = BrowserDebugRecentLogs();
+        NSString *message = recent.count ? [recent componentsJoinedByString:@"\n"] : @"No diagnostic logs yet.";
+        UIAlertController *result = [self browserAlertControllerWithTitle:@"Recent Diagnostic Logs" message:message];
+        [result addAction:[self browserCancelAction]];
+        [self.host browserPresentViewController:result];
     }]];
     [menu addAction:[self browserActionWithTitle:@"Media Diagnostics"
                                        style:UIAlertActionStyleDefault
                                      handler:^(__unused UIAlertAction *action) {
         [self presentMediaDiagnostics];
+    }]];
+    [menu addAction:[self browserActionWithTitle:@"Background Probe"
+                                       style:UIAlertActionStyleDefault
+                                     handler:^(__unused UIAlertAction *action) {
+        NSDictionary *probe = [[NSUserDefaults standardUserDefaults] dictionaryForKey:@"BrowserBackgroundProbeSummary"];
+        NSString *message = @"No background probe result yet.";
+        if ([probe isKindOfClass:NSDictionary.class]) {
+            NSString *state = [probe[@"running"] boolValue] ? @"running" :
+                [probe[@"interrupted"] boolValue] ? @"interrupted" : @"finished";
+            NSString *mode = [probe[@"keepAlive"] boolValue] ? @"Keep Alive on" : @"Keep Alive off";
+            message = [NSString stringWithFormat:@"%@ • %@\n%.0f s elapsed • %.0f s active • %.0f s longest gap • %lu ticks",
+                mode, state, [probe[@"elapsed"] doubleValue], [probe[@"active"] doubleValue],
+                [probe[@"maxGap"] doubleValue], (unsigned long)[probe[@"ticks"] unsignedIntegerValue]];
+        }
+        UIAlertController *result = [self browserAlertControllerWithTitle:@"Background Probe" message:message];
+        [result addAction:[self browserCancelAction]];
+        [self.host browserPresentViewController:result];
     }]];
     [menu addAction:[self browserActionWithTitle:@"Inspect WebKit Media Prefs"
                                        style:UIAlertActionStyleDefault
@@ -1398,6 +1439,11 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
                                                                      style:UIAlertActionStyleDefault
                                                                    handler:^{
         [self presentRecentHistory];
+    }];
+    BrowserAdvancedMenuItem *torrentsItem = [self advancedMenuItemWithTitle:@"Torrents"
+                                                                      style:UIAlertActionStyleDefault
+                                                                    handler:^{
+        [self.host browserShowTorrents];
     }];
     BrowserAdvancedMenuItem *zoomOutItem = [self advancedMenuItemWithTitle:@"Zoom Out"
                                                                     style:UIAlertActionStyleDefault
@@ -1449,12 +1495,14 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
             [self tileItem:zoomInItem title:@"Zoom In" symbol:@"plus.magnifyingglass"],
             [self tileItem:addFavoriteItem title:@"Add Favorite" symbol:@"star.fill"],
             [self tileItem:historyItem title:@"History" symbol:@"clock.arrow.circlepath"],
+            [self tileItem:torrentsItem title:@"Torrents" symbol:@"arrow.down.circle.fill"],
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Settings"
                                                items:@[
             [self tileItem:[self adBlockToggleMenuItem] title:@"Ad Block" symbol:@"hand.raised.fill"],
             [self tileItem:[self cursorMagnifierToggleMenuItem] title:@"Magnifier" symbol:@"magnifyingglass"],
             [self tileItem:[self fullscreenVideoPlaybackToggleMenuItem] title:@"Full Screen Player" symbol:@"play.rectangle.fill"],
+            [self tileItem:[self torrentKeepAliveToggleMenuItem] title:@"Keep Alive" symbol:@"waveform"],
             [self tileItem:[self userAgentModeMenuItem] title:@"Mobile Site" symbol:@"iphone"],
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Tools"

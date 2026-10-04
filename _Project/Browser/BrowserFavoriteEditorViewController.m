@@ -1,4 +1,5 @@
 #import "BrowserFavoriteEditorViewController.h"
+#import "BrowserTVAppearance.h"
 
 @interface BrowserFavoriteEditorButton : UIButton
 @property (nonatomic, strong) UIColor *restingColor;
@@ -9,8 +10,8 @@
        withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     [super didUpdateFocusInContext:context withAnimationCoordinator:coordinator];
     [coordinator addCoordinatedAnimations:^{
-        self.backgroundColor = self.isFocused ? [UIColor colorWithWhite:0.96 alpha:0.98] : self.restingColor;
-        [self setTitleColor:self.isFocused ? [UIColor colorWithRed:0.10 green:0.15 blue:0.25 alpha:1.0]
+        self.backgroundColor = self.isFocused ? BrowserTVFocusedSurfaceColor() : self.restingColor;
+        [self setTitleColor:self.isFocused ? BrowserTVFocusedTextColor()
                                            : UIColor.whiteColor forState:UIControlStateNormal];
     } completion:nil];
 }
@@ -66,8 +67,7 @@
     self.view.backgroundColor = [UIColor colorWithWhite:0.0 alpha:0.70];
 
     Class glassClass = NSClassFromString(@"UIGlassEffect");
-    UIVisualEffect *effect = glassClass != Nil ? [[glassClass alloc] init]
-                                              : [UIBlurEffect effectWithStyle:UIBlurEffectStyleDark];
+    UIVisualEffect *effect = BrowserTVPanelEffect();
     UIVisualEffectView *panel = [[UIVisualEffectView alloc] initWithEffect:effect];
     panel.translatesAutoresizingMaskIntoConstraints = NO;
     panel.backgroundColor = UIColor.clearColor;
@@ -122,10 +122,10 @@
     self.errorLabel = errorLabel;
 
     UIButton *save = [self actionButtonWithTitle:@"Save"
-                                          color:[UIColor colorWithRed:0.20 green:0.47 blue:0.91 alpha:0.68]
+                                          color:BrowserTVRestingSurfaceColor()
                                        selector:@selector(savePressed)];
     UIButton *cancel = [self actionButtonWithTitle:@"Cancel"
-                                            color:[UIColor colorWithWhite:1.0 alpha:0.16]
+                                            color:BrowserTVRestingSurfaceColor()
                                          selector:@selector(cancelPressed)];
     UIButton *remove = [self actionButtonWithTitle:@"Delete"
                                             color:[UIColor colorWithRed:0.69 green:0.23 blue:0.27 alpha:0.70]

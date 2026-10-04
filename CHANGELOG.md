@@ -1,5 +1,71 @@
 # Changelog
 
+## 2.20.0 - 2026-10-04
+
+### Added
+
+- Resume each torrent media file from its saved playback position and clear that position when playback finishes or its torrent data is removed ([user guide](USER_GUIDE.md#torrents), [torrent architecture](TORRENTS.md)).
+- Rewind or fast-forward continuously while holding a player seek button, with larger steps after holding the 30-second button for ten seconds ([user guide](USER_GUIDE.md#torrents)).
+
+## 2.19.1 - 2026-10-04
+
+### Fixed
+
+- Prioritize playback and requested torrent pieces so streaming can start before the selected file finishes downloading ([torrent architecture](TORRENTS.md), [development history](DEVELOPMENT_HISTORY.md#2026-10-04--torrent-streaming-and-player-controls)).
+- Show the selected file's completion percentage while buffering or streaming, and label files and torrents Complete only when their selected bytes are fully downloaded ([user guide](USER_GUIDE.md#torrents)).
+- Pause torrent playback when the app becomes inactive, ignore touchpad direction gestures while player controls are hidden, and hide the status header with the controls during playback ([user guide](USER_GUIDE.md#torrents)).
+
+## 2.19.0 - 2026-10-04
+
+### Changed
+
+- Show a download symbol for starting all files in a torrent and move Remove into the torrent's context actions ([user guide](USER_GUIDE.md#torrents)).
+- Move the background runtime probe result into Debug and add a master diagnostic switch with ten recent numeric log entries ([user guide](USER_GUIDE.md#torrents)).
+
+### Added
+
+- Browse torrent folders and choose an individual file or whole folder from a focusable download icon without starting playback or every file ([user guide](USER_GUIDE.md#torrents)).
+- Reset a torrent from its context actions by deleting its cached files and restoring its source with every file skipped ([user guide](USER_GUIDE.md#torrents)).
+
+## 2.18.0 - 2026-10-04
+
+### Added
+
+- Offer system-managed background refresh and processing opportunities for manually started torrents, and show a torrent-free runtime probe to measure actual execution after leaving the browser ([user guide](USER_GUIDE.md#torrents), [background research](docs/agent/TVOS_BACKGROUND_DOWNLOADS.md)).
+
+## 2.17.0 - 2026-10-04
+
+### Changed
+
+- Show the native New Tab, History, Torrents, and playback controls with a shared tvOS page style and remote focus behavior ([user guide](USER_GUIDE.md), [style guide](docs/agent/TVOS_STYLE_GUIDE.md)).
+- Open newly imported torrents in the overall list with the new row focused, richer transfer details, and a saved priority order ([user guide](USER_GUIDE.md#torrents)).
+
+### Added
+
+- Control a focused torrent with Start, priority, and Delete icons, and purge downloaded data without removing torrent entries ([user guide](USER_GUIDE.md#torrents)).
+
+### Removed
+
+- Remove the manual Add Torrent and unlisted-file Clean Cache actions while keeping website link import and the cache-size hint ([user guide](USER_GUIDE.md#torrents)).
+
+### Fixed
+
+- Keep the torrent session running while browsing sites and apply saved file choices without opening Torrents ([development history](DEVELOPMENT_HISTORY.md#2026-10-04--native-tvos-pages-and-torrent-library-follow-up)).
+- Return from a torrent's file list to the overall list with Back and preserve the proportions of VLC control symbols ([user guide](USER_GUIDE.md#torrents)).
+
+## 2.16.0 - 2026-10-04
+
+### Changed
+
+- Wait for file selection before downloading payloads of newly imported torrents so unwanted files stay skipped ([user guide](USER_GUIDE.md#torrents), [development history](DEVELOPMENT_HISTORY.md#2026-10-04--built-in-torrent-playback-on-apple-tv)).
+
+### Added
+
+- Open the built-in torrent library from website magnet and `.torrent` links, including new windows and recognized torrent download responses ([user guide](USER_GUIDE.md#torrents)).
+- Play selected torrent media through embedded TVVLCKit with buffering, remote controls, file navigation and direct opening of completed files ([user guide](USER_GUIDE.md#torrents), [torrent architecture](TORRENTS.md)).
+- Resume verified torrent pieces across app launches to avoid repeating full checks of cached files ([torrent architecture](TORRENTS.md)).
+- Reclaim unlisted torrent cache files with a confirmation action and remove cached payloads when deleting a torrent ([user guide](USER_GUIDE.md#torrents)).
+
 ## 2.15.26 - 2026-10-04
 
 ### Fixed

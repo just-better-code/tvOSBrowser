@@ -10,6 +10,7 @@
 #import "BrowserDOMInteractionService.h"
 #import "BrowserHistoryStore.h"
 #import "BrowserNavigationService.h"
+#import "BrowserNativeStartPageView.h"
 #import "BrowserPageActionCoordinator.h"
 #import "BrowserPreferencesStore.h"
 #import "BrowserRemoteInputController.h"
@@ -17,6 +18,8 @@
 #import "BrowserTabViewModel.h"
 #import "BrowserTabCoordinator.h"
 #import "BrowserTabOverviewController.h"
+#import "BrowserTorrentLibraryViewController.h"
+#import "BrowserTorrentManager.h"
 #import "BrowserUsageGuideViewController.h"
 #import "BrowserVideoPlaybackCoordinator.h"
 #import "BrowserViewModel.h"
@@ -48,6 +51,7 @@ static UIColor *kTextColor(void) {
 @property (nonatomic) BrowserViewModel *viewModel;
 @property (nonatomic) BOOL displayedHintsOnLaunch;
 @property (nonatomic) BOOL scrollViewAllowBounces;
+@property (nonatomic) BrowserNativeStartPageView *nativeStartPageView;
 
 @end
 
@@ -282,6 +286,12 @@ static UIColor *kTextColor(void) {
 }
 
 - (void)browserHandlePrimaryAction {
+    if (self.nativeStartPageView != nil && self.remoteInputController.cursorModeEnabled) {
+        CGPoint point = [self.remoteInputController.cursorView.superview
+            convertPoint:self.remoteInputController.cursorView.center toView:self.nativeStartPageView];
+        [self.nativeStartPageView activateAtPoint:point];
+        return;
+    }
     if (!self.remoteInputController.cursorModeEnabled || self.webview == nil) {
         return;
     }
@@ -355,6 +365,39 @@ static UIColor *kTextColor(void) {
 - (void)browserShowTabOverview {
     [self.tabCoordinator prepareTabOverviewThumbnails];
     [self.tabOverviewController show];
+}
+
+- (void)browserShowTorrents {
+    [self presentTorrentLibrary];
+}
+
+- (BrowserTorrentLibraryViewController *)presentTorrentLibrary {
+    if ([self.presentedViewController isKindOfClass:BrowserTorrentLibraryViewController.class]) {
+        return (BrowserTorrentLibraryViewController *)self.presentedViewController;
+    }
+    BrowserTorrentLibraryViewController *library = [BrowserTorrentLibraryViewController new];
+    [self browserPresentViewController:library];
+    return library;
+}
+
+- (BOOL)handleTorrentRequest:(NSURLRequest *)request {
+    NSURL *URL = request.URL;
+    NSString *scheme = URL.scheme.lowercaseString;
+    BOOL magnet = [scheme isEqualToString:@"magnet"];
+    BOOL torrentFile = ([@[@"http", @"https"] containsObject:scheme ?: @""] &&
+                        [URL.pathExtension.lowercaseString isEqualToString:@"torrent"]);
+    if (!magnet && !torrentFile) return NO;
+
+    BrowserTorrentLibraryViewController *library = [self presentTorrentLibrary];
+    if (magnet) {
+        NSError *error = nil;
+        NSString *identifier = [[BrowserTorrentManager sharedManager] identifierForMagnetString:URL.absoluteString error:&error];
+        if (identifier) [library focusTorrent:identifier];
+        else [library showImportError:error.localizedDescription];
+    } else {
+        [library importTorrentRequest:request];
+    }
+    return YES;
 }
 
 - (void)browserCreateNewTab {
@@ -440,6 +483,59 @@ static UIColor *kTextColor(void) {
     return self.tabOverviewController.visible;
 }
 
+- (void)browserTabCoordinatorShowNativeStartPageSelectingGroup:(NSString *)group index:(NSUInteger)index {
+    if (!self.nativeStartPageView) {
+        BrowserNativeStartPageView *startPage = [[BrowserNativeStartPageView alloc] initWithFrame:CGRectZero];
+        startPage.translatesAutoresizingMaskIntoConstraints = NO;
+        __weak typeof(self) weakSelf = self;
+        startPage.openURLString = ^(NSString *URLString) {
+            NSURL *URL = [NSURL URLWithString:URLString];
+            if (!URL || ![@[@"http", @"https"] containsObject:URL.scheme.lowercaseString] || URL.host.length == 0) return;
+            [weakSelf browserTabCoordinatorHideNativeStartPage];
+            [weakSelf.webview loadRequest:[NSURLRequest requestWithURL:URL]];
+        };
+        startPage.openSearch = ^{ [weakSelf showInputURLorSearchGoogle]; };
+        startPage.showAllHistory = ^{ [weakSelf.menuCoordinator presentAllHistory]; };
+        startPage.manageFavorite = ^(NSUInteger storageIndex) {
+            [weakSelf.menuCoordinator presentStoredItemActionsForKind:@"favorite" index:storageIndex];
+        };
+        startPage.deleteRecentVisit = ^(NSString *URLString) {
+            NSURL *URL = [NSURL URLWithString:URLString];
+            UIAlertController *actions = [UIAlertController alertControllerWithTitle:URL.host ?: @"Recent Visit"
+                                                                             message:URLString preferredStyle:UIAlertControllerStyleAlert];
+            if (URL.host.length > 0 && [@[@"http", @"https"] containsObject:URL.scheme.lowercaseString]) {
+                [actions addAction:[UIAlertAction actionWithTitle:@"Open" style:UIAlertActionStyleDefault handler:^(__unused UIAlertAction *action) {
+                    [weakSelf browserTabCoordinatorHideNativeStartPage];
+                    [weakSelf.webview loadRequest:[NSURLRequest requestWithURL:URL]];
+                }]];
+            }
+            [actions addAction:[UIAlertAction actionWithTitle:@"Delete from History" style:UIAlertActionStyleDestructive handler:^(__unused UIAlertAction *action) {
+                [weakSelf.menuCoordinator deleteHistoryForURLString:URLString];
+            }]];
+            [actions addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+            [weakSelf presentViewController:actions animated:YES completion:nil];
+        };
+        [self.browserContainerView addSubview:startPage];
+        [NSLayoutConstraint activateConstraints:@[
+            [startPage.leadingAnchor constraintEqualToAnchor:self.browserContainerView.leadingAnchor],
+            [startPage.trailingAnchor constraintEqualToAnchor:self.browserContainerView.trailingAnchor],
+            [startPage.topAnchor constraintEqualToAnchor:self.browserContainerView.topAnchor],
+            [startPage.bottomAnchor constraintEqualToAnchor:self.browserContainerView.bottomAnchor],
+        ]];
+        self.nativeStartPageView = startPage;
+    }
+    [self.nativeStartPageView reloadFavorites:[[BrowserHistoryStore sharedStore] favorites]
+                                    recents:[[BrowserHistoryStore sharedStore] recentVisitsWithLimit:10]
+                             selectingGroup:group index:index];
+    [self.browserContainerView bringSubviewToFront:self.nativeStartPageView];
+    [self.view bringSubviewToFront:self.remoteInputController.cursorView];
+}
+
+- (void)browserTabCoordinatorHideNativeStartPage {
+    [self.nativeStartPageView removeFromSuperview];
+    self.nativeStartPageView = nil;
+}
+
 #pragma mark - BrowserTabOverviewControllerHost
 
 - (BOOL)browserTabOverviewControllerCursorModeEnabled {
@@ -477,6 +573,7 @@ static UIColor *kTextColor(void) {
 }
 
 - (BOOL)browserPageActionCoordinatorCreateNewTabWithRequest:(NSURLRequest *)request {
+    if ([self handleTorrentRequest:request]) return YES;
     return [self.tabCoordinator createNewTabWithRequest:request];
 }
 
@@ -523,13 +620,11 @@ static UIColor *kTextColor(void) {
 }
 
 - (void)browserRemoteInputControllerNavigateNewTabInDirection:(NSString *)direction {
-    NSString *script = [NSString stringWithFormat:@"window.browserNewTabNavigate && window.browserNewTabNavigate('%@')", direction];
-    [self.webview evaluateJavaScript:script completion:^(__unused NSString *result) {}];
+    [self.nativeStartPageView navigateInDirection:direction];
 }
 
 - (void)browserRemoteInputControllerActivateNewTabSelection {
-    [self.webview evaluateJavaScript:@"window.browserNewTabActivate && window.browserNewTabActivate()"
-                           completion:^(__unused NSString *result) {}];
+    [self.nativeStartPageView activateSelection];
 }
 
 - (void)browserRemoteInputControllerHandleTabOverviewPress {
@@ -578,15 +673,13 @@ static UIColor *kTextColor(void) {
 
 - (void)browserRemoteInputControllerHandleNewTabOptionUsingKeyboardSelection:(BOOL)keyboardSelection {
     if (![self browserRemoteInputControllerNewTabVisible]) return;
-    NSString *script;
     if (keyboardSelection) {
-        script = @"window.browserNewTabOptionSelected ? window.browserNewTabOptionSelected() : false";
+        [self.nativeStartPageView showOptionForSelection];
     } else {
-        CGPoint point = [self browserDOMPointForCursor];
-        script = [NSString stringWithFormat:
-            @"window.browserNewTabOptionAt ? window.browserNewTabOptionAt(%.3f, %.3f) : false", point.x, point.y];
+        CGPoint point = [self.remoteInputController.cursorView.superview
+            convertPoint:self.remoteInputController.cursorView.center toView:self.nativeStartPageView];
+        [self.nativeStartPageView showOptionAtPoint:point];
     }
-    [self.webview evaluateJavaScript:script completion:^(__unused NSString *result) {}];
 }
 
 - (void)browserRemoteInputControllerHoverStateAtCursorPoint:(CGPoint)point
@@ -669,11 +762,36 @@ static UIColor *kTextColor(void) {
 
 - (BOOL)webView:(id)webView shouldCreateNewTabWithRequest:(NSURLRequest *)request navigationType:(NSInteger)navigationType {
     (void)webView;
+    if ([self handleTorrentRequest:request]) return YES;
     return [self.tabCoordinator createNewTabWithRequest:request];
+}
+
+- (BOOL)webView:(id)webView shouldImportTorrentResponse:(NSURLResponse *)response request:(NSURLRequest *)request {
+    (void)webView;
+    BOOL torrentMIME = [response.MIMEType.lowercaseString isEqualToString:@"application/x-bittorrent"];
+    NSString *disposition = [response isKindOfClass:NSHTTPURLResponse.class]
+        ? [(NSHTTPURLResponse *)response valueForHTTPHeaderField:@"Content-Disposition"] : nil;
+    BOOL torrentFilename = [disposition.lowercaseString containsString:@"attachment"] &&
+        [response.suggestedFilename.pathExtension.lowercaseString isEqualToString:@"torrent"];
+    if (!torrentMIME && !torrentFilename) return NO;
+    NSURL *URL = response.URL;
+    if (![@[@"http", @"https"] containsObject:URL.scheme.lowercaseString ?: @""]) return NO;
+
+    BrowserTorrentLibraryViewController *library = [self presentTorrentLibrary];
+    BOOL sameURL = [request.URL isEqual:URL];
+    NSString *method = request.HTTPMethod.uppercaseString ?: @"GET";
+    if (![method isEqualToString:@"GET"] && !sameURL) {
+        [library showImportError:@"This torrent download was redirected after a form submission. Open its direct .torrent URL instead."];
+        return YES;
+    }
+    NSURLRequest *importRequest = sameURL ? request : [NSURLRequest requestWithURL:URL];
+    [library importTorrentRequest:importRequest];
+    return YES;
 }
 
 - (BOOL)webView:(id)webView shouldStartLoadWithRequest:(NSURLRequest *)request navigationType:(NSInteger)navigationType {
     (void)navigationType;
+    if ([self handleTorrentRequest:request]) return NO;
     if ([request.URL.scheme.lowercaseString isEqualToString:@"tvosbrowser"] &&
         [request.URL.host.lowercaseString isEqualToString:@"manage"] &&
         [self browserRemoteInputControllerNewTabVisible]) {

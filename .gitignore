@@ -59,8 +59,10 @@ _Project/Availability.h
 # Generated local knowledge graph
 graphify-out/
 
+# Downloaded source references for targeted research
+/.references/
+
 # Локальний клон Firefox та нотатки дослідження
-/docs/firefox-ios-research/
 /docs/agent/FIREFOX_IOS_IFRAME_RESEARCH.md
 /docs/agent/plans/iframe-player-controls.md
 /docs/agent/plans/zoom-reading.md

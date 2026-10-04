@@ -1,4 +1,5 @@
 #import "BrowserRemoteInputController.h"
+#import "BrowserTorrentLibraryViewController.h"
 
 static UIImage *BrowserDefaultCursor(void) {
     static UIImage *image;
@@ -431,7 +432,8 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 }
 
 - (void)beginSelectHold {
-    if (self.selectPressPending || !self.cursorModeEnabled ||
+    BOOL nativeStartPage = [self.host browserRemoteInputControllerNewTabVisible];
+    if (self.selectPressPending || (!self.cursorModeEnabled && !nativeStartPage) ||
         [self.host browserRemoteInputControllerPresentedViewController] != nil ||
         [self.host browserRemoteInputControllerTabOverviewVisible]) {
         return;
@@ -452,7 +454,12 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
         }
         strongSelf.selectHoldActivated = YES;
         strongSelf.lastLongSelectTimestamp = CACurrentMediaTime();
-        [strongSelf.host browserRemoteInputControllerToggleMagnifier];
+        if ([strongSelf.host browserRemoteInputControllerNewTabVisible]) {
+            [strongSelf.host browserRemoteInputControllerHandleNewTabOptionUsingKeyboardSelection:
+                !strongSelf.cursorModeEnabled || strongSelf.newTabKeyboardSelectionActive];
+        } else {
+            [strongSelf.host browserRemoteInputControllerToggleMagnifier];
+        }
     });
 }
 
@@ -708,7 +715,11 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
             return NO;
         }
         if (press.type == UIPressTypeMenu) {
-            [presentedViewController dismissViewControllerAnimated:YES completion:nil];
+            if ([presentedViewController isKindOfClass:BrowserTorrentLibraryViewController.class]) {
+                [(BrowserTorrentLibraryViewController *)presentedViewController handleBackPress];
+            } else {
+                [presentedViewController dismissViewControllerAnimated:YES completion:nil];
+            }
             return YES;
         }
         return press.type == UIPressTypePlayPause;

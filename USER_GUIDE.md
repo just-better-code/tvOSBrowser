@@ -1,6 +1,6 @@
 # User Guide — tvOS Browser, just-better-code version
 
-Current for **2.15.26**. Button names match the application.
+Current for **2.18.0**. Button names match the application.
 
 ## Quick start
 
@@ -21,16 +21,17 @@ Open the visual quick guide through **Menu → Tools → User Guide**. **Show th
 | Navigate tab history | Back/Forward beside the domain in the main menu |
 | Open the tab overview | Double Left |
 | Close the focused overview tab | Double Up or Play/Pause |
-| Toggle the magnifier | Hold Center |
+| Toggle the magnifier on a website | Hold Center |
 | Open the menu or return from an overlay | Back/Menu, depending on context |
 | Play/pause supported video | Play/Pause |
 
-On New Tab, menus and lists, arrows move selection and Center activates it. The pointer hides on inactivity; a new touchpad movement brings it back.
+On app-owned pages, arrows move selection and Center activates the focused item. Hold Center for its context actions; Play/Pause performs the page's shortcut. Website controls retain their own behavior. The pointer hides on inactivity; a new touchpad movement brings it back.
 
 ### Back/Menu behavior
 
 - On an ordinary page, open the main menu.
 - In a menu, dialog, guide or tab overview, close that screen.
+- In a torrent's file list, return to the overall torrent list; from the overall list, return to the browser.
 - On New Tab, return to the previously active tab when available.
 - With the magnifier enabled, turn it off before opening the menu.
 - In a supported fullscreen player, leave fullscreen and return to the page.
@@ -45,8 +46,8 @@ The toolbar contains **Home**, **Reload Page**, the address, **New Tab** and **T
 
 | Section | Actions |
 | --- | --- |
-| Quick Actions | Zoom Out, Reset Zoom, Zoom In, Add Favorite, History |
-| Settings | Ad Block, Magnifier, Full Screen Player, Mobile Site |
+| Quick Actions | Zoom Out, Reset Zoom, Zoom In, Add Favorite, History, Torrents |
+| Settings | Ad Block, Magnifier, Full Screen Player, Mobile Site, Keep Alive |
 | Tools | Debug, User Guide, Clear Cache, Clear Cookies, Clear History |
 
 Zoom ranges from **50% to 200%**, in **10%** steps. It scales the text and page together, starts at the left edge after a change, and remembers the chosen percentage across tabs and launches. Reset Zoom shows the current percentage, updates after each zoom action, and restores **100%** when pressed. Mobile Site changes the User Agent; presentation depends on the website. If Ad Block interferes with a page or player, try disabling it and reloading.
@@ -61,9 +62,10 @@ The magnifier is also available through Settings → Magnifier. It turns off aft
 - Select a tab card and press Center to open it.
 - The **+** card opens New Tab; an empty New Tab does not occupy a saved tab slot.
 - Play/Pause closes the focused ordinary tab in the overview.
+- Hold Center on a tab card for Open and Close actions.
 - Double Up also closes the focused overview tab; repeated Up presses on a page scroll it.
 
-New Tab shows **Favorites** and recent history. Center opens an entry. **Play/Pause opens the selected entry's options**: Favorite actions or history deletion.
+The native New Tab page shows **Favorites** and recent history across the available screen width. Center opens an entry. **Play/Pause or Hold Center opens the selected entry's options**: Favorite actions or recent-visit actions.
 
 The session saves ordinary tabs, the active tab and each tab's Back/Forward list. An empty New Tab is temporary and is not restored as an ordinary page.
 
@@ -85,6 +87,7 @@ On New Tab, select a Favorite and press Play/Pause for editing and deletion opti
 | --- | --- |
 | Open an entry | Select its row and press Center |
 | Select/deselect a row | Play/Pause on the row |
+| Open row actions | Hold Center on the row |
 | Select every entry | Select All |
 | Open one selected entry | Open; exactly one row must be selected |
 | Delete selected entries | Delete |
@@ -105,6 +108,18 @@ On New Tab, select a Favorite and press Play/Pause for editing and deletion opti
 The browser forwards clicks into supported iframe players, including cross-origin frames inside web components. Point at the player's Play, episode selector or fullscreen button and press Center.
 
 Availability depends on the player, stream format and website. A pure canvas player without accessible video does not have guaranteed seeking support. DRM and unsupported formats may prevent playback.
+
+## Torrents
+
+Select a magnet or `.torrent` link on a website to open **Torrents** immediately. The library focuses the imported torrent in the overall list; press Center to open its files. Its row shows selected and total size, transfer rates, peer counts, and focusable Download All, Priority Up, and Priority Down icons beside the focused row. Play/Pause on a torrent row also starts all its files. Hold Center for Pause/Resume, Reset Torrent, and Remove Torrent. Priority order is saved across launches.
+
+New torrents start with files skipped. Center opens a folder, and Back returns to its parent; Play/Pause on a folder selects every file inside it for download. The download icon to the right of a focused file or folder selects it without starting playback. Hold Center on a folder for **Download Folder** or **Skip Folder**. Center or Play/Pause on a focused playable file starts **Play Now (Priority)**. Hold Center on a file for Play Now and Download/Skip actions, or on a torrent for Open Files and Pause/Resume. The player offers MP4, M4V, MOV, MP3, M4A, MKV and AVI files. If libtorrent is checking an existing file, playback waits for that check; otherwise it starts as verified pieces arrive. The status header shows **Buffering · Complete: XX%** or **Streaming · Complete: XX%** while visible, and the header hides with the controls after inactivity during playback. The format and codec still need to be supported by the embedded player and Apple TV hardware. The bottom panel has Close, previous/start, 10- and 30-second seek, Play/Pause, next file and progress controls. Press Center to show the controls again; touchpad direction gestures do not seek while the controls are hidden. A short Center press on a seek button jumps 10 or 30 seconds. Holding Center on it repeats 20- or 60-second jumps until release; after ten seconds of holding a 30-second button, its repeated jump becomes 120 seconds. This hold action does not open the player's context menu. Previous returns to the start of the current file when more than five seconds have played, or opens the previous playable file near the start. Play/Pause toggles playback, Back/Menu returns to the library, and playback pauses when the app becomes inactive. VLC saves a position for each torrent file and resumes there on the next opening; a finished file starts from the beginning next time.
+
+All new torrents wait for manual file selection or Download All. Playing a file enables that file; use its right-hand download icon or Hold Center → **Download File** to transfer one file without opening the player.
+
+From a torrent's file list, choose **Skip Download** to stop requesting that file, or use **Pause/Resume** to control the torrent. Skipping a completed file does not erase its downloaded bytes; libtorrent 1.2 has no safe individual-file removal action in this app. In the overall list, Hold Center and choose **Reset Torrent** to delete its downloaded files, retain its `.torrent` or magnet source, and restore the entry with all files skipped. **Remove Torrent** deletes its entry and cached files. Both actions also clear that torrent's playback positions. The hint beside the action shortcuts shows the total torrent cache size, which includes listed torrents. **Purge All** removes downloaded data and playback positions for every torrent but keeps torrent entries at 0% for manual restart. This action does not touch browser history or website data. Torrent payloads and metadata are in tvOS's purgeable cache, so the system may remove them when space is needed. **Settings → Keep Alive** is experimental and does not guarantee background downloading.
+
+The app can request system-managed Background App Refresh and Background Processing time after you leave it. The tvOS switch for this app may be changed in system Settings at any time. These requests are opportunistic: tvOS chooses when to run them, and a pending request does not keep a torrent downloading continuously. **Debug → Diagnostics** is the master switch for website and numeric torrent/background logging and the temporary background probe. **Debug → Recent Diagnostic Logs** shows the ten latest numeric diagnostic lines; **Debug → Background Probe** shows elapsed background time, timer-covered execution time, and the longest timer gap without requiring a torrent. It also records whether the app's experimental **Keep Alive** was on when the measurement began. A long elapsed interval with little active time means the app was suspended. In Debug builds with Diagnostics enabled, a probe-only request is submitted even if no torrent is pending; ordinary releases submit tasks only for manually started, incomplete torrents.
 
 ### Episode, season and playback position
 

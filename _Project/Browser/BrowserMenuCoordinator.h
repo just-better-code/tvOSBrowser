@@ -30,6 +30,7 @@
 - (void)browserRefreshNewTabPageSelectingGroup:(NSString *)group index:(NSUInteger)index;
 - (void)browserShowNewTabPageSelectingGroup:(NSString *)group;
 - (void)browserOpenHistoryURLString:(NSString *)URLString;
+- (void)browserShowTorrents;
 
 @end
 

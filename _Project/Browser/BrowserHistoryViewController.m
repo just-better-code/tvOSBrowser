@@ -1,5 +1,6 @@
 #import "BrowserHistoryViewController.h"
 #import "BrowserHistoryStore.h"
+#import "BrowserTVAppearance.h"
 
 @interface BrowserHistoryButton : UIButton
 @property (nonatomic, strong) UIColor *restingColor;
@@ -10,8 +11,8 @@
        withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     [super didUpdateFocusInContext:context withAnimationCoordinator:coordinator];
     [coordinator addCoordinatedAnimations:^{
-        self.backgroundColor = self.isFocused ? [UIColor colorWithWhite:0.96 alpha:0.98] : self.restingColor;
-        [self setTitleColor:self.isFocused ? [UIColor colorWithRed:0.10 green:0.15 blue:0.25 alpha:1.0]
+        self.backgroundColor = self.isFocused ? BrowserTVFocusedSurfaceColor() : self.restingColor;
+        [self setTitleColor:self.isFocused ? BrowserTVFocusedTextColor()
                                            : UIColor.whiteColor forState:UIControlStateNormal];
     } completion:nil];
 }
@@ -31,10 +32,10 @@
 
 - (void)refreshAppearance {
     BOOL focused = self.isFocused;
-    self.contentView.backgroundColor = focused ? [UIColor colorWithWhite:0.95 alpha:0.94]
-                                               : [UIColor colorWithWhite:1.0 alpha:0.10];
-    self.textLabel.textColor = focused ? [UIColor colorWithRed:0.10 green:0.15 blue:0.24 alpha:1.0] : UIColor.whiteColor;
-    self.detailTextLabel.textColor = focused ? [UIColor colorWithRed:0.29 green:0.34 blue:0.43 alpha:1.0]
+    self.contentView.backgroundColor = focused ? BrowserTVFocusedSurfaceColor()
+                                               : BrowserTVRestingSurfaceColor();
+    self.textLabel.textColor = focused ? BrowserTVFocusedTextColor() : UIColor.whiteColor;
+    self.detailTextLabel.textColor = focused ? BrowserTVFocusedTextColor()
                                              : [UIColor colorWithWhite:1.0 alpha:0.68];
     self.imageView.tintColor = self.checked
         ? (focused ? [UIColor colorWithRed:0.13 green:0.34 blue:0.75 alpha:1.0]
@@ -64,7 +65,6 @@
 @property (nonatomic, strong) UIButton *doneButton;
 @property (nonatomic, strong) UILabel *countLabel;
 @property (nonatomic, strong) NSDateFormatter *visitDateFormatter;
-@property (nonatomic, strong) CAGradientLayer *backgroundGradient;
 
 @end
 
@@ -104,15 +104,7 @@
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.view.backgroundColor = [UIColor colorWithRed:0.07 green:0.10 blue:0.17 alpha:1.0];
-    CAGradientLayer *gradient = [CAGradientLayer layer];
-    gradient.colors = @[(id)[UIColor colorWithRed:0.19 green:0.28 blue:0.43 alpha:1.0].CGColor,
-                        (id)[UIColor colorWithRed:0.16 green:0.15 blue:0.28 alpha:1.0].CGColor,
-                        (id)[UIColor colorWithRed:0.08 green:0.10 blue:0.17 alpha:1.0].CGColor];
-    gradient.startPoint = CGPointMake(0.0, 0.0);
-    gradient.endPoint = CGPointMake(1.0, 1.0);
-    [self.view.layer addSublayer:gradient];
-    self.backgroundGradient = gradient;
+    BrowserTVInstallBackground(self.view);
     self.entries = [[BrowserHistoryStore sharedStore] allVisits];
     NSDateFormatter *dateFormatter = [NSDateFormatter new];
     dateFormatter.dateStyle = NSDateFormatterShortStyle;
@@ -130,8 +122,7 @@
     [self.view addSubview:countLabel];
 
     Class glassClass = NSClassFromString(@"UIGlassEffect");
-    UIVisualEffect *effect = glassClass != Nil ? [[glassClass alloc] init]
-                                              : [UIBlurEffect effectWithStyle:UIBlurEffectStyleDark];
+    UIVisualEffect *effect = BrowserTVPanelEffect();
     UIVisualEffectView *glassPanel = [[UIVisualEffectView alloc] initWithEffect:effect];
     glassPanel.translatesAutoresizingMaskIntoConstraints = NO;
     glassPanel.layer.cornerRadius = 30.0;
@@ -155,16 +146,22 @@
     table.backgroundView = emptyLabel;
     [self.view addSubview:table];
     self.tableView = table;
+    UILongPressGestureRecognizer *contextPress = [[UILongPressGestureRecognizer alloc] initWithTarget:self
+                                                                                               action:@selector(handleContextPress:)];
+    contextPress.minimumPressDuration = 0.6;
+    contextPress.allowedPressTypes = @[@(UIPressTypeSelect)];
+    contextPress.cancelsTouchesInView = YES;
+    [table addGestureRecognizer:contextPress];
 
-    UIButton *selectAll = [self button:@"Select All" color:[UIColor colorWithWhite:1.0 alpha:0.16]
+    UIButton *selectAll = [self button:@"Select All" color:BrowserTVRestingSurfaceColor()
                                  selector:@selector(selectAllPressed)];
-    UIButton *open = [self button:@"Open" color:[UIColor colorWithRed:0.28 green:0.50 blue:0.92 alpha:0.65]
+    UIButton *open = [self button:@"Open" color:BrowserTVRestingSurfaceColor()
                             selector:@selector(openPressed)];
     UIButton *remove = [self button:@"Delete" color:[UIColor colorWithRed:0.65 green:0.24 blue:0.33 alpha:0.72]
                               selector:@selector(deletePressed)];
     UIButton *clearAll = [self button:@"Clear All" color:[UIColor colorWithRed:0.65 green:0.24 blue:0.33 alpha:0.72]
                                 selector:@selector(clearAllPressed)];
-    UIButton *done = [self button:@"Done" color:[UIColor colorWithRed:0.28 green:0.50 blue:0.92 alpha:0.65]
+    UIButton *done = [self button:@"Done" color:BrowserTVRestingSurfaceColor()
                             selector:@selector(donePressed)];
     [self.view addSubview:selectAll];
     [self.view addSubview:open];
@@ -218,11 +215,11 @@
 
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
-    self.backgroundGradient.frame = self.view.bounds;
+    BrowserTVLayoutBackground(self.view);
 }
 
 - (void)updateActions {
-    self.countLabel.text = [NSString stringWithFormat:@"%lu visits · %lu selected · Select opens · Play/Pause marks",
+    self.countLabel.text = [NSString stringWithFormat:@"%lu visits · %lu selected · Center opens · Play marks · Hold Center shows actions",
                             (unsigned long)self.entries.count, (unsigned long)self.selectedIndexes.count];
     self.openButton.enabled = self.selectedIndexes.count == 1;
     self.openButton.alpha = self.openButton.enabled ? 1.0 : 0.45;
@@ -275,13 +272,39 @@
     [cell refreshAppearance];
     cell.accessibilityLabel = [NSString stringWithFormat:@"%@, %@", cell.textLabel.text, URLString];
     cell.accessibilityValue = [self.selectedIndexes containsIndex:(NSUInteger)indexPath.row] ? @"Selected" : @"Not selected";
-    cell.accessibilityHint = @"Press Select to open. Press Play/Pause to select or deselect this visit.";
+    cell.accessibilityHint = @"Press Center to open, Play/Pause to mark, or hold Center for actions.";
     return cell;
 }
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
     [self openEntryAtIndex:(NSUInteger)indexPath.row];
+}
+
+- (void)handleContextPress:(UILongPressGestureRecognizer *)recognizer {
+    if (recognizer.state != UIGestureRecognizerStateBegan) return;
+    NSIndexPath *path = [self.tableView indexPathForRowAtPoint:[recognizer locationInView:self.tableView]];
+    if (!path) path = self.focusedEntryIndexPath;
+    if (!path || path.row < 0 || (NSUInteger)path.row >= self.entries.count) return;
+    NSDictionary *entry = self.entries[(NSUInteger)path.row];
+    NSString *title = [entry[@"title"] length] ? entry[@"title"] : entry[@"url"];
+    UIAlertController *actions = [UIAlertController alertControllerWithTitle:title
+                                                                     message:entry[@"url"] preferredStyle:UIAlertControllerStyleAlert];
+    __weak typeof(self) weakSelf = self;
+    [actions addAction:[UIAlertAction actionWithTitle:@"Open" style:UIAlertActionStyleDefault handler:^(__unused UIAlertAction *action) {
+        [weakSelf openEntryAtIndex:(NSUInteger)path.row];
+    }]];
+    BOOL selected = [self.selectedIndexes containsIndex:(NSUInteger)path.row];
+    [actions addAction:[UIAlertAction actionWithTitle:selected ? @"Deselect" : @"Select"
+                                                style:UIAlertActionStyleDefault handler:^(__unused UIAlertAction *action) {
+        [weakSelf toggleSelectionAtIndexPath:path];
+    }]];
+    [actions addAction:[UIAlertAction actionWithTitle:@"Delete Visit" style:UIAlertActionStyleDestructive handler:^(__unused UIAlertAction *action) {
+        [[BrowserHistoryStore sharedStore] deleteVisitsWithIdentifiers:@[entry[@"id"]]];
+        [weakSelf reloadAfterDeletion];
+    }]];
+    [actions addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+    [self presentViewController:actions animated:YES completion:nil];
 }
 
 - (void)tableView:(UITableView *)tableView

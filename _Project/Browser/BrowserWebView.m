@@ -1701,6 +1701,26 @@ static void BrowserLoadAdBlockRuleList(BrowserAdBlockRuleListCompletion completi
     }
 }
 
+- (void)webView:(id)webView decidePolicyForNavigationResponse:(id)navigationResponse decisionHandler:(void (^)(NSInteger policy))decisionHandler {
+    (void)webView;
+    BOOL isMainFrame = NO;
+    SEL mainFrameSelector = NSSelectorFromString(@"isForMainFrame");
+    if ([navigationResponse respondsToSelector:mainFrameSelector]) {
+        isMainFrame = ((BOOL (*)(id, SEL))objc_msgSend)(navigationResponse, mainFrameSelector);
+    }
+    NSURLResponse *response = nil;
+    SEL responseSelector = NSSelectorFromString(@"response");
+    if ([navigationResponse respondsToSelector:responseSelector]) {
+        response = ((id (*)(id, SEL))objc_msgSend)(navigationResponse, responseSelector);
+    }
+    BOOL imported = NO;
+    if (isMainFrame && response != nil &&
+        [self.delegate respondsToSelector:@selector(webView:shouldImportTorrentResponse:request:)]) {
+        imported = [self.delegate webView:self shouldImportTorrentResponse:response request:self.lastRequest];
+    }
+    decisionHandler(imported ? 0 : 1);
+}
+
 - (id)webView:(id)webView
 createWebViewWithConfiguration:(id)configuration
 forNavigationAction:(id)navigationAction

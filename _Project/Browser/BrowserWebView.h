@@ -7,6 +7,7 @@ NS_ASSUME_NONNULL_BEGIN
 @optional
 - (BOOL)webView:(id _Nonnull)webView shouldStartLoadWithRequest:(NSURLRequest * _Nullable)request navigationType:(NSInteger)navigationType;
 - (BOOL)webView:(id _Nonnull)webView shouldCreateNewTabWithRequest:(NSURLRequest * _Nullable)request navigationType:(NSInteger)navigationType;
+- (BOOL)webView:(id _Nonnull)webView shouldImportTorrentResponse:(NSURLResponse * _Nonnull)response request:(NSURLRequest * _Nullable)request;
 - (void)webViewDidStartLoad:(id _Nonnull)webView;
 - (void)webViewDidFinishLoad:(id _Nonnull)webView;
 - (void)webViewDidChangeNavigationHistory:(id _Nonnull)webView;

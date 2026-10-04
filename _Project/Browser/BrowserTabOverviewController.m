@@ -2,6 +2,7 @@
 
 #import "BrowserTabViewModel.h"
 #import "BrowserViewModel.h"
+#import "BrowserTVAppearance.h"
 
 static CGFloat const kTopBarHorizontalInset = 40.0;
 static CGFloat const kTopBarMaxWidth = 1760.0;
@@ -98,7 +99,7 @@ static CGFloat const kTabCardURLHeight = 64.0;
 
         _cardBackgroundView = [[UIView alloc] initWithFrame:self.contentView.bounds];
         _cardBackgroundView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-        _cardBackgroundView.backgroundColor = [UIColor colorWithWhite:0.14 alpha:1.0];
+        _cardBackgroundView.backgroundColor = BrowserTVRestingSurfaceColor();
         _cardBackgroundView.layer.cornerRadius = 30.0;
         _cardBackgroundView.clipsToBounds = YES;
         [self.contentView addSubview:_cardBackgroundView];
@@ -180,15 +181,19 @@ static CGFloat const kTabCardURLHeight = 64.0;
 
 - (void)updateAppearance {
     BOOL focused = self.isFocused;
-    self.cardBackgroundView.backgroundColor = self.addCard
-        ? [UIColor colorWithWhite:focused ? 0.20 : 0.16 alpha:1.0]
-        : [UIColor colorWithWhite:(self.activeTab ? 0.18 : 0.14) alpha:1.0];
+    self.cardBackgroundView.backgroundColor = focused ? BrowserTVFocusedSurfaceColor()
+                                                     : BrowserTVRestingSurfaceColor();
+    self.cardBackgroundView.layer.borderWidth = self.activeTab && !focused ? 2 : 0;
+    self.cardBackgroundView.layer.borderColor = [UIColor colorWithWhite:1 alpha:0.66].CGColor;
+    self.titleLabel.textColor = focused ? BrowserTVFocusedTextColor() : UIColor.whiteColor;
+    self.urlLabel.textColor = focused ? BrowserTVFocusedTextColor() : [UIColor colorWithWhite:1 alpha:0.72];
+    self.hintLabel.textColor = focused ? BrowserTVFocusedTextColor() : [UIColor colorWithWhite:1 alpha:0.72];
 
-    self.layer.shadowColor = [UIColor colorWithRed:0.23 green:0.57 blue:1.0 alpha:1.0].CGColor;
+    self.layer.shadowColor = UIColor.whiteColor.CGColor;
     self.layer.shadowOffset = CGSizeZero;
-    self.layer.shadowOpacity = (focused || self.activeTab) ? 0.78 : 0.0;
-    self.layer.shadowRadius = focused ? 18.0 : 12.0;
-    self.transform = focused ? CGAffineTransformMakeScale(1.06, 1.06) : CGAffineTransformIdentity;
+    self.layer.shadowOpacity = focused ? 0.35 : 0;
+    self.layer.shadowRadius = 22;
+    self.transform = focused ? CGAffineTransformMakeScale(1.035, 1.035) : CGAffineTransformIdentity;
     self.hintLabel.hidden = self.addCard || !focused;
 }
 
@@ -247,7 +252,7 @@ static CGFloat const kTabCardURLHeight = 64.0;
     [self.view addSubview:dimView];
     self.dimView = dimView;
 
-    UIVisualEffectView *panelView = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleDark]];
+    UIVisualEffectView *panelView = [[UIVisualEffectView alloc] initWithEffect:BrowserTVPanelEffect()];
     panelView.translatesAutoresizingMaskIntoConstraints = NO;
     panelView.alpha = 0.98;
     panelView.layer.cornerRadius = kTopBarHeight / 2.0;
@@ -286,6 +291,12 @@ static CGFloat const kTabCardURLHeight = 64.0;
     collectionView.dataSource = self;
     collectionView.delegate = self;
     [collectionView registerClass:[BrowserTabOverviewCollectionViewCell class] forCellWithReuseIdentifier:@"TabCard"];
+    UILongPressGestureRecognizer *contextPress = [[UILongPressGestureRecognizer alloc] initWithTarget:self
+                                                                                               action:@selector(handleContextPress:)];
+    contextPress.minimumPressDuration = 0.6;
+    contextPress.allowedPressTypes = @[@(UIPressTypeSelect)];
+    contextPress.cancelsTouchesInView = YES;
+    [collectionView addGestureRecognizer:contextPress];
     [panelView.contentView addSubview:collectionView];
     self.collectionView = collectionView;
 
@@ -457,6 +468,27 @@ static CGFloat const kTabCardURLHeight = 64.0;
         return;
     }
     [super pressesEnded:presses withEvent:event];
+}
+
+- (void)handleContextPress:(UILongPressGestureRecognizer *)recognizer {
+    if (recognizer.state != UIGestureRecognizerStateBegan) return;
+    NSInteger index = [self currentFocusedItemIndex];
+    if (index == NSNotFound) return;
+    BrowserTabViewModel *tab = [self.overviewController tabForDisplayItemIndex:index];
+    UIAlertController *actions = [UIAlertController alertControllerWithTitle:tab.title ?: @"New Tab"
+                                                                     message:nil preferredStyle:UIAlertControllerStyleAlert];
+    __weak typeof(self) weakSelf = self;
+    [actions addAction:[UIAlertAction actionWithTitle:tab ? @"Open Tab" : @"New Tab"
+                                                style:UIAlertActionStyleDefault handler:^(__unused UIAlertAction *action) {
+        [weakSelf.overviewController handleSelectionForDisplayItemIndex:index];
+    }]];
+    if (tab) {
+        [actions addAction:[UIAlertAction actionWithTitle:@"Close Tab" style:UIAlertActionStyleDestructive handler:^(__unused UIAlertAction *action) {
+            [weakSelf.overviewController handleCloseRequestForDisplayItemIndex:index];
+        }]];
+    }
+    [actions addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+    [self presentViewController:actions animated:YES completion:nil];
 }
 
 @end
