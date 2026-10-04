@@ -35,7 +35,7 @@ static UIColor *kTextColor(void) {
     }
 }
 
-@interface ViewController () <BrowserMenuCoordinatorHost, BrowserPageActionCoordinatorHost, BrowserRemoteInputControllerHost, BrowserTabCoordinatorHost, BrowserTabOverviewControllerHost, BrowserTopBarViewDelegate, BrowserVideoPlaybackCoordinatorHost>
+@interface ViewController () <BrowserMenuCoordinatorHost, BrowserPageActionCoordinatorHost, BrowserRemoteInputControllerHost, BrowserTabCoordinatorHost, BrowserTabOverviewControllerHost, BrowserVideoPlaybackCoordinatorHost>
 
 @property (nonatomic) BrowserDOMInteractionService *domInteractionService;
 @property (nonatomic) BrowserMenuCoordinator *menuCoordinator;
@@ -50,7 +50,6 @@ static UIColor *kTextColor(void) {
 @property (nonatomic) BrowserViewModel *viewModel;
 @property (nonatomic) BOOL displayedHintsOnLaunch;
 @property (nonatomic) BOOL scrollViewAllowBounces;
-@property (nonatomic, getter=isTopBarFocusActive) BOOL topBarFocusActive;
 
 @end
 
@@ -67,11 +66,7 @@ static UIColor *kTextColor(void) {
     [self.preferencesStore ensureUserAgentConsistency];
 
     self.viewModel = [BrowserViewModel new];
-    self.preferencesStore.topNavigationBarVisible = NO;
-    self.viewModel.topNavigationBarVisible = NO;
-    NSUInteger matchingFontSize = self.preferencesStore.pageZoomPercent;
-    self.preferencesStore.textFontSize = matchingFontSize;
-    self.viewModel.textFontSize = matchingFontSize;
+    self.viewModel.textFontSize = 100;
     self.viewModel.fullscreenVideoPlaybackEnabled = self.preferencesStore.fullscreenVideoPlaybackEnabled;
 
     self.domInteractionService = [BrowserDOMInteractionService new];
@@ -89,7 +84,6 @@ static UIColor *kTextColor(void) {
                                                           sessionStore:self.sessionStore
                                                     browserContainerView:self.browserContainerView
                                                               rootView:self.view
-                                                            topMenuView:self.topMenuView
                                                             cursorView:self.remoteInputController.cursorView
                                                manualScrollPanRecognizer:self.remoteInputController.manualScrollPanRecognizer
                                                            webViewDelegate:self
@@ -97,15 +91,12 @@ static UIColor *kTextColor(void) {
     self.tabOverviewController = [[BrowserTabOverviewController alloc] initWithHost:self
                                                                             viewModel:self.viewModel
                                                                              rootView:self.view
-                                                                           topMenuView:self.topMenuView
                                                                            cursorView:self.remoteInputController.cursorView];
     self.pageActionCoordinator = [[BrowserPageActionCoordinator alloc] initWithHost:self
                                                                domInteractionService:self.domInteractionService
                                                                    navigationService:self.navigationService
                                                             videoPlaybackCoordinator:self.videoPlaybackCoordinator];
 
-    self.topMenuView.delegate = self;
-    self.topMenuView.loadingSpinner.hidesWhenStopped = YES;
     self.remoteInputController.cursorView.hidden = NO;
 
     [[NSNotificationCenter defaultCenter] addObserver:self
@@ -194,72 +185,7 @@ static UIColor *kTextColor(void) {
 }
 
 - (void)showAdvancedMenu {
-    [self deactivateTopBarFocusMode];
     [self.menuCoordinator showAdvancedMenu];
-}
-
-- (BOOL)canActivateTopBarFocusMode {
-    return self.presentedViewController == nil &&
-        !self.tabOverviewController.visible &&
-        self.viewModel.topNavigationBarVisible &&
-        !self.topMenuView.hidden;
-}
-
-- (void)activateTopBarFocusMode {
-    if (![self canActivateTopBarFocusMode]) {
-        return;
-    }
-    if (self.topBarFocusActive) {
-        return;
-    }
-
-    self.topBarFocusActive = YES;
-    [self.topMenuView setFocusModeActive:YES];
-    [self.remoteInputController refreshInteractionState];
-    [self setNeedsFocusUpdate];
-    [self updateFocusIfNeeded];
-}
-
-- (void)deactivateTopBarFocusMode {
-    if (!self.topBarFocusActive) {
-        return;
-    }
-
-    self.topBarFocusActive = NO;
-    [self.topMenuView setFocusModeActive:NO];
-    [self.remoteInputController refreshInteractionState];
-    [self setNeedsFocusUpdate];
-    [self updateFocusIfNeeded];
-}
-
-- (void)performTopBarAction:(BrowserTopBarAction)action {
-    [self deactivateTopBarFocusMode];
-
-    switch (action) {
-        case BrowserTopBarActionBack:
-            [self.tabCoordinator goBack];
-            break;
-        case BrowserTopBarActionRefresh:
-            [self.webview reload];
-            break;
-        case BrowserTopBarActionForward:
-            [self.tabCoordinator goForward];
-            break;
-        case BrowserTopBarActionHome:
-            [self loadHomePage];
-            break;
-        case BrowserTopBarActionTabs:
-            [self browserShowTabOverview];
-            break;
-        case BrowserTopBarActionURL:
-            [self showInputURLorSearchGoogle];
-            break;
-        case BrowserTopBarActionFullscreen:
-            break;
-        case BrowserTopBarActionMenu:
-            [self showAdvancedMenu];
-            break;
-    }
 }
 
 - (void)updateTextFontSize {
@@ -362,30 +288,8 @@ static UIColor *kTextColor(void) {
         return;
     }
 
-    CGPoint point = [self.view convertPoint:self.remoteInputController.cursorView.frame.origin toView:self.webview];
-    if (point.y < 0) {
-        [self activateTopBarFocusMode];
-        return;
-    }
-
     CGPoint domPoint = [self browserDOMPointForCursor];
     [self.pageActionCoordinator handlePageSelectionAtDOMPoint:domPoint webView:self.webview];
-}
-
-- (NSArray<id<UIFocusEnvironment>> *)preferredFocusEnvironments {
-    if (self.topBarFocusActive) {
-        UIView *preferredFocusItem = [self.topMenuView preferredFocusItem];
-        if (preferredFocusItem != nil) {
-            return @[preferredFocusItem];
-        }
-    }
-    return [super preferredFocusEnvironments];
-}
-
-#pragma mark - BrowserTopBarViewDelegate
-
-- (void)browserTopBarView:(__unused BrowserTopBarView *)topBarView didTriggerAction:(BrowserTopBarAction)action {
-    [self performTopBarAction:action];
 }
 
 #pragma mark - BrowserMenuCoordinatorHost
@@ -434,7 +338,6 @@ static UIColor *kTextColor(void) {
 }
 
 - (void)browserPresentViewController:(UIViewController *)viewController {
-    [self deactivateTopBarFocusMode];
     [self presentViewController:viewController animated:YES completion:nil];
 }
 
@@ -452,7 +355,6 @@ static UIColor *kTextColor(void) {
 }
 
 - (void)browserShowTabOverview {
-    [self deactivateTopBarFocusMode];
     [self.tabCoordinator prepareTabOverviewThumbnails];
     [self.tabOverviewController show];
 }
@@ -463,6 +365,22 @@ static UIColor *kTextColor(void) {
 
 - (void)browserCreateNewTab {
     [self.tabCoordinator createNewTabLoadingHomePage:NO];
+}
+
+- (BOOL)browserCanGoBack {
+    return [self.tabCoordinator canGoBack];
+}
+
+- (BOOL)browserCanGoForward {
+    return [self.tabCoordinator canGoForward];
+}
+
+- (void)browserGoBack {
+    [self.tabCoordinator goBack];
+}
+
+- (void)browserGoForward {
+    [self.tabCoordinator goForward];
 }
 
 - (void)browserOpenHistoryURLString:(NSString *)URLString {
@@ -518,10 +436,6 @@ static UIColor *kTextColor(void) {
 
 - (void)browserTabCoordinatorPresentViewController:(UIViewController *)viewController {
     [self browserPresentViewController:viewController];
-}
-
-- (void)browserTabCoordinatorUpdateTextFontSize {
-    [self updateTextFontSize];
 }
 
 - (BOOL)browserTabCoordinatorIsCursorModeEnabled {
@@ -582,22 +496,6 @@ static UIColor *kTextColor(void) {
     return self.presentedViewController;
 }
 
-- (BOOL)browserRemoteInputControllerTopBarFocusActive {
-    return self.topBarFocusActive;
-}
-
-- (BOOL)browserRemoteInputControllerCanActivateTopBarFocus {
-    return [self canActivateTopBarFocusMode];
-}
-
-- (void)browserRemoteInputControllerActivateTopBarFocus {
-    [self activateTopBarFocusMode];
-}
-
-- (void)browserRemoteInputControllerDeactivateTopBarFocus {
-    [self deactivateTopBarFocusMode];
-}
-
 - (BOOL)browserRemoteInputControllerTabOverviewVisible {
     return self.tabOverviewController.visible;
 }
@@ -638,14 +536,6 @@ static UIColor *kTextColor(void) {
 - (void)browserRemoteInputControllerActivateNewTabSelection {
     [self.webview evaluateJavaScript:@"window.browserNewTabActivate && window.browserNewTabActivate()"
                            completion:^(__unused NSString *result) {}];
-}
-
-- (void)browserRemoteInputControllerHandleHistoryBackPress {
-    [self.tabCoordinator goBack];
-}
-
-- (void)browserRemoteInputControllerHandleHistoryForwardPress {
-    [self.tabCoordinator goForward];
 }
 
 - (void)browserRemoteInputControllerHandleTabOverviewPress {
@@ -692,15 +582,15 @@ static UIColor *kTextColor(void) {
     }];
 }
 
-- (void)browserRemoteInputControllerEditNewTabFavoriteUsingKeyboardSelection:(BOOL)keyboardSelection {
+- (void)browserRemoteInputControllerHandleNewTabOptionUsingKeyboardSelection:(BOOL)keyboardSelection {
     if (![self browserRemoteInputControllerNewTabVisible]) return;
     NSString *script;
     if (keyboardSelection) {
-        script = @"window.browserNewTabManageSelected ? window.browserNewTabManageSelected() : false";
+        script = @"window.browserNewTabOptionSelected ? window.browserNewTabOptionSelected() : false";
     } else {
         CGPoint point = [self browserDOMPointForCursor];
         script = [NSString stringWithFormat:
-            @"window.browserNewTabManageAt ? window.browserNewTabManageAt(%.3f, %.3f) : false", point.x, point.y];
+            @"window.browserNewTabOptionAt ? window.browserNewTabOptionAt(%.3f, %.3f) : false", point.x, point.y];
     }
     [self.webview evaluateJavaScript:script completion:^(__unused NSString *result) {}];
 }
@@ -768,6 +658,17 @@ static UIColor *kTextColor(void) {
 
 - (void)browserRemoteInputControllerPersistSession {
     [self.tabCoordinator persistSession];
+}
+
+- (void)browserRemoteInputControllerHandleMediaHorizontalPress:(UIPressType)pressType {
+    if (self.webview == nil) {
+        return;
+    }
+    NSString *direction = pressType == UIPressTypeRightArrow ? @"right" : @"left";
+    NSString *script = [NSString stringWithFormat:
+        @"window.__browserTVHandleMediaHorizontalPress ? window.__browserTVHandleMediaHorizontalPress('%@') : false",
+        direction];
+    [self.webview evaluateJavaScript:script completion:^(__unused NSString *result) {}];
 }
 
 #pragma mark - BrowserWebViewDelegate
@@ -873,6 +774,10 @@ static UIColor *kTextColor(void) {
     [self.tabCoordinator webViewDidStartLoad:webView];
 }
 
+- (void)webViewDidChangeNavigationHistory:(id)webView {
+    [self.tabCoordinator webViewDidChangeNavigationHistory:webView];
+}
+
 - (void)webViewDidFinishLoad:(id)webView {
     [self.tabCoordinator webViewDidFinishLoad:webView];
     if (self.tabOverviewController.visible) {
@@ -920,9 +825,6 @@ static UIColor *kTextColor(void) {
         [self.tabCoordinator webViewDidFailLoad:webView];
     }
 
-    if (tab == self.tabCoordinator.activeTab) {
-        [self.topMenuView.loadingSpinner stopAnimating];
-    }
     if (tab != self.tabCoordinator.activeTab) {
         return;
     }

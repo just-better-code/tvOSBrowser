@@ -25,6 +25,8 @@
     if (self == nil) {
         return nil;
     }
+    NSString *identifier = sessionRepresentation[@"identifier"];
+    if ([identifier isKindOfClass:NSString.class] && identifier.length > 0) _identifier = [identifier copy];
     
     NSString *requestURL = [sessionRepresentation[@"requestURL"] isKindOfClass:[NSString class]] ? sessionRepresentation[@"requestURL"] : @"";
     NSString *previousURL = [sessionRepresentation[@"previousURL"] isKindOfClass:[NSString class]] ? sessionRepresentation[@"previousURL"] : @"";
@@ -50,7 +52,7 @@
     NSInteger savedIndex = [sessionRepresentation[@"navigationIndex"] respondsToSelector:@selector(integerValue)]
         ? [sessionRepresentation[@"navigationIndex"] integerValue] : (NSInteger)validURLs.count - 1;
     self.navigationIndex = validURLs.count > 0 ? MIN(MAX(savedIndex, 0), (NSInteger)validURLs.count - 1) : NSNotFound;
-    self.navigationHistoryRestored = validURLs.count > 1;
+    self.navigationHistoryRestored = validURLs.count > 0;
     if (validURLs.count == 0 && URLString.length > 0) [self recordNavigationURLString:URLString];
     if (scrollOffsetX != nil && scrollOffsetY != nil) {
         self.savedScrollOffset = CGPointMake(scrollOffsetX.doubleValue, scrollOffsetY.doubleValue);
@@ -63,6 +65,7 @@
 
 - (NSDictionary *)sessionRepresentation {
     NSMutableDictionary *representation = [NSMutableDictionary dictionary];
+    representation[@"identifier"] = self.identifier;
     representation[@"requestURL"] = self.requestURL ?: @"";
     representation[@"previousURL"] = self.previousURL ?: @"";
     representation[@"title"] = self.title ?: @"New Tab";

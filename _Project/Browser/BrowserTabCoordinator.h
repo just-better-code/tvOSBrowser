@@ -5,7 +5,6 @@
 @class BrowserPreferencesStore;
 @class BrowserSessionStore;
 @class BrowserTabViewModel;
-@class BrowserTopBarView;
 @class BrowserViewModel;
 @class BrowserWebView;
 
@@ -14,7 +13,6 @@ NS_ASSUME_NONNULL_BEGIN
 @protocol BrowserTabCoordinatorHost <NSObject>
 
 - (void)browserTabCoordinatorPresentViewController:(UIViewController *)viewController;
-- (void)browserTabCoordinatorUpdateTextFontSize;
 - (BOOL)browserTabCoordinatorIsCursorModeEnabled;
 - (BOOL)browserTabCoordinatorIsTabOverviewVisible;
 - (void)browserTabCoordinatorSnapshotDidUpdateForTab:(BrowserTabViewModel *)tab;
@@ -37,7 +35,6 @@ NS_ASSUME_NONNULL_BEGIN
                 sessionStore:(BrowserSessionStore *)sessionStore
            browserContainerView:(UIView *)browserContainerView
                     rootView:(UIView *)rootView
-                  topMenuView:(BrowserTopBarView *)topMenuView
                   cursorView:(UIImageView *)cursorView
      manualScrollPanRecognizer:(UIPanGestureRecognizer *)manualScrollPanRecognizer
              webViewDelegate:(id)webViewDelegate
@@ -67,9 +64,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)handleWebViewPanGesture:(UIPanGestureRecognizer *)gestureRecognizer;
 - (void)webViewDidStartLoad:(id)webView;
 - (void)webViewDidFinishLoad:(id)webView;
+- (void)webViewDidChangeNavigationHistory:(id)webView;
 - (void)webViewDidFailLoad:(id)webView;
 - (void)prepareTabForRequest:(NSURLRequest *)request webView:(id)webView navigationType:(NSInteger)navigationType;
-- (void)setTopNavigationVisible:(BOOL)visible;
 - (BrowserTabViewModel *)tabForWebView:(id)webView;
 - (BOOL)isPrimaryDocumentRequest:(NSURLRequest *)request;
 - (void)reloadStartPageIfActive;

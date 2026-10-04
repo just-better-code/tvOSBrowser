@@ -20,6 +20,7 @@ static NSUInteger const kBrowserNavigationToolbarItemCount = 4;
 
 typedef void (^BrowserAdvancedMenuItemHandler)(void);
 typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
+typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
 
 @interface BrowserAdvancedMenuItem : NSObject
 
@@ -29,6 +30,7 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
 @property (nonatomic) UIAlertActionStyle style;
 @property (nonatomic, copy) BrowserAdvancedMenuItemHandler handler;
 @property (nonatomic, copy) BrowserAdvancedMenuToggleStateProvider toggleStateProvider;
+@property (nonatomic, copy) BrowserAdvancedMenuTitleProvider tileTitleProvider;
 @property (nonatomic) BOOL enabled;
 @property (nonatomic) BOOL keepsMenuOpen;
 
@@ -127,7 +129,8 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
 - (void)configureWithItem:(BrowserAdvancedMenuItem *)item {
     self.destructive = item.style == UIAlertActionStyleDestructive;
     self.toggle = item.toggleStateProvider != nil;
-    self.titleLabel.text = item.tileTitle.length > 0 ? item.tileTitle : item.title;
+    NSString *tileTitle = item.tileTitleProvider != nil ? item.tileTitleProvider() : item.tileTitle;
+    self.titleLabel.text = tileTitle.length > 0 ? tileTitle : item.title;
     UIImageSymbolConfiguration *configuration = [UIImageSymbolConfiguration configurationWithPointSize:37.0
                                                                                                  weight:UIImageSymbolWeightMedium];
     UIImage *symbol = [UIImage systemImageNamed:item.tileSymbolName ?: @"square.grid.2x2"
@@ -146,7 +149,7 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
     } else {
         self.accessibilityValue = nil;
     }
-    self.accessibilityLabel = item.title;
+    self.accessibilityLabel = item.tileTitleProvider != nil ? [self.titleLabel.text stringByReplacingOccurrencesOfString:@"\n" withString:@", "] : item.title;
     [self updateAppearance];
 }
 
@@ -188,6 +191,10 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
 
 @property (nonatomic, copy) NSString *addressText;
 @property (nonatomic, copy) BrowserAdvancedMenuItemHandler addressHandler;
+@property (nonatomic, copy) BrowserAdvancedMenuItemHandler backHandler;
+@property (nonatomic, copy) BrowserAdvancedMenuItemHandler forwardHandler;
+@property (nonatomic) BOOL backEnabled;
+@property (nonatomic) BOOL forwardEnabled;
 
 - (instancetype)initWithToolbarItems:(NSArray<BrowserAdvancedMenuItem *> *)toolbarItems
                            sections:(NSArray<BrowserAdvancedMenuSection *> *)sections
@@ -199,6 +206,7 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
 
 @property (nonatomic, copy) NSArray<BrowserAdvancedMenuItem *> *toolbarItems;
 @property (nonatomic, copy) NSArray<UIButton *> *toolbarButtons;
+@property (nonatomic, copy) NSArray<UIButton *> *historyButtons;
 @property (nonatomic) UIButton *addressButton;
 @property (nonatomic, copy) NSArray<BrowserAdvancedMenuSection *> *sections;
 @property (nonatomic, copy) NSString *footerText;
@@ -274,8 +282,7 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
 
     UIButton *addressButton = [UIButton buttonWithType:UIButtonTypeSystem];
     addressButton.translatesAutoresizingMaskIntoConstraints = NO;
-    addressButton.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.12];
-    addressButton.layer.cornerRadius = 16.0;
+    addressButton.backgroundColor = UIColor.clearColor;
     addressButton.accessibilityLabel = @"Edit Address";
     addressButton.accessibilityValue = self.addressText;
     [addressButton addTarget:self action:@selector(addressButtonPressed:) forControlEvents:UIControlEventPrimaryActionTriggered];
@@ -302,6 +309,72 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
     addressLabel.lineBreakMode = NSLineBreakByTruncatingMiddle;
     addressLabel.userInteractionEnabled = NO;
     [addressButton addSubview:addressLabel];
+
+    UIView *historyNavigationGroup = [UIView new];
+    historyNavigationGroup.translatesAutoresizingMaskIntoConstraints = NO;
+    historyNavigationGroup.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.12];
+    historyNavigationGroup.layer.cornerRadius = 16.0;
+
+    UIStackView *historyNavigationStack = [UIStackView new];
+    historyNavigationStack.translatesAutoresizingMaskIntoConstraints = NO;
+    historyNavigationStack.axis = UILayoutConstraintAxisHorizontal;
+    historyNavigationStack.alignment = UIStackViewAlignmentFill;
+    historyNavigationStack.distribution = UIStackViewDistributionFill;
+    historyNavigationStack.spacing = 0.0;
+    [historyNavigationGroup addSubview:historyNavigationStack];
+
+    NSMutableArray<UIButton *> *historyButtons = [NSMutableArray arrayWithCapacity:2];
+    NSArray<NSString *> *historySymbols = @[@"chevron.left", @"chevron.right"];
+    NSArray<NSString *> *historyLabels = @[@"Back", @"Forward"];
+    NSArray<NSNumber *> *historyEnabledStates = @[@(self.backEnabled), @(self.forwardEnabled)];
+    for (NSUInteger index = 0; index < historySymbols.count; index++) {
+        UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
+        button.tag = 11000 + (NSInteger)index;
+        button.enabled = historyEnabledStates[index].boolValue;
+        button.backgroundColor = UIColor.clearColor;
+        button.accessibilityLabel = historyLabels[index];
+        UIImageSymbolConfiguration *configuration = [UIImageSymbolConfiguration configurationWithPointSize:30.0
+                                                                                                      weight:UIImageSymbolWeightSemibold];
+        UIImage *image = [UIImage systemImageNamed:historySymbols[index] withConfiguration:configuration];
+        UIImageView *iconView = [[UIImageView alloc] initWithImage:[image imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
+        iconView.translatesAutoresizingMaskIntoConstraints = NO;
+        iconView.tag = 9797;
+        iconView.contentMode = UIViewContentModeScaleAspectFit;
+        iconView.tintColor = UIColor.whiteColor;
+        iconView.alpha = button.enabled ? 1.0 : 0.35;
+        iconView.userInteractionEnabled = NO;
+        [button addSubview:iconView];
+        [button addTarget:self action:@selector(historyButtonPressed:) forControlEvents:UIControlEventPrimaryActionTriggered];
+        [NSLayoutConstraint activateConstraints:@[
+            [button.widthAnchor constraintEqualToConstant:58.0],
+            [iconView.centerXAnchor constraintEqualToAnchor:button.centerXAnchor],
+            [iconView.centerYAnchor constraintEqualToAnchor:button.centerYAnchor],
+            [iconView.widthAnchor constraintEqualToConstant:36.0],
+            [iconView.heightAnchor constraintEqualToConstant:36.0],
+        ]];
+        [historyButtons addObject:button];
+    }
+    self.historyButtons = historyButtons;
+
+    UIView *(^separator)(void) = ^UIView *{
+        UIView *view = [UIView new];
+        view.translatesAutoresizingMaskIntoConstraints = NO;
+        view.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.20];
+        [view.widthAnchor constraintEqualToConstant:1.0].active = YES;
+        return view;
+    };
+    [historyNavigationStack addArrangedSubview:historyButtons[0]];
+    [historyNavigationStack addArrangedSubview:separator()];
+    [historyNavigationStack addArrangedSubview:addressButton];
+    [historyNavigationStack addArrangedSubview:separator()];
+    [historyNavigationStack addArrangedSubview:historyButtons[1]];
+
+    [NSLayoutConstraint activateConstraints:@[
+        [historyNavigationStack.leadingAnchor constraintEqualToAnchor:historyNavigationGroup.leadingAnchor],
+        [historyNavigationStack.trailingAnchor constraintEqualToAnchor:historyNavigationGroup.trailingAnchor],
+        [historyNavigationStack.topAnchor constraintEqualToAnchor:historyNavigationGroup.topAnchor],
+        [historyNavigationStack.bottomAnchor constraintEqualToAnchor:historyNavigationGroup.bottomAnchor],
+    ]];
 
     UIStackView *navigationToolbar = [UIStackView new];
     navigationToolbar.translatesAutoresizingMaskIntoConstraints = NO;
@@ -341,7 +414,7 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
         button.accessibilityValue = item.toggleStateProvider != nil ? (item.toggleStateProvider() ? @"On" : @"Off") : nil;
         [button addTarget:self action:@selector(toolbarButtonPressed:) forControlEvents:UIControlEventPrimaryActionTriggered];
         if (index == kBrowserNavigationToolbarItemCount - 2) {
-            [navigationToolbar addArrangedSubview:addressButton];
+            [navigationToolbar addArrangedSubview:historyNavigationGroup];
         }
         [navigationToolbar addArrangedSubview:button];
         [button.widthAnchor constraintEqualToConstant:58.0].active = YES;
@@ -405,6 +478,8 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
         [panelView.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-16.0],
         self.panelTrailingConstraint,
 
+        [historyNavigationGroup.heightAnchor constraintEqualToConstant:64.0],
+        [historyNavigationGroup.widthAnchor constraintGreaterThanOrEqualToConstant:238.0],
         [addressButton.heightAnchor constraintEqualToConstant:64.0],
         [addressButton.widthAnchor constraintGreaterThanOrEqualToConstant:120.0],
         [addressIcon.leadingAnchor constraintEqualToAnchor:addressButton.leadingAnchor constant:18.0],
@@ -456,7 +531,10 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
                      animations:^{
         self.dimView.alpha = 1.0;
         [self.view layoutIfNeeded];
-    } completion:nil];
+    } completion:^(__unused BOOL finished) {
+        [self setNeedsFocusUpdate];
+        [self updateFocusIfNeeded];
+    }];
 }
 
 - (void)viewWillDisappear:(BOOL)animated {
@@ -568,9 +646,10 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
         if (handler != nil) {
             handler();
         }
-        if (item.toggleStateProvider != nil) {
-            BrowserAdvancedMenuTileCell *cell = (BrowserAdvancedMenuTileCell *)[collectionView cellForItemAtIndexPath:indexPath];
-            [cell configureWithItem:item];
+        for (NSIndexPath *visibleIndexPath in collectionView.indexPathsForVisibleItems) {
+            BrowserAdvancedMenuItem *visibleItem = self.sections[(NSUInteger)visibleIndexPath.section].items[(NSUInteger)visibleIndexPath.item];
+            BrowserAdvancedMenuTileCell *cell = (BrowserAdvancedMenuTileCell *)[collectionView cellForItemAtIndexPath:visibleIndexPath];
+            [cell configureWithItem:visibleItem];
         }
         return;
     }
@@ -605,15 +684,22 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
     }
 }
 
+- (void)historyButtonPressed:(UIButton *)button {
+    BrowserAdvancedMenuItemHandler handler = button.tag == 11000 ? self.backHandler : self.forwardHandler;
+    if (button.enabled && handler != nil) {
+        [self dismissMenuWithCompletion:handler];
+    }
+}
+
 - (NSArray<id<UIFocusEnvironment>> *)preferredFocusEnvironments {
+    if (self.addressButton.enabled) {
+        return @[self.addressButton];
+    }
     if (self.toolbarButtons.count >= kBrowserNavigationToolbarItemCount) {
         UIButton *newTabButton = self.toolbarButtons[kBrowserNavigationToolbarItemCount - 2];
         if (newTabButton.enabled) {
             return @[newTabButton];
         }
-    }
-    if (self.addressButton.enabled) {
-        return @[self.addressButton];
     }
     for (UIButton *button in self.toolbarButtons) {
         if (button.enabled) {
@@ -645,6 +731,15 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
     if ([self.toolbarButtons containsObject:(UIButton *)nextView]) {
         [nextView.superview bringSubviewToFront:nextView];
         nextView.layer.zPosition = 1.0;
+    }
+    if ([self.historyButtons containsObject:(UIButton *)previousView]) {
+        previousView.layer.zPosition = 0.0;
+        [self setToolbarIconColor:UIColor.whiteColor forButton:(UIButton *)previousView];
+    }
+    if ([self.historyButtons containsObject:(UIButton *)nextView]) {
+        [nextView.superview bringSubviewToFront:nextView];
+        nextView.layer.zPosition = 3.0;
+        [self setToolbarIconColor:UIColor.blackColor forButton:(UIButton *)nextView];
     }
     [coordinator addCoordinatedAnimations:^{
         if ([self.toolbarButtons containsObject:(UIButton *)previousView]) {
@@ -705,6 +800,14 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
     __weak typeof(self) weakSelf = self;
     menuViewController.addressHandler = ^{
         [weakSelf.host browserEditCurrentAddress];
+    };
+    menuViewController.backEnabled = [self.host browserCanGoBack];
+    menuViewController.forwardEnabled = [self.host browserCanGoForward];
+    menuViewController.backHandler = ^{
+        [weakSelf.host browserGoBack];
+    };
+    menuViewController.forwardHandler = ^{
+        [weakSelf.host browserGoForward];
     };
     [self.host browserPresentViewController:menuViewController];
 }
@@ -811,6 +914,34 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
     [self.host browserPresentViewController:controller];
 }
 
+- (void)presentRecentHistory {
+    NSArray<NSDictionary *> *entries = [[BrowserHistoryStore sharedStore] recentVisitsWithLimit:20];
+    NSString *message = entries.count > 0 ? @"Select a page to open it." : @"No browsing history yet.";
+    UIAlertController *history = [self browserAlertControllerWithTitle:@"History" message:message];
+    __weak typeof(self) weakSelf = self;
+    for (NSDictionary *entry in entries) {
+        NSString *URLString = entry[@"url"] ?: @"";
+        NSString *title = entry[@"title"] ?: @"";
+        NSURL *URL = [NSURL URLWithString:URLString];
+        NSString *actionTitle = title.length > 0 ? title : URL.host;
+        if (actionTitle.length == 0 || URL.host.length == 0) {
+            continue;
+        }
+        [history addAction:[self browserActionWithTitle:actionTitle
+                                                  style:UIAlertActionStyleDefault
+                                                handler:^(__unused UIAlertAction *action) {
+            [weakSelf.host browserOpenHistoryURLString:URLString];
+        }]];
+    }
+    [history addAction:[self browserActionWithTitle:@"All History"
+                                              style:UIAlertActionStyleDefault
+                                            handler:^(__unused UIAlertAction *action) {
+        dispatch_async(dispatch_get_main_queue(), ^{ [weakSelf presentAllHistory]; });
+    }]];
+    [history addAction:[self browserCancelAction]];
+    [self.host browserPresentViewController:history];
+}
+
 - (void)deleteHistoryForURLString:(NSString *)URLString {
     [[BrowserHistoryStore sharedStore] deleteVisitsForURLString:URLString];
     [self.host browserRefreshNewTabPageSelectingGroup:@"history" index:0];
@@ -879,34 +1010,23 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
 - (void)setPageZoomPercent:(NSUInteger)percent {
     BrowserWebView *webView = self.host.browserWebView;
     UIScrollView *scrollView = webView.scrollView;
-    CGFloat previousZoom = self.preferencesStore.pageZoomPercent / 100.0;
-    CGFloat visibleWidth = CGRectGetWidth(scrollView.bounds);
-    CGFloat centerX = scrollView.contentOffset.x + visibleWidth / 2.0;
-
     self.preferencesStore.pageZoomPercent = percent;
     webView.pageZoomFactor = self.preferencesStore.pageZoomPercent / 100.0;
-    self.host.browserTextFontSize = self.preferencesStore.pageZoomPercent;
-    [self.host browserUpdateTextFontSize];
-
-    // WebKit updates its scrollable width after applying page and text zoom.
-    // Keep the point previously at the screen center in the same place.
-    CGFloat targetCenterX = centerX * (percent / 100.0) / MAX(previousZoom, 0.01);
+    // Page zoom scales text and layout together. Anchor reading at the left edge.
+    [scrollView setContentOffset:CGPointMake(0.0, scrollView.contentOffset.y) animated:NO];
     __weak typeof(self) weakSelf = self;
     __weak BrowserWebView *weakWebView = webView;
-    for (NSNumber *delay in @[@0.0, @0.2, @0.7]) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            BrowserWebView *currentWebView = weakWebView;
-            if (currentWebView == nil || weakSelf.host.browserWebView != currentWebView ||
-                weakSelf.preferencesStore.pageZoomPercent != percent) {
-                return;
-            }
-            UIScrollView *currentScrollView = currentWebView.scrollView;
-            CGFloat width = CGRectGetWidth(currentScrollView.bounds);
-            CGFloat maximumX = MAX(0.0, currentScrollView.contentSize.width - width);
-            CGFloat targetX = MIN(MAX(targetCenterX - width / 2.0, 0.0), maximumX);
-            [currentScrollView setContentOffset:CGPointMake(targetX, currentScrollView.contentOffset.y) animated:NO];
-        });
-    }
+    dispatch_async(dispatch_get_main_queue(), ^{
+        BrowserWebView *currentWebView = weakWebView;
+        if (currentWebView == nil || weakSelf.host.browserWebView != currentWebView ||
+            weakSelf.preferencesStore.pageZoomPercent != percent) {
+            return;
+        }
+        UIScrollView *currentScrollView = currentWebView.scrollView;
+        [currentScrollView layoutIfNeeded];
+        [currentScrollView setContentOffset:CGPointMake(0.0, currentScrollView.contentOffset.y) animated:NO];
+        [weakSelf.host browserCaptureSnapshotForCurrentTab];
+    });
 }
 
 - (void)clearCacheAndReload {
@@ -1261,6 +1381,13 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
 
 - (void)presentDebugOptions {
     UIAlertController *menu = [self browserAlertControllerWithTitle:@"Debug" message:nil];
+    NSString *loggingTitle = [NSString stringWithFormat:@"Website Logging: %@",
+        self.preferencesStore.websiteLoggingEnabled ? @"ON" : @"OFF"];
+    [menu addAction:[self browserActionWithTitle:loggingTitle
+                                       style:UIAlertActionStyleDefault
+                                     handler:^(__unused UIAlertAction *action) {
+        self.preferencesStore.websiteLoggingEnabled = !self.preferencesStore.websiteLoggingEnabled;
+    }]];
     [menu addAction:[self browserActionWithTitle:@"Media Diagnostics"
                                        style:UIAlertActionStyleDefault
                                      handler:^(__unused UIAlertAction *action) {
@@ -1281,10 +1408,10 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
                                                                        handler:^{
         [self presentAddFavoritePrompt];
     }];
-    BrowserAdvancedMenuItem *historyItem = [self advancedMenuItemWithTitle:@"Recents"
+    BrowserAdvancedMenuItem *historyItem = [self advancedMenuItemWithTitle:@"History"
                                                                      style:UIAlertActionStyleDefault
                                                                    handler:^{
-        [self.host browserShowNewTabPageSelectingGroup:@"history"];
+        [self presentRecentHistory];
     }];
     BrowserAdvancedMenuItem *torrentsItem = [self advancedMenuItemWithTitle:@"Torrents"
                                                                       style:UIAlertActionStyleDefault
@@ -1294,7 +1421,7 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
     BrowserAdvancedMenuItem *zoomOutItem = [self advancedMenuItemWithTitle:@"Zoom Out"
                                                                     style:UIAlertActionStyleDefault
                                                                   handler:^{
-        [self setPageZoomPercent:self.preferencesStore.pageZoomPercent - 10];
+        [self setPageZoomPercent:MAX((NSUInteger)50, self.preferencesStore.pageZoomPercent - 10)];
     }];
     BrowserAdvancedMenuItem *zoomResetItem = [self advancedMenuItemWithTitle:@"Reset Zoom"
                                                                       style:UIAlertActionStyleDefault
@@ -1304,11 +1431,14 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
     BrowserAdvancedMenuItem *zoomInItem = [self advancedMenuItemWithTitle:@"Zoom In"
                                                                    style:UIAlertActionStyleDefault
                                                                  handler:^{
-        [self setPageZoomPercent:self.preferencesStore.pageZoomPercent + 10];
+        [self setPageZoomPercent:MIN((NSUInteger)200, self.preferencesStore.pageZoomPercent + 10)];
     }];
     zoomOutItem.keepsMenuOpen = YES;
     zoomResetItem.keepsMenuOpen = YES;
     zoomInItem.keepsMenuOpen = YES;
+    zoomResetItem.tileTitleProvider = ^NSString *{
+        return [NSString stringWithFormat:@"Reset Zoom\n%lu%%", (unsigned long)self.preferencesStore.pageZoomPercent];
+    };
     BrowserAdvancedMenuItem *debugItem = [self advancedMenuItemWithTitle:@"Debug"
                                                                    style:UIAlertActionStyleDefault
                                                                  handler:^{
@@ -1337,7 +1467,7 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
             [self tileItem:zoomResetItem title:@"Reset Zoom" symbol:@"arrow.counterclockwise"],
             [self tileItem:zoomInItem title:@"Zoom In" symbol:@"plus.magnifyingglass"],
             [self tileItem:addFavoriteItem title:@"Add Favorite" symbol:@"star.fill"],
-            [self tileItem:historyItem title:@"Recents" symbol:@"clock.arrow.circlepath"],
+            [self tileItem:historyItem title:@"History" symbol:@"clock.arrow.circlepath"],
             [self tileItem:torrentsItem title:@"Torrents" symbol:@"arrow.down.circle.fill"],
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Settings"

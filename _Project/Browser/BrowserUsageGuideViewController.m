@@ -140,7 +140,7 @@
     [remote addSubview:back];
     [remote addSubview:play];
 
-    UILabel *footnote = [self labelWithText:@"Back: open or close the menu\nPlay/Pause: video · select on New Tab"
+    UILabel *footnote = [self labelWithText:@"Back: menu or return\nPlay/Pause: video · New Tab options"
                                       size:21.0 weight:UIFontWeightMedium
                                      color:[UIColor colorWithWhite:1.0 alpha:0.62]];
     footnote.textAlignment = NSTextAlignmentCenter;
@@ -210,10 +210,10 @@
     NSArray<NSDictionary<NSString *, NSString *> *> *tips = @[
         @{@"symbol": @"cursorarrow.motionlines", @"title": @"Point & click", @"gesture": @"Touchpad · Center", @"detail": @"Slide to move the pointer. Press Center to click."},
         @{@"symbol": @"arrow.up.and.down", @"title": @"Scroll", @"gesture": @"Up / Down", @"detail": @"Tap for a step. Hold to glide faster."},
-        @{@"symbol": @"arrow.left.arrow.right", @"title": @"Go back & forward", @"gesture": @"Left / Right", @"detail": @"Move through pages in the current tab."},
-        @{@"symbol": @"square.on.square", @"title": @"Your tabs", @"gesture": @"Double Left", @"detail": @"Choose a tab or +. Double Up closes a tab."},
-        @{@"symbol": @"slider.horizontal.3", @"title": @"Quick menu", @"gesture": @"Back", @"detail": @"Back opens it; Back again closes it. Address, zoom, history."},
-        @{@"symbol": @"magnifyingglass.circle", @"title": @"Magnifier", @"gesture": @"Hold Center", @"detail": @"Toggle the lens for small details, even at the screen edge."},
+        @{@"symbol": @"arrow.left.arrow.right", @"title": @"Video controls", @"gesture": @"Play/Pause · Left/Right", @"detail": @"Pause or resume. Seek supported video by 10 seconds."},
+        @{@"symbol": @"square.on.square", @"title": @"Your tabs", @"gesture": @"Double Left", @"detail": @"Choose a tab or +. Double Up closes the focused card."},
+        @{@"symbol": @"slider.horizontal.3", @"title": @"Quick menu", @"gesture": @"Back", @"detail": @"Open the menu with the domain focused. Back closes it."},
+        @{@"symbol": @"magnifyingglass.circle", @"title": @"Magnifier", @"gesture": @"Hold Center", @"detail": @"Toggle the lens. It turns off after 30 seconds idle."},
     ];
     NSArray<UIColor *> *colors = @[
         [UIColor colorWithRed:0.52 green:0.71 blue:1.0 alpha:1.0],

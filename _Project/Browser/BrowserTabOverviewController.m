@@ -466,10 +466,8 @@ static CGFloat const kTabCardURLHeight = 64.0;
 - (instancetype)initWithHost:(id<BrowserTabOverviewControllerHost>)host
                    viewModel:(BrowserViewModel *)viewModel
                     rootView:(UIView *)rootView
-                  topMenuView:(BrowserTopBarView *)topMenuView
                   cursorView:(UIImageView *)cursorView {
     (void)rootView;
-    (void)topMenuView;
     (void)cursorView;
     self = [super init];
     if (self) {

@@ -11,5 +11,7 @@
 - (void)deleteVisitsForURLString:(NSString *)URLString;
 - (NSArray<NSArray<NSString *> *> *)favorites;
 - (void)saveFavorites:(NSArray<NSArray<NSString *> *> *)favorites;
+- (nullable NSDictionary *)savedBrowserSession;
+- (BOOL)saveBrowserSession:(NSDictionary *)session;
 
 @end

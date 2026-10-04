@@ -1,55 +1,73 @@
-## graphify
+# Agent instructions
 
-This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+## Project TL;DR
 
-When the user types `/graphify`, use the installed graphify skill or instructions before doing anything else.
+**just-better-code version** is a local web browser for personal use on Apple TV, designed to make browsing and watching web video convenient with a TV remote. The source repository is public; the application will never be published on the App Store. Do not assume a paid Apple Developer membership or introduce App Store publication requirements into implementation decisions.
 
-Rules:
-- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
-- Dirty graphify-out/ files are expected after hooks or incremental updates; dirty graph files are not a reason to skip graphify. Only skip graphify if the task is about stale or incorrect graph output, or the user explicitly says not to use it.
-- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
-- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
-- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+## Working agreements
 
-## Building and running on Apple TV
+- Use the Apple TV Simulator by default. Discovering, inspecting, installing, launching, or interacting with a physical Apple TV requires the user’s permission for that work. In this project, a user request to “push” or “запуш” means build, install, and launch on the physical Apple TV and grants permission for that device work.
+- Git commits are authorized. Push the Git repository only when the user explicitly asks to push to GitHub or the remote repository.
+- Preserve automatic signing and the effective local development-team and bundle-identifier settings. Personal values belong in the ignored `Signing.local.xcconfig`; shared configuration uses neutral defaults.
+- Add or run tests only when the user asks for testing or verification. Run builds when requested. Report exactly what was checked; compilation or launch alone does not prove an interaction bug is fixed.
+- Define completion in terms of the user's observable outcome. Ask for user participation when the required observation cannot be made locally; do not claim device verification without evidence.
+- Record durable user instructions and confirmed, reusable project workflows here or in linked agent runbooks. Keep temporary task status, personal diagnostics, and implementation chronology in their appropriate documents.
 
-The Xcode project is `_Project/Browser.xcodeproj`, and the scheme is `Browser`. The app uses automatic signing with the development team and bundle identifier already configured in the project. Preserve those local signing settings.
+## Tools and task-specific references
 
-1. Check that the Apple TV is connected and find its identifiers:
+- Prefer `rg` and `rg --files` for targeted text and file discovery.
+- Xcode project: `_Project/Browser.xcodeproj`; scheme: `Browser`. Use `xcodebuild` for requested builds and `xcrun devicectl` for device work only with the user’s permission.
+- For authorized device builds, installation, launch, and history-container backups, read [Apple TV runbook](docs/agent/APPLE_TV_RUNBOOK.md).
+- For complex features, substantial refactors, or work spanning sessions, use [planning guidance](docs/agent/PLANS.md). Small fixes and documentation edits do not need a plan file.
+- Read `USER_GUIDE.md` for existing user-facing controls, `ROADMAP.md` for planned and rejected directions, and `DEVELOPMENT_HISTORY.md` when past decisions or verification matter. Read only what the task needs.
+- Repository skills live under `.codex/skills/`. Load a skill's `SKILL.md` when its workflow applies; keep reusable workflow details and supporting scripts with the skill.
+- `.codex/hooks.json` configures a `PreToolUse` hook for `Bash` running `graphify hook-check`; it does not establish that every execution surface runs that hook or that the graph is current.
 
-   ```sh
-   xcrun devicectl list devices
-   xcodebuild -project _Project/Browser.xcodeproj -scheme Browser -showdestinations
-   ```
+## Knowledge graph
 
-2. Build a signed Debug app for the physical device. Replace `<XCODE_DEVICE_ID>` with the `id` from `-showdestinations` (the tvOS destination):
+This project has a knowledge graph under `graphify-out/`.
 
-   ```sh
-   xcodebuild -project _Project/Browser.xcodeproj -scheme Browser -configuration Debug -destination 'platform=tvOS,id=<XCODE_DEVICE_ID>' -derivedDataPath /private/tmp/tvosbrowser-device-build -allowProvisioningUpdates build CODE_SIGN_STYLE=Automatic
-   ```
+- For codebase questions, run `graphify query "<question>"` first when `graphify-out/graph.json` exists.
+- Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts.
+- Dirty graph files are expected after hooks or incremental updates. Skip graphify only when the task concerns stale graph output or the user asks not to use it.
+- If `graphify-out/wiki/index.md` exists, use it for broad navigation. Read `GRAPH_REPORT.md` only for broad architecture reviews or when a query does not provide enough context.
+- After changing code, run `graphify update .`.
 
-3. Install and launch it. Replace `<COREDEVICE_ID>` with the `Identifier` from `devicectl list devices`. The current bundle identifier is `org.example.tvosbrowser`; verify it in the project if signing settings change.
+## Data protection and public documentation
 
-   ```sh
-   xcrun devicectl device install app --device <COREDEVICE_ID> /private/tmp/tvosbrowser-device-build/Build/Products/Debug-appletvos/Browser.app
-   xcrun devicectl device process launch --device <COREDEVICE_ID> org.example.tvosbrowser
-   ```
+- Preserve browsing history and tab state across ordinary launches. Do not introduce automatic age-based history deletion; history is cleared only through an explicit user action.
+- Before changing database paths, fallback order, or retention, follow the device backup safeguards in the runbook. Without permission for physical TV work, do not bypass this requirement with assumptions about the live container; leave dependent migration work pending and explain the missing prerequisite.
+- Website state should persist through the website's storage mechanisms; do not turn individual dropdown selections or episode choices into app-specific backup features.
+- Keep credentials, cookies, authorization headers, signed URL query values, copied databases, and personal diagnostic logs out of tracked files. Redact sensitive runtime values before publishing diagnostic evidence.
+- Use placeholders for machine paths and device identifiers in shared instructions. Keep personal setup details and scratch notes in ignored local files.
+- Retain legitimate upstream copyright and attribution. File removal does not erase information already present in Git history; any history rewrite requires a separate user request.
 
-This workflow successfully built, installed, and launched the app on the physical Apple TV named «test Apple TV» on 2026-09-28. A successful launch does not confirm that a UI bug is fixed; verify the behavior on the TV.
+## Agent file layout
 
-## History storage regression guard
+- Root `AGENTS.md`: project context, durable rules, tool entry points, and links to task-specific procedures. Keep instructions concise and remove obsolete or conflicting rules.
+- Nested `AGENTS.md`: instructions specific to that directory, only when needed. `AGENTS.override.md` replaces the instruction file at its directory level; use it only for an intentional override.
+- `AGENTS.local.md`: ignored local notes, explicitly read when local context is relevant. This name is not automatically discovered by Codex by default, and a fallback filename does not make it merge alongside an existing root `AGENTS.md`.
+- `docs/agent/`: referenced runbooks and planning standards, loaded for the relevant task.
+- `SKILL.md`: a focused reusable workflow with a short, specific trigger description; put optional references and scripts beside it.
+- `.codex/hooks.json`: executable hook configuration; keep explanatory project policy here. Do not add duplicate agent files or hooks without a concrete need.
 
-On «test Apple TV» on 2026-09-29, the live history database was **`Library/Caches/BrowserHistory.sqlite`** inside the `org.example.tvosbrowser` app data container. It contained 247 visits and 3 favorites; `Library/Application Support` did not exist. Removing Caches from the database search paths made this existing history disappear from the app and prevented new visits from being saved when the other directories were unavailable. The store now opens an existing database before creating a new one elsewhere; it does not move old files. After installing the fix, the same database had 248 visits, then 249 after relaunch, with 3 favorites and `PRAGMA integrity_check` returning `ok` each time.
+## Documentation and versioning
 
-Before changing database paths, fallback order, or history retention, inspect the actual device container and copy its database. Do not infer the live location from simulator behavior or from the preferred path in source code:
+- Write and maintain project documentation in English. Use the fork name **just-better-code version**.
+- Follow [Common Changelog](https://common-changelog.org/) in `CHANGELOG.md`: `# Changelog`, newest versions first, `## VERSION - YYYY-MM-DD`, and only `Changed`, `Added`, `Removed`, `Fixed` groups in that order, omitting empty groups.
+- Write each change as one unnumbered, single-line item starting with an imperative verb, explaining its user impact and ending with relevant Markdown references in parentheses. Order changes by importance, with breaking changes first and prefixed `**Breaking:**`. Merge related changes; omit reverted experiments with no effect on the resulting version.
+- Keep release bodies limited to change groups and, when needed, one single-sentence notice before them. Put long explanations in linked documents; do not add roadmap, process, timeline or source-table sections to `CHANGELOG.md`.
+- Keep detailed dialogue history, implementation reasoning, verification evidence and reversals in `DEVELOPMENT_HISTORY.md`; keep planned and rejected directions in `ROADMAP.md`; keep usage instructions in `USER_GUIDE.md`. Link these documents from the changelog when useful.
+- Keep process and versioning rules in `AGENTS.md`, rather than mixing them into the changelog or user documentation.
+- Use `major.minor.patch`: increment minor for each substantial feature and reset patch to zero; increment patch for each subsequent logical bug fix. For example, the next fix after `2.15.24` is `2.15.25`; the next substantial feature is `2.16.0`, followed by `2.16.1` for its first fix.
+- Automatically update `CHANGELOG.md` and both Debug and Release `MARKETING_VERSION` settings whenever a user-visible feature or logical bug fix is completed, without waiting for a separate request. Record only the behavior delivered by the resulting version, and update the user guide or development history when needed.
+- Documentation or formatting changes alone do not increment the application version. Keep Debug and Release `MARKETING_VERSION` consistent. Treat `CURRENT_PROJECT_VERSION` as a separate technical build number, not the user-facing fix number.
+- Preserve the initial retrospective baseline: upstream `e245b8f` is `2.0.0`; the initial snapshot is `2.15.22`, cataloguing 15 feature groups and 22 fix groups. These are reconstructed logical versions, not proof of separately published binaries. Historical fix IDs do not imply every fix occurred after feature 2.15.
+- Distinguish commit/package dates from implementation dates in dialogue history. Do not invent release dates, Git tags, published releases or verification results. This personal-use project's retrospective changelog has no matching release tags; explain that status in its release notice.
 
-```sh
-xcrun devicectl device info files --device <COREDEVICE_ID> --domain-type appDataContainer --domain-identifier org.example.tvosbrowser --filter "Name CONTAINS 'BrowserHistory.sqlite'"
-xcrun devicectl device copy from --device <COREDEVICE_ID> --domain-type appDataContainer --domain-identifier org.example.tvosbrowser --source Library/Caches/BrowserHistory.sqlite --destination /private/tmp/tvosbrowser-history-before-change.sqlite
-```
+## Instruction maintenance references
 
-After installing a history change, visit a new page on the TV and verify that it appears in **All History** and remains after relaunch. Check the database row count before and after if the UI is ambiguous. Do not add automatic age-based deletion; history is cleared only through an explicit user action. The current live database is in Caches, which tvOS may purge, so moving it to durable storage requires a separately verified data-preserving change.
-
-## Git policy
-
-Do not create Git commits or push this repository. Leave changes in the working tree for the user.
+- [OpenAI: AGENTS.md discovery and scope](https://learn.chatgpt.com/docs/agent-configuration/agents-md)
+- [OpenAI: concise instructions and task-specific references](https://developers.openai.com/blog/rethinking-skills-and-prompts-for-gpt-6-astra)
+- [OpenAI: skill structure and progressive disclosure](https://learn.chatgpt.com/docs/build-skills)
+- [OpenAI: execution plans](https://developers.openai.com/cookbook/articles/codex_exec_plans) — an archived example, adapted to this project's working agreements rather than copied verbatim.

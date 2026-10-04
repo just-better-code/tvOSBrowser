@@ -1,0 +1,4 @@
+// Personal signing overrides are optional and never committed.
+DEVELOPMENT_TEAM =
+PRODUCT_BUNDLE_IDENTIFIER = org.example.tvosbrowser
+#include? "Signing.local.xcconfig"
