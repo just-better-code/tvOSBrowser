@@ -1,5 +1,23 @@
 # Changelog
 
+## 2.15.26 - 2026-10-04
+
+### Fixed
+
+- Show the saved zoom percentage on Reset Zoom and refresh it immediately after Zoom In, Zoom Out, or Reset Zoom while the menu stays open ([user guide](USER_GUIDE.md#main-menu)).
+
+## 2.15.25 - 2026-10-02
+
+### Fixed
+
+- Enlarge page text and content together with WebKit view scale while keeping the page aligned from the left after zoom and relaunch ([user guide](USER_GUIDE.md#main-menu), [development history](DEVELOPMENT_HISTORY.md#2026-10-02--page-zoom-for-reading)).
+
+## 2.15.24 - 2026-10-01
+
+### Fixed
+
+- Prevent Zoom Out at 50% from wrapping to 200% and discard stale horizontal offsets when restoring a tab ([development history](DEVELOPMENT_HISTORY.md#2026-10-02--page-zoom-for-reading)).
+
 ## 2.15.23 - 2026-10-01
 
 ### Fixed

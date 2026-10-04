@@ -6,8 +6,8 @@
 
 ## Working agreements
 
-- Use the Apple TV Simulator by default. Discovering, inspecting, installing, launching, or interacting with a physical Apple TV requires the user’s permission for that work.
-- Git commits are authorized. Do not push this repository unless the user requests it.
+- Use the Apple TV Simulator by default. Discovering, inspecting, installing, launching, or interacting with a physical Apple TV requires the user’s permission for that work. In this project, a user request to “push” or “запуш” means build, install, and launch on the physical Apple TV and grants permission for that device work.
+- Git commits are authorized. Push the Git repository only when the user explicitly asks to push to GitHub or the remote repository.
 - Preserve automatic signing and the effective local development-team and bundle-identifier settings. Personal values belong in the ignored `Signing.local.xcconfig`; shared configuration uses neutral defaults.
 - Add or run tests only when the user asks for testing or verification. Run builds when requested. Report exactly what was checked; compilation or launch alone does not prove an interaction bug is fixed.
 - Define completion in terms of the user's observable outcome. Ask for user participation when the required observation cannot be made locally; do not claim device verification without evidence.
@@ -59,7 +59,8 @@ This project has a knowledge graph under `graphify-out/`.
 - Keep release bodies limited to change groups and, when needed, one single-sentence notice before them. Put long explanations in linked documents; do not add roadmap, process, timeline or source-table sections to `CHANGELOG.md`.
 - Keep detailed dialogue history, implementation reasoning, verification evidence and reversals in `DEVELOPMENT_HISTORY.md`; keep planned and rejected directions in `ROADMAP.md`; keep usage instructions in `USER_GUIDE.md`. Link these documents from the changelog when useful.
 - Keep process and versioning rules in `AGENTS.md`, rather than mixing them into the changelog or user documentation.
-- Use `major.minor.patch`: increment minor for each substantial feature and reset patch to zero; increment patch for each subsequent logical bug fix. The next fix after `2.15.23` is `2.15.24`; the next substantial feature is `2.16.0`, followed by `2.16.1` for its first fix.
+- Use `major.minor.patch`: increment minor for each substantial feature and reset patch to zero; increment patch for each subsequent logical bug fix. For example, the next fix after `2.15.24` is `2.15.25`; the next substantial feature is `2.16.0`, followed by `2.16.1` for its first fix.
+- Automatically update `CHANGELOG.md` and both Debug and Release `MARKETING_VERSION` settings whenever a user-visible feature or logical bug fix is completed, without waiting for a separate request. Record only the behavior delivered by the resulting version, and update the user guide or development history when needed.
 - Documentation or formatting changes alone do not increment the application version. Keep Debug and Release `MARKETING_VERSION` consistent. Treat `CURRENT_PROJECT_VERSION` as a separate technical build number, not the user-facing fix number.
 - Preserve the initial retrospective baseline: upstream `e245b8f` is `2.0.0`; the initial snapshot is `2.15.22`, cataloguing 15 feature groups and 22 fix groups. These are reconstructed logical versions, not proof of separately published binaries. Historical fix IDs do not imply every fix occurred after feature 2.15.
 - Distinguish commit/package dates from implementation dates in dialogue history. Do not invent release dates, Git tags, published releases or verification results. This personal-use project's retrospective changelog has no matching release tags; explain that status in its release notice.

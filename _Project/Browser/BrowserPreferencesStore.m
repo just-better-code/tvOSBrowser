@@ -97,6 +97,7 @@ static NSUInteger const kMaximumTextFontSize = 200;
 - (void)setPageZoomPercent:(NSUInteger)pageZoomPercent {
     NSUInteger value = MIN((NSUInteger)200, MAX((NSUInteger)50, pageZoomPercent));
     [[self defaults] setObject:@(value) forKey:kPageZoomPercentDefaultsKey];
+    [[self defaults] synchronize];
 }
 
 - (BOOL)fullscreenVideoPlaybackEnabled {

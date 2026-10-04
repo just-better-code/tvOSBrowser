@@ -19,6 +19,7 @@ static NSUInteger const kBrowserNavigationToolbarItemCount = 4;
 
 typedef void (^BrowserAdvancedMenuItemHandler)(void);
 typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
+typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
 
 @interface BrowserAdvancedMenuItem : NSObject
 
@@ -28,6 +29,7 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
 @property (nonatomic) UIAlertActionStyle style;
 @property (nonatomic, copy) BrowserAdvancedMenuItemHandler handler;
 @property (nonatomic, copy) BrowserAdvancedMenuToggleStateProvider toggleStateProvider;
+@property (nonatomic, copy) BrowserAdvancedMenuTitleProvider tileTitleProvider;
 @property (nonatomic) BOOL enabled;
 @property (nonatomic) BOOL keepsMenuOpen;
 
@@ -126,7 +128,8 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
 - (void)configureWithItem:(BrowserAdvancedMenuItem *)item {
     self.destructive = item.style == UIAlertActionStyleDestructive;
     self.toggle = item.toggleStateProvider != nil;
-    self.titleLabel.text = item.tileTitle.length > 0 ? item.tileTitle : item.title;
+    NSString *tileTitle = item.tileTitleProvider != nil ? item.tileTitleProvider() : item.tileTitle;
+    self.titleLabel.text = tileTitle.length > 0 ? tileTitle : item.title;
     UIImageSymbolConfiguration *configuration = [UIImageSymbolConfiguration configurationWithPointSize:37.0
                                                                                                  weight:UIImageSymbolWeightMedium];
     UIImage *symbol = [UIImage systemImageNamed:item.tileSymbolName ?: @"square.grid.2x2"
@@ -145,7 +148,7 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
     } else {
         self.accessibilityValue = nil;
     }
-    self.accessibilityLabel = item.title;
+    self.accessibilityLabel = item.tileTitleProvider != nil ? [self.titleLabel.text stringByReplacingOccurrencesOfString:@"\n" withString:@", "] : item.title;
     [self updateAppearance];
 }
 
@@ -642,9 +645,10 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
         if (handler != nil) {
             handler();
         }
-        if (item.toggleStateProvider != nil) {
-            BrowserAdvancedMenuTileCell *cell = (BrowserAdvancedMenuTileCell *)[collectionView cellForItemAtIndexPath:indexPath];
-            [cell configureWithItem:item];
+        for (NSIndexPath *visibleIndexPath in collectionView.indexPathsForVisibleItems) {
+            BrowserAdvancedMenuItem *visibleItem = self.sections[(NSUInteger)visibleIndexPath.section].items[(NSUInteger)visibleIndexPath.item];
+            BrowserAdvancedMenuTileCell *cell = (BrowserAdvancedMenuTileCell *)[collectionView cellForItemAtIndexPath:visibleIndexPath];
+            [cell configureWithItem:visibleItem];
         }
         return;
     }
@@ -1005,34 +1009,23 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
 - (void)setPageZoomPercent:(NSUInteger)percent {
     BrowserWebView *webView = self.host.browserWebView;
     UIScrollView *scrollView = webView.scrollView;
-    CGFloat previousZoom = self.preferencesStore.pageZoomPercent / 100.0;
-    CGFloat visibleWidth = CGRectGetWidth(scrollView.bounds);
-    CGFloat centerX = scrollView.contentOffset.x + visibleWidth / 2.0;
-
     self.preferencesStore.pageZoomPercent = percent;
     webView.pageZoomFactor = self.preferencesStore.pageZoomPercent / 100.0;
-    self.host.browserTextFontSize = self.preferencesStore.pageZoomPercent;
-    [self.host browserUpdateTextFontSize];
-
-    // WebKit updates its scrollable width after applying page and text zoom.
-    // Keep the point previously at the screen center in the same place.
-    CGFloat targetCenterX = centerX * (percent / 100.0) / MAX(previousZoom, 0.01);
+    // Page zoom scales text and layout together. Anchor reading at the left edge.
+    [scrollView setContentOffset:CGPointMake(0.0, scrollView.contentOffset.y) animated:NO];
     __weak typeof(self) weakSelf = self;
     __weak BrowserWebView *weakWebView = webView;
-    for (NSNumber *delay in @[@0.0, @0.2, @0.7]) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            BrowserWebView *currentWebView = weakWebView;
-            if (currentWebView == nil || weakSelf.host.browserWebView != currentWebView ||
-                weakSelf.preferencesStore.pageZoomPercent != percent) {
-                return;
-            }
-            UIScrollView *currentScrollView = currentWebView.scrollView;
-            CGFloat width = CGRectGetWidth(currentScrollView.bounds);
-            CGFloat maximumX = MAX(0.0, currentScrollView.contentSize.width - width);
-            CGFloat targetX = MIN(MAX(targetCenterX - width / 2.0, 0.0), maximumX);
-            [currentScrollView setContentOffset:CGPointMake(targetX, currentScrollView.contentOffset.y) animated:NO];
-        });
-    }
+    dispatch_async(dispatch_get_main_queue(), ^{
+        BrowserWebView *currentWebView = weakWebView;
+        if (currentWebView == nil || weakSelf.host.browserWebView != currentWebView ||
+            weakSelf.preferencesStore.pageZoomPercent != percent) {
+            return;
+        }
+        UIScrollView *currentScrollView = currentWebView.scrollView;
+        [currentScrollView layoutIfNeeded];
+        [currentScrollView setContentOffset:CGPointMake(0.0, currentScrollView.contentOffset.y) animated:NO];
+        [weakSelf.host browserCaptureSnapshotForCurrentTab];
+    });
 }
 
 - (void)clearCacheAndReload {
@@ -1409,7 +1402,7 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
     BrowserAdvancedMenuItem *zoomOutItem = [self advancedMenuItemWithTitle:@"Zoom Out"
                                                                     style:UIAlertActionStyleDefault
                                                                   handler:^{
-        [self setPageZoomPercent:self.preferencesStore.pageZoomPercent - 10];
+        [self setPageZoomPercent:MAX((NSUInteger)50, self.preferencesStore.pageZoomPercent - 10)];
     }];
     BrowserAdvancedMenuItem *zoomResetItem = [self advancedMenuItemWithTitle:@"Reset Zoom"
                                                                       style:UIAlertActionStyleDefault
@@ -1419,11 +1412,14 @@ typedef BOOL (^BrowserAdvancedMenuToggleStateProvider)(void);
     BrowserAdvancedMenuItem *zoomInItem = [self advancedMenuItemWithTitle:@"Zoom In"
                                                                    style:UIAlertActionStyleDefault
                                                                  handler:^{
-        [self setPageZoomPercent:self.preferencesStore.pageZoomPercent + 10];
+        [self setPageZoomPercent:MIN((NSUInteger)200, self.preferencesStore.pageZoomPercent + 10)];
     }];
     zoomOutItem.keepsMenuOpen = YES;
     zoomResetItem.keepsMenuOpen = YES;
     zoomInItem.keepsMenuOpen = YES;
+    zoomResetItem.tileTitleProvider = ^NSString *{
+        return [NSString stringWithFormat:@"Reset Zoom\n%lu%%", (unsigned long)self.preferencesStore.pageZoomPercent];
+    };
     BrowserAdvancedMenuItem *debugItem = [self advancedMenuItemWithTitle:@"Debug"
                                                                    style:UIAlertActionStyleDefault
                                                                  handler:^{

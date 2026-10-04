@@ -1545,11 +1545,28 @@ static void BrowserLoadAdBlockRuleList(BrowserAdBlockRuleListCompletion completi
     if (fabs(self.lastAppliedPageZoom - zoomValue) < 0.001) {
         return;
     }
-    self.lastAppliedPageZoom = zoomValue;
-
     SEL pageZoomSelector = NSSelectorFromString(@"setPageZoom:");
-    if ([self.runtimeWebView respondsToSelector:pageZoomSelector]) {
+    BOOL supportsPageZoom = [self.runtimeWebView respondsToSelector:pageZoomSelector];
+    BOOL appliedViewScale = NO;
+    @try {
+        // Firefox iOS uses WebKit's viewScale. On tvOS, pageZoom changes the
+        // viewport but compensates font sizes, so it does not enlarge text.
+        if (supportsPageZoom) {
+            ((void (*)(id, SEL, double))objc_msgSend)(self.runtimeWebView, pageZoomSelector, 1.0);
+        }
+        [self.runtimeWebView setValue:@(zoomValue) forKey:@"viewScale"];
+        appliedViewScale = YES;
+    } @catch (__unused NSException *exception) {
+        // Older WebKit runtimes may not expose the KVC key.
+    }
+
+    if (appliedViewScale) {
+        self.textZoomFactor = 1.0;
+        self.lastAppliedPageZoom = zoomValue;
+    } else if (supportsPageZoom) {
         ((void (*)(id, SEL, double))objc_msgSend)(self.runtimeWebView, pageZoomSelector, zoomValue);
+        self.textZoomFactor = zoomValue;
+        self.lastAppliedPageZoom = zoomValue;
     }
 }
 
