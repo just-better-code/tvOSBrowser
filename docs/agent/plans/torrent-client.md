@@ -24,6 +24,12 @@ The Firefox source snapshot is from revision `371a1b51c54645dbcbd7ad41d1479c7a9e
 
 If the ignored local references are unavailable in another checkout, their upstream repositories are [libtorrent](https://github.com/arvidn/libtorrent), [Firefox for iOS](https://github.com/mozilla-mobile/firefox-ios), and [iTransmission for iOS](https://github.com/gtfunes/itransmission-ios). Match the libtorrent 1.2 line and the Firefox revision above before comparing source behavior; the local iTransmission snapshot is an unpinned download and may differ from later upstream changes.
 
+## Engine version decision
+
+Provisional recommendation after reviewing the upstream upgrade guides on 2026-10-04: complete and observe the basic website-click, file-selection, and playback flow on the linked libtorrent 1.2.17 before migrating the engine. The needed file priorities and time-critical piece APIs are already present in its bundled headers. Version 2.0 adds BitTorrent v2 and hybrid torrents; 2.1 adds WebTorrent peers. Those capabilities would expand torrent compatibility but are not prerequisites for the initial v1 magnet and `.torrent` flow. See the official [2.0](https://www.libtorrent.org/upgrade_to_2.0-ref.html) and [2.1](https://www.libtorrent.org/upgrade_to_2.1-ref.html) migration guides.
+
+A 2.1 migration is feasible but should be a separate milestone: the current [Apple XCFramework source](https://github.com/danylokos/libtorrent-Apple/releases) offers only 1.2.17, so a 2.1 tvOS device/simulator framework must be built or sourced and verified; the project must move from C++14 to at least C++17. The current manager uses a single SHA-1 hash as its identifier (`BrowserTorrentManager.mm:33`, `:121`, `:154`, `:193`), whereas v2/hybrid torrents need `info_hash_t` and potentially both v1 and v2 hashes. Torrent loading and resume-data handling also change. Keep the torrent identity and engine boundary explicit during initial implementation so this migration remains contained. Revisit when v2-only torrents, WebTorrent peers, or a specific 2.1 fix becomes a user requirement.
+
 ## Current prototype and gaps
 
 - `BrowserTorrentManager.mm` imports magnets and torrent data, tracks torrents and files, persists skipped file indices, and gives selected media high file and piece priority. A magnet starts sequential downloading before metadata and file selection. Manager access and `sources.plist` updates are not fully serialized.
