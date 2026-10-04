@@ -1,5 +1,25 @@
 # Changelog
 
+## 2.17.0 - 2026-10-04
+
+### Changed
+
+- Show the native New Tab, History, Torrents, and playback controls with a shared tvOS page style and remote focus behavior ([user guide](USER_GUIDE.md), [style guide](docs/agent/TVOS_STYLE_GUIDE.md)).
+- Open newly imported torrents in the overall list with the new row focused, richer transfer details, and a saved priority order ([user guide](USER_GUIDE.md#torrents)).
+
+### Added
+
+- Control a focused torrent with Start, priority, and Delete icons, and purge downloaded data without removing torrent entries ([user guide](USER_GUIDE.md#torrents)).
+
+### Removed
+
+- Remove the manual Add Torrent and unlisted-file Clean Cache actions while keeping website link import and the cache-size hint ([user guide](USER_GUIDE.md#torrents)).
+
+### Fixed
+
+- Keep the torrent session running while browsing sites and apply saved file choices without opening Torrents ([development history](DEVELOPMENT_HISTORY.md#2026-10-04--native-tvos-pages-and-torrent-library-follow-up)).
+- Return from a torrent's file list to the overall list with Back and preserve the proportions of VLC control symbols ([user guide](USER_GUIDE.md#torrents)).
+
 ## 2.16.0 - 2026-10-04
 
 ### Changed

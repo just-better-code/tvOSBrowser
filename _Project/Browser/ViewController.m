@@ -10,6 +10,7 @@
 #import "BrowserDOMInteractionService.h"
 #import "BrowserHistoryStore.h"
 #import "BrowserNavigationService.h"
+#import "BrowserNativeStartPageView.h"
 #import "BrowserPageActionCoordinator.h"
 #import "BrowserPreferencesStore.h"
 #import "BrowserRemoteInputController.h"
@@ -50,6 +51,7 @@ static UIColor *kTextColor(void) {
 @property (nonatomic) BrowserViewModel *viewModel;
 @property (nonatomic) BOOL displayedHintsOnLaunch;
 @property (nonatomic) BOOL scrollViewAllowBounces;
+@property (nonatomic) BrowserNativeStartPageView *nativeStartPageView;
 
 @end
 
@@ -284,6 +286,12 @@ static UIColor *kTextColor(void) {
 }
 
 - (void)browserHandlePrimaryAction {
+    if (self.nativeStartPageView != nil && self.remoteInputController.cursorModeEnabled) {
+        CGPoint point = [self.remoteInputController.cursorView.superview
+            convertPoint:self.remoteInputController.cursorView.center toView:self.nativeStartPageView];
+        [self.nativeStartPageView activateAtPoint:point];
+        return;
+    }
     if (!self.remoteInputController.cursorModeEnabled || self.webview == nil) {
         return;
     }
@@ -384,7 +392,7 @@ static UIColor *kTextColor(void) {
     if (magnet) {
         NSError *error = nil;
         NSString *identifier = [[BrowserTorrentManager sharedManager] identifierForMagnetString:URL.absoluteString error:&error];
-        if (identifier) [library selectTorrent:identifier];
+        if (identifier) [library focusTorrent:identifier];
         else [library showImportError:error.localizedDescription];
     } else {
         [library importTorrentRequest:request];
@@ -475,6 +483,59 @@ static UIColor *kTextColor(void) {
     return self.tabOverviewController.visible;
 }
 
+- (void)browserTabCoordinatorShowNativeStartPageSelectingGroup:(NSString *)group index:(NSUInteger)index {
+    if (!self.nativeStartPageView) {
+        BrowserNativeStartPageView *startPage = [[BrowserNativeStartPageView alloc] initWithFrame:CGRectZero];
+        startPage.translatesAutoresizingMaskIntoConstraints = NO;
+        __weak typeof(self) weakSelf = self;
+        startPage.openURLString = ^(NSString *URLString) {
+            NSURL *URL = [NSURL URLWithString:URLString];
+            if (!URL || ![@[@"http", @"https"] containsObject:URL.scheme.lowercaseString] || URL.host.length == 0) return;
+            [weakSelf browserTabCoordinatorHideNativeStartPage];
+            [weakSelf.webview loadRequest:[NSURLRequest requestWithURL:URL]];
+        };
+        startPage.openSearch = ^{ [weakSelf showInputURLorSearchGoogle]; };
+        startPage.showAllHistory = ^{ [weakSelf.menuCoordinator presentAllHistory]; };
+        startPage.manageFavorite = ^(NSUInteger storageIndex) {
+            [weakSelf.menuCoordinator presentStoredItemActionsForKind:@"favorite" index:storageIndex];
+        };
+        startPage.deleteRecentVisit = ^(NSString *URLString) {
+            NSURL *URL = [NSURL URLWithString:URLString];
+            UIAlertController *actions = [UIAlertController alertControllerWithTitle:URL.host ?: @"Recent Visit"
+                                                                             message:URLString preferredStyle:UIAlertControllerStyleAlert];
+            if (URL.host.length > 0 && [@[@"http", @"https"] containsObject:URL.scheme.lowercaseString]) {
+                [actions addAction:[UIAlertAction actionWithTitle:@"Open" style:UIAlertActionStyleDefault handler:^(__unused UIAlertAction *action) {
+                    [weakSelf browserTabCoordinatorHideNativeStartPage];
+                    [weakSelf.webview loadRequest:[NSURLRequest requestWithURL:URL]];
+                }]];
+            }
+            [actions addAction:[UIAlertAction actionWithTitle:@"Delete from History" style:UIAlertActionStyleDestructive handler:^(__unused UIAlertAction *action) {
+                [weakSelf.menuCoordinator deleteHistoryForURLString:URLString];
+            }]];
+            [actions addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+            [weakSelf presentViewController:actions animated:YES completion:nil];
+        };
+        [self.browserContainerView addSubview:startPage];
+        [NSLayoutConstraint activateConstraints:@[
+            [startPage.leadingAnchor constraintEqualToAnchor:self.browserContainerView.leadingAnchor],
+            [startPage.trailingAnchor constraintEqualToAnchor:self.browserContainerView.trailingAnchor],
+            [startPage.topAnchor constraintEqualToAnchor:self.browserContainerView.topAnchor],
+            [startPage.bottomAnchor constraintEqualToAnchor:self.browserContainerView.bottomAnchor],
+        ]];
+        self.nativeStartPageView = startPage;
+    }
+    [self.nativeStartPageView reloadFavorites:[[BrowserHistoryStore sharedStore] favorites]
+                                    recents:[[BrowserHistoryStore sharedStore] recentVisitsWithLimit:10]
+                             selectingGroup:group index:index];
+    [self.browserContainerView bringSubviewToFront:self.nativeStartPageView];
+    [self.view bringSubviewToFront:self.remoteInputController.cursorView];
+}
+
+- (void)browserTabCoordinatorHideNativeStartPage {
+    [self.nativeStartPageView removeFromSuperview];
+    self.nativeStartPageView = nil;
+}
+
 #pragma mark - BrowserTabOverviewControllerHost
 
 - (BOOL)browserTabOverviewControllerCursorModeEnabled {
@@ -559,13 +620,11 @@ static UIColor *kTextColor(void) {
 }
 
 - (void)browserRemoteInputControllerNavigateNewTabInDirection:(NSString *)direction {
-    NSString *script = [NSString stringWithFormat:@"window.browserNewTabNavigate && window.browserNewTabNavigate('%@')", direction];
-    [self.webview evaluateJavaScript:script completion:^(__unused NSString *result) {}];
+    [self.nativeStartPageView navigateInDirection:direction];
 }
 
 - (void)browserRemoteInputControllerActivateNewTabSelection {
-    [self.webview evaluateJavaScript:@"window.browserNewTabActivate && window.browserNewTabActivate()"
-                           completion:^(__unused NSString *result) {}];
+    [self.nativeStartPageView activateSelection];
 }
 
 - (void)browserRemoteInputControllerHandleTabOverviewPress {
@@ -614,15 +673,13 @@ static UIColor *kTextColor(void) {
 
 - (void)browserRemoteInputControllerHandleNewTabOptionUsingKeyboardSelection:(BOOL)keyboardSelection {
     if (![self browserRemoteInputControllerNewTabVisible]) return;
-    NSString *script;
     if (keyboardSelection) {
-        script = @"window.browserNewTabOptionSelected ? window.browserNewTabOptionSelected() : false";
+        [self.nativeStartPageView showOptionForSelection];
     } else {
-        CGPoint point = [self browserDOMPointForCursor];
-        script = [NSString stringWithFormat:
-            @"window.browserNewTabOptionAt ? window.browserNewTabOptionAt(%.3f, %.3f) : false", point.x, point.y];
+        CGPoint point = [self.remoteInputController.cursorView.superview
+            convertPoint:self.remoteInputController.cursorView.center toView:self.nativeStartPageView];
+        [self.nativeStartPageView showOptionAtPoint:point];
     }
-    [self.webview evaluateJavaScript:script completion:^(__unused NSString *result) {}];
 }
 
 - (void)browserRemoteInputControllerHoverStateAtCursorPoint:(CGPoint)point

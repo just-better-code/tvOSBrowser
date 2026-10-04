@@ -3,6 +3,7 @@
 #import "BrowserTorrentManager.h"
 #import "BrowserTorrentVLCPlayerViewController.h"
 #import "BrowserWebView.h"
+#import "BrowserTVAppearance.h"
 
 static NSArray<NSHTTPCookie *> *BrowserTorrentCookiesForURL(NSArray<NSHTTPCookie *> *cookies, NSURL *URL) {
     NSMutableArray<NSHTTPCookie *> *matching = [NSMutableArray array];
@@ -19,6 +20,8 @@ static NSArray<NSHTTPCookie *> *BrowserTorrentCookiesForURL(NSArray<NSHTTPCookie
     }
     return matching;
 }
+
+static NSInteger const kTorrentRowActionIconTag = 9902;
 
 @interface BrowserTorrentDownloadDelegate : NSObject <NSURLSessionTaskDelegate>
 @property (nonatomic, copy) NSArray<NSHTTPCookie *> *cookies;
@@ -47,14 +50,18 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
 @property (nonatomic) UILabel *heading;
 @property (nonatomic) UILabel *subtitle;
 @property (nonatomic) UITableView *tableView;
-@property (nonatomic) UIButton *addButton;
-@property (nonatomic) UIButton *cleanButton;
+@property (nonatomic) UIButton *purgeButton;
 @property (nonatomic) UIButton *backButton;
 @property (nonatomic) UIButton *pauseButton;
 @property (nonatomic) UIButton *deleteButton;
+@property (nonatomic) UIView *actionsPanel;
+@property (nonatomic) NSArray<UIButton *> *torrentActionButtons;
+@property (nonatomic) NSLayoutConstraint *tableTrailingConstraint;
+@property (nonatomic, copy) NSString *cacheSizeText;
 @property (nonatomic) NSArray<BrowserTorrentSnapshot *> *torrents;
 @property (nonatomic) NSArray<BrowserTorrentFile *> *files;
 @property (nonatomic, copy) NSString *selectedIdentifier;
+@property (nonatomic, copy) NSString *focusedTorrentIdentifier;
 @property (nonatomic, copy) NSString *loadingMessage;
 @property (nonatomic, copy) NSString *displayedIdentifier;
 @property (nonatomic) NSInteger displayedRowCount;
@@ -62,6 +69,8 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
 @property (nonatomic) BrowserTorrentFile *pendingPlaybackFile;
 @property (nonatomic, copy) NSString *pendingPlaybackIdentifier;
 @property (nonatomic) NSInteger focusedFileRow;
+@property (nonatomic) NSTimeInterval lastBackPressTime;
+@property (nonatomic) NSTimeInterval lastCacheSizeUpdate;
 @end
 
 @implementation BrowserTorrentLibraryViewController
@@ -78,19 +87,19 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
 - (UIButton *)button:(NSString *)title action:(SEL)action {
     UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
     button.translatesAutoresizingMaskIntoConstraints = NO;
-    button.backgroundColor = [UIColor colorWithWhite:1 alpha:0.15];
-    button.layer.cornerRadius = 16;
+    button.backgroundColor = BrowserTVRestingSurfaceColor();
+    button.layer.cornerRadius = 18;
     button.titleLabel.font = [UIFont systemFontOfSize:25 weight:UIFontWeightSemibold];
     [button setTitle:title forState:UIControlStateNormal];
     [button setTitleColor:UIColor.whiteColor forState:UIControlStateNormal];
-    [button setTitleColor:UIColor.blackColor forState:UIControlStateFocused];
+    [button setTitleColor:BrowserTVFocusedTextColor() forState:UIControlStateFocused];
     [button addTarget:self action:action forControlEvents:UIControlEventPrimaryActionTriggered];
     return button;
 }
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.view.backgroundColor = [UIColor colorWithRed:0.07 green:0.10 blue:0.17 alpha:1];
+    BrowserTVInstallBackground(self.view);
     self.heading = [UILabel new];
     self.heading.translatesAutoresizingMaskIntoConstraints = NO;
     self.heading.font = [UIFont systemFontOfSize:56 weight:UIFontWeightBold];
@@ -99,16 +108,26 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
     self.subtitle = [UILabel new];
     self.subtitle.translatesAutoresizingMaskIntoConstraints = NO;
     self.subtitle.font = [UIFont systemFontOfSize:22];
+    self.subtitle.numberOfLines = 2;
     self.subtitle.textColor = [UIColor colorWithWhite:1 alpha:0.7];
     [self.view addSubview:self.subtitle];
 
-    self.addButton = [self button:@"Add Torrent" action:@selector(promptToAddTorrent)];
-    self.cleanButton = [self button:@"Clean Cache" action:@selector(cleanPressed)];
+    Class glassClass = NSClassFromString(@"UIGlassEffect");
+    UIVisualEffect *effect = BrowserTVPanelEffect();
+    UIVisualEffectView *glassPanel = [[UIVisualEffectView alloc] initWithEffect:effect];
+    glassPanel.translatesAutoresizingMaskIntoConstraints = NO;
+    glassPanel.layer.cornerRadius = 30;
+    glassPanel.layer.masksToBounds = YES;
+    glassPanel.layer.borderWidth = glassClass != Nil ? 0 : 1;
+    glassPanel.layer.borderColor = [UIColor colorWithWhite:1 alpha:0.25].CGColor;
+    [self.view addSubview:glassPanel];
+
+    self.purgeButton = [self button:@"Purge All" action:@selector(purgePressed)];
     self.backButton = [self button:@"Back" action:@selector(backPressed)];
     self.pauseButton = [self button:@"Pause" action:@selector(pausePressed)];
     self.deleteButton = [self button:@"Remove" action:@selector(deletePressed)];
     UIButton *done = [self button:@"Done" action:@selector(donePressed)];
-    for (UIButton *button in @[self.addButton, self.cleanButton, self.backButton, self.pauseButton, self.deleteButton, done]) {
+    for (UIButton *button in @[self.purgeButton, self.backButton, self.pauseButton, self.deleteButton, done]) {
         [self.view addSubview:button];
     }
 
@@ -116,47 +135,71 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
     table.translatesAutoresizingMaskIntoConstraints = NO;
     table.dataSource = self;
     table.delegate = self;
-    table.rowHeight = 106;
+    table.remembersLastFocusedIndexPath = NO;
+    table.rowHeight = 126;
     table.backgroundColor = UIColor.clearColor;
     [self.view addSubview:table];
     self.tableView = table;
+    [self installTorrentActionsPanel];
     self.displayedRowCount = -1;
+    UILongPressGestureRecognizer *contextPress = [[UILongPressGestureRecognizer alloc] initWithTarget:self
+                                                                                               action:@selector(handleContextPress:)];
+    contextPress.minimumPressDuration = 0.6;
+    contextPress.allowedPressTypes = @[@(UIPressTypeSelect)];
+    contextPress.cancelsTouchesInView = YES;
+    [table addGestureRecognizer:contextPress];
+    UITapGestureRecognizer *backGesture = [[UITapGestureRecognizer alloc] initWithTarget:self
+                                                                                 action:@selector(handleBackGesture:)];
+    backGesture.allowedPressTypes = @[@(UIPressTypeMenu)];
+    backGesture.cancelsTouchesInView = YES;
+    [self.view addGestureRecognizer:backGesture];
+
+    [NSLayoutConstraint activateConstraints:@[
+        [glassPanel.leadingAnchor constraintEqualToAnchor:table.leadingAnchor constant:-14],
+        [glassPanel.trailingAnchor constraintEqualToAnchor:done.trailingAnchor constant:14],
+        [glassPanel.topAnchor constraintEqualToAnchor:table.topAnchor constant:-14],
+        [glassPanel.bottomAnchor constraintEqualToAnchor:table.bottomAnchor constant:14],
+    ]];
 
     [NSLayoutConstraint activateConstraints:@[
         [self.heading.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:110],
         [self.heading.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:70],
         [self.subtitle.leadingAnchor constraintEqualToAnchor:self.heading.leadingAnchor],
         [self.subtitle.topAnchor constraintEqualToAnchor:self.heading.bottomAnchor constant:8],
-        [self.addButton.leadingAnchor constraintEqualToAnchor:self.heading.leadingAnchor],
-        [self.addButton.topAnchor constraintEqualToAnchor:self.subtitle.bottomAnchor constant:30],
-        [self.backButton.leadingAnchor constraintEqualToAnchor:self.addButton.trailingAnchor constant:18],
-        [self.cleanButton.leadingAnchor constraintEqualToAnchor:self.backButton.leadingAnchor],
-        [self.cleanButton.centerYAnchor constraintEqualToAnchor:self.addButton.centerYAnchor],
+        [self.subtitle.trailingAnchor constraintLessThanOrEqualToAnchor:self.view.trailingAnchor constant:-110],
+        [self.purgeButton.leadingAnchor constraintEqualToAnchor:self.heading.leadingAnchor],
+        [self.purgeButton.topAnchor constraintEqualToAnchor:self.subtitle.bottomAnchor constant:30],
+        [self.backButton.leadingAnchor constraintEqualToAnchor:self.heading.leadingAnchor],
         [self.pauseButton.leadingAnchor constraintEqualToAnchor:self.backButton.trailingAnchor constant:18],
         [self.deleteButton.leadingAnchor constraintEqualToAnchor:self.pauseButton.trailingAnchor constant:18],
         [done.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-110],
-        [self.backButton.centerYAnchor constraintEqualToAnchor:self.addButton.centerYAnchor],
-        [self.pauseButton.centerYAnchor constraintEqualToAnchor:self.addButton.centerYAnchor],
-        [self.deleteButton.centerYAnchor constraintEqualToAnchor:self.addButton.centerYAnchor],
-        [done.centerYAnchor constraintEqualToAnchor:self.addButton.centerYAnchor],
-        [self.addButton.widthAnchor constraintEqualToConstant:240],
-        [self.cleanButton.widthAnchor constraintEqualToConstant:240],
+        [self.backButton.centerYAnchor constraintEqualToAnchor:self.purgeButton.centerYAnchor],
+        [self.pauseButton.centerYAnchor constraintEqualToAnchor:self.purgeButton.centerYAnchor],
+        [self.deleteButton.centerYAnchor constraintEqualToAnchor:self.purgeButton.centerYAnchor],
+        [done.centerYAnchor constraintEqualToAnchor:self.purgeButton.centerYAnchor],
+        [self.purgeButton.widthAnchor constraintEqualToConstant:190],
         [self.backButton.widthAnchor constraintEqualToConstant:160],
         [self.pauseButton.widthAnchor constraintEqualToConstant:160],
         [self.deleteButton.widthAnchor constraintEqualToConstant:170],
         [done.widthAnchor constraintEqualToConstant:150],
-        [self.addButton.heightAnchor constraintEqualToConstant:68],
-        [self.cleanButton.heightAnchor constraintEqualToAnchor:self.addButton.heightAnchor],
-        [self.backButton.heightAnchor constraintEqualToAnchor:self.addButton.heightAnchor],
-        [self.pauseButton.heightAnchor constraintEqualToAnchor:self.addButton.heightAnchor],
-        [self.deleteButton.heightAnchor constraintEqualToAnchor:self.addButton.heightAnchor],
-        [done.heightAnchor constraintEqualToAnchor:self.addButton.heightAnchor],
+        [self.purgeButton.heightAnchor constraintEqualToConstant:68],
+        [self.backButton.heightAnchor constraintEqualToAnchor:self.purgeButton.heightAnchor],
+        [self.pauseButton.heightAnchor constraintEqualToAnchor:self.purgeButton.heightAnchor],
+        [self.deleteButton.heightAnchor constraintEqualToAnchor:self.purgeButton.heightAnchor],
+        [done.heightAnchor constraintEqualToAnchor:self.purgeButton.heightAnchor],
         [table.leadingAnchor constraintEqualToAnchor:self.heading.leadingAnchor],
-        [table.trailingAnchor constraintEqualToAnchor:done.trailingAnchor],
-        [table.topAnchor constraintEqualToAnchor:self.addButton.bottomAnchor constant:32],
+        [table.topAnchor constraintEqualToAnchor:self.purgeButton.bottomAnchor constant:32],
         [table.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-70],
     ]];
+    self.tableTrailingConstraint = [table.trailingAnchor constraintEqualToAnchor:done.trailingAnchor constant:-360];
+    self.tableTrailingConstraint.active = YES;
     [self refresh];
+}
+
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    BrowserTVLayoutBackground(self.view);
+    [self updateTorrentActionsPanelPosition];
 }
 
 - (void)viewWillAppear:(BOOL)animated {
@@ -171,7 +214,16 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
     self.refreshTimer = nil;
 }
 
+- (void)viewDidAppear:(BOOL)animated {
+    [super viewDidAppear:animated];
+    if (self.focusedTorrentIdentifier) {
+        [self setNeedsFocusUpdate];
+        [self updateFocusIfNeeded];
+    }
+}
+
 - (void)refresh {
+    if (NSDate.date.timeIntervalSince1970 - self.lastCacheSizeUpdate > 20) [self updateCacheSizeNote];
     self.torrents = [[BrowserTorrentManager sharedManager] torrents];
     if (self.selectedIdentifier.length > 0) {
         self.files = [[BrowserTorrentManager sharedManager] filesForTorrent:self.selectedIdentifier];
@@ -191,14 +243,15 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
         [self.pauseButton setTitle:[selected.state isEqualToString:@"Paused"] ? @"Resume" : @"Pause" forState:UIControlStateNormal];
     } else {
         self.heading.text = @"Torrents";
-        self.subtitle.text = self.loadingMessage ?: @"Stored in Apple TV cache; tvOS may remove them when space is needed.";
+        self.subtitle.text = self.loadingMessage ?: [self torrentListHint];
     }
     BOOL details = self.selectedIdentifier.length > 0;
     self.backButton.hidden = !details;
     self.pauseButton.hidden = !details;
     self.deleteButton.hidden = !details;
-    self.addButton.hidden = details;
-    self.cleanButton.hidden = details;
+    self.purgeButton.hidden = details;
+    self.actionsPanel.hidden = details || self.torrents.count == 0;
+    self.tableTrailingConstraint.constant = details ? 0 : -360;
     NSInteger count = details ? self.files.count : self.torrents.count;
     if (self.displayedRowCount != count || ![(self.displayedIdentifier ?: @"") isEqualToString:(self.selectedIdentifier ?: @"")]) {
         self.displayedRowCount = count;
@@ -225,12 +278,55 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
             [self launchPlayerForFile:file];
         }
     }
+    [self updateTorrentActionsPanelPosition];
+}
+
+- (void)updateCacheSizeNote {
+    uint64_t bytes = [[BrowserTorrentManager sharedManager] totalTorrentCacheBytes];
+    self.cacheSizeText = [NSByteCountFormatter stringFromByteCount:(long long)bytes
+                                                       countStyle:NSByteCountFormatterCountStyleFile];
+    if (!self.selectedIdentifier && !self.loadingMessage) self.subtitle.text = [self torrentListHint];
+    self.lastCacheSizeUpdate = NSDate.date.timeIntervalSince1970;
+}
+
+- (NSString *)torrentListHint {
+    return [NSString stringWithFormat:
+        @"Center: files • Play/Pause: Start • Hold Center: actions  •  Cache: %@ total (tvOS may remove files)",
+        self.cacheSizeText ?: @"0 bytes"];
 }
 
 - (void)selectTorrent:(NSString *)identifier {
     self.loadingMessage = nil;
+    self.focusedTorrentIdentifier = nil;
+    self.focusedFileRow = NSNotFound;
     self.selectedIdentifier = [identifier copy];
     [self refresh];
+}
+
+- (void)focusTorrent:(NSString *)identifier {
+    self.loadingMessage = nil;
+    self.selectedIdentifier = nil;
+    self.focusedTorrentIdentifier = [identifier copy];
+    self.focusedFileRow = NSNotFound;
+    [self refresh];
+    for (NSUInteger row = 0; row < self.torrents.count; row++) {
+        if (![self.torrents[row].identifier isEqualToString:identifier]) continue;
+        [self.tableView scrollToRowAtIndexPath:[NSIndexPath indexPathForRow:row inSection:0]
+                              atScrollPosition:UITableViewScrollPositionMiddle animated:NO];
+        break;
+    }
+    [self setNeedsFocusUpdate];
+    [self updateFocusIfNeeded];
+}
+
+- (NSIndexPath *)indexPathForPreferredFocusedViewInTableView:(UITableView *)tableView {
+    if (self.selectedIdentifier || !self.focusedTorrentIdentifier) return nil;
+    for (NSUInteger row = 0; row < self.torrents.count; row++) {
+        if ([self.torrents[row].identifier isEqualToString:self.focusedTorrentIdentifier]) {
+            return [NSIndexPath indexPathForRow:row inSection:0];
+        }
+    }
+    return nil;
 }
 
 - (void)showImportError:(NSString *)message {
@@ -246,12 +342,129 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"TorrentRow"];
     if (!cell) cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:@"TorrentRow"];
     cell.backgroundColor = UIColor.clearColor;
-    cell.textLabel.textColor = UIColor.whiteColor;
-    cell.detailTextLabel.textColor = [UIColor colorWithWhite:1 alpha:0.7];
+    cell.contentView.backgroundColor = cell.isFocused ? BrowserTVFocusedSurfaceColor()
+                                                      : BrowserTVRestingSurfaceColor();
+    cell.contentView.layer.cornerRadius = 18;
+    cell.contentView.layer.masksToBounds = YES;
+    cell.textLabel.textColor = cell.isFocused ? BrowserTVFocusedTextColor() : UIColor.whiteColor;
+    cell.detailTextLabel.textColor = cell.isFocused ? BrowserTVFocusedTextColor() : [UIColor colorWithWhite:1 alpha:0.7];
     cell.textLabel.font = [UIFont systemFontOfSize:28 weight:UIFontWeightMedium];
     cell.detailTextLabel.font = [UIFont systemFontOfSize:20];
+    cell.detailTextLabel.numberOfLines = 2;
+    cell.accessoryView = nil;
     [self configureCell:cell atIndexPath:indexPath];
     return cell;
+}
+
+- (UIButton *)torrentActionButtonWithSymbol:(NSString *)symbol label:(NSString *)label
+                                     action:(SEL)action row:(NSInteger)row {
+    UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
+    button.translatesAutoresizingMaskIntoConstraints = NO;
+    button.backgroundColor = [UIColor colorWithWhite:0.18 alpha:0.85];
+    button.layer.cornerRadius = 18;
+    button.accessibilityLabel = label;
+    button.tag = row;
+    UIImageSymbolConfiguration *configuration = [UIImageSymbolConfiguration configurationWithPointSize:32 weight:UIImageSymbolWeightSemibold];
+    UIImageView *icon = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:symbol withConfiguration:configuration]];
+    icon.translatesAutoresizingMaskIntoConstraints = NO;
+    icon.tag = kTorrentRowActionIconTag;
+    icon.contentMode = UIViewContentModeScaleAspectFit;
+    icon.tintColor = UIColor.whiteColor;
+    [button addSubview:icon];
+    [NSLayoutConstraint activateConstraints:@[
+        [button.widthAnchor constraintEqualToConstant:72],
+        [button.heightAnchor constraintEqualToConstant:72],
+        [icon.centerXAnchor constraintEqualToAnchor:button.centerXAnchor],
+        [icon.centerYAnchor constraintEqualToAnchor:button.centerYAnchor],
+        [icon.widthAnchor constraintEqualToConstant:38],
+        [icon.heightAnchor constraintEqualToConstant:38],
+    ]];
+    [button addTarget:self action:action forControlEvents:UIControlEventPrimaryActionTriggered];
+    return button;
+}
+
+- (void)installTorrentActionsPanel {
+    UIView *container = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 324, 72)];
+    container.backgroundColor = UIColor.clearColor;
+    [self.view addSubview:container];
+    self.actionsPanel = container;
+    UIButton *download = [self torrentActionButtonWithSymbol:@"play.fill" label:@"Start download"
+                                                   action:@selector(downloadTorrentButtonPressed:) row:0];
+    UIButton *up = [self torrentActionButtonWithSymbol:@"arrow.up" label:@"Raise priority"
+                                             action:@selector(raiseTorrentButtonPressed:) row:0];
+    UIButton *down = [self torrentActionButtonWithSymbol:@"arrow.down" label:@"Lower priority"
+                                               action:@selector(lowerTorrentButtonPressed:) row:0];
+    UIButton *remove = [self torrentActionButtonWithSymbol:@"trash" label:@"Delete torrent"
+                                                 action:@selector(deleteTorrentButtonPressed:) row:0];
+    self.torrentActionButtons = @[download, up, down, remove];
+    UIStackView *buttons = [[UIStackView alloc] initWithArrangedSubviews:@[download, up, down, remove]];
+    buttons.translatesAutoresizingMaskIntoConstraints = NO;
+    buttons.axis = UILayoutConstraintAxisHorizontal;
+    buttons.spacing = 12;
+    [container addSubview:buttons];
+    [NSLayoutConstraint activateConstraints:@[
+        [buttons.leadingAnchor constraintEqualToAnchor:container.leadingAnchor],
+        [buttons.trailingAnchor constraintEqualToAnchor:container.trailingAnchor],
+        [buttons.topAnchor constraintEqualToAnchor:container.topAnchor],
+        [buttons.bottomAnchor constraintEqualToAnchor:container.bottomAnchor],
+    ]];
+}
+
+- (void)updateTorrentActionsPanelPosition {
+    if (self.selectedIdentifier || self.torrents.count == 0) { self.actionsPanel.hidden = YES; return; }
+    NSInteger row = self.focusedFileRow;
+    if (row == NSNotFound || row < 0 || row >= self.torrents.count) {
+        row = 0;
+        for (NSUInteger index = 0; index < self.torrents.count; index++) {
+            if ([self.torrents[index].identifier isEqualToString:self.focusedTorrentIdentifier]) { row = index; break; }
+        }
+    }
+    if (row >= [self.tableView numberOfRowsInSection:0]) { self.actionsPanel.hidden = YES; return; }
+    NSIndexPath *path = [NSIndexPath indexPathForRow:row inSection:0];
+    CGRect rowRect = [self.tableView rectForRowAtIndexPath:path];
+    if (!CGRectIntersectsRect(self.tableView.bounds, rowRect)) { self.actionsPanel.hidden = YES; return; }
+    CGRect inView = [self.tableView convertRect:rowRect toView:self.view];
+    CGRect target = CGRectMake(CGRectGetMaxX(self.tableView.frame) + 18,
+                               CGRectGetMidY(inView) - 36, 324, 72);
+    if (!CGRectEqualToRect(self.actionsPanel.frame, target)) self.actionsPanel.frame = target;
+    self.actionsPanel.hidden = NO;
+    for (UIButton *button in self.torrentActionButtons) button.tag = row;
+}
+
+- (void)scrollViewDidScroll:(UIScrollView *)scrollView {
+    if (scrollView == self.tableView) [self updateTorrentActionsPanelPosition];
+}
+
+- (void)downloadTorrentButtonPressed:(UIButton *)button {
+    if (button.tag < 0 || button.tag >= self.torrents.count) return;
+    [self startDownloadForTorrent:self.torrents[button.tag]];
+}
+
+- (void)deleteTorrentButtonPressed:(UIButton *)button {
+    if (button.tag < 0 || button.tag >= self.torrents.count) return;
+    [self confirmRemovalForTorrent:self.torrents[button.tag]];
+}
+
+- (void)raiseTorrentButtonPressed:(UIButton *)button { [self moveTorrentAtRow:button.tag by:-1]; }
+- (void)lowerTorrentButtonPressed:(UIButton *)button { [self moveTorrentAtRow:button.tag by:1]; }
+
+- (void)moveTorrentAtRow:(NSInteger)row by:(NSInteger)direction {
+    if (row < 0 || row >= self.torrents.count) return;
+    NSString *identifier = self.torrents[row].identifier;
+    if (![[BrowserTorrentManager sharedManager] moveTorrent:identifier by:direction]) return;
+    NSInteger destination = row + direction;
+    self.torrents = [[BrowserTorrentManager sharedManager] torrents];
+    self.focusedTorrentIdentifier = identifier;
+    self.focusedFileRow = destination;
+    [self.tableView beginUpdates];
+    [self.tableView moveRowAtIndexPath:[NSIndexPath indexPathForRow:row inSection:0]
+                          toIndexPath:[NSIndexPath indexPathForRow:destination inSection:0]];
+    [self.tableView endUpdates];
+    for (UITableViewCell *cell in self.tableView.visibleCells) {
+        NSIndexPath *path = [self.tableView indexPathForCell:cell];
+        if (path && path.row < self.torrents.count) [self configureCell:cell atIndexPath:path];
+    }
+    [self updateTorrentActionsPanelPosition];
 }
 
 - (void)configureCell:(UITableViewCell *)cell atIndexPath:(NSIndexPath *)indexPath {
@@ -262,7 +475,15 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
     } else {
         BrowserTorrentSnapshot *torrent = self.torrents[indexPath.row];
         cell.textLabel.text = torrent.name;
-        cell.detailTextLabel.text = [NSString stringWithFormat:@"%@ • %.0f%% • %.1f MB/s", torrent.state, torrent.progress * 100, torrent.downloadRate / 1048576.0];
+        NSString *downloaded = [NSByteCountFormatter stringFromByteCount:torrent.selectedDownloaded countStyle:NSByteCountFormatterCountStyleFile];
+        NSString *selectedSize = [NSByteCountFormatter stringFromByteCount:torrent.selectedSize countStyle:NSByteCountFormatterCountStyleFile];
+        NSString *totalSize = [NSByteCountFormatter stringFromByteCount:torrent.totalSize countStyle:NSByteCountFormatterCountStyleFile];
+        NSString *sizes = torrent.hasMetadata
+            ? [NSString stringWithFormat:@"%@ / %@ selected • %@ total", downloaded, selectedSize, totalSize]
+            : @"Waiting for metadata";
+        cell.detailTextLabel.text = [NSString stringWithFormat:@"%@ • %.0f%% • %@\n↓ %.1f MB/s  ↑ %.1f MB/s • %ld peers / %ld seeds",
+            torrent.state, torrent.progress * 100, sizes, torrent.downloadRate / 1048576.0,
+            torrent.uploadRate / 1048576.0, (long)torrent.peers, (long)torrent.seeds];
     }
 }
 
@@ -273,6 +494,49 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
     }
     BrowserTorrentFile *file = self.files[indexPath.row];
     if (file.padFile) return;
+    if ([self isPlayableFile:file]) {
+        [self playFile:file];
+        return;
+    }
+    [self presentActionsForFile:file];
+}
+
+- (void)handleContextPress:(UILongPressGestureRecognizer *)recognizer {
+    if (recognizer.state != UIGestureRecognizerStateBegan) return;
+    NSIndexPath *path = [self.tableView indexPathForRowAtPoint:[recognizer locationInView:self.tableView]];
+    if (!path && self.focusedFileRow >= 0 && self.focusedFileRow < [self tableView:self.tableView numberOfRowsInSection:0]) {
+        path = [NSIndexPath indexPathForRow:self.focusedFileRow inSection:0];
+    }
+    if (!path) return;
+    if (self.selectedIdentifier) {
+        BrowserTorrentFile *file = self.files[path.row];
+        if (!file.padFile) [self presentActionsForFile:file];
+    } else {
+        [self presentActionsForTorrent:self.torrents[path.row]];
+    }
+}
+
+- (void)presentActionsForTorrent:(BrowserTorrentSnapshot *)torrent {
+    UIAlertController *actions = [UIAlertController alertControllerWithTitle:torrent.name
+                                                                     message:nil preferredStyle:UIAlertControllerStyleAlert];
+    __weak typeof(self) weakSelf = self;
+    [actions addAction:[UIAlertAction actionWithTitle:@"Open Files" style:UIAlertActionStyleDefault handler:^(__unused UIAlertAction *action) {
+        [weakSelf selectTorrent:torrent.identifier];
+    }]];
+    [actions addAction:[UIAlertAction actionWithTitle:@"Download All Files" style:UIAlertActionStyleDefault handler:^(__unused UIAlertAction *action) {
+        [weakSelf startDownloadForTorrent:torrent];
+    }]];
+    BOOL paused = [torrent.state isEqualToString:@"Paused"];
+    [actions addAction:[UIAlertAction actionWithTitle:paused ? @"Resume" : @"Pause"
+                                                style:UIAlertActionStyleDefault handler:^(__unused UIAlertAction *action) {
+        [[BrowserTorrentManager sharedManager] setPaused:!paused forTorrent:torrent.identifier];
+        [weakSelf refresh];
+    }]];
+    [actions addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+    [self presentViewController:actions animated:YES completion:nil];
+}
+
+- (void)presentActionsForFile:(BrowserTorrentFile *)file {
     UIAlertController *actions = [UIAlertController alertControllerWithTitle:file.name message:file.path preferredStyle:UIAlertControllerStyleAlert];
     __weak typeof(self) weakSelf = self;
     if ([self isPlayableFile:file]) {
@@ -304,28 +568,61 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
         BOOL focused = item == context.nextFocusedView;
         if ([view isKindOfClass:UITableViewCell.class]) {
             UITableViewCell *cell = (UITableViewCell *)view;
-            cell.textLabel.textColor = focused ? UIColor.blackColor : UIColor.whiteColor;
-            cell.detailTextLabel.textColor = focused ? [UIColor darkGrayColor] : [UIColor colorWithWhite:1 alpha:0.7];
+            cell.textLabel.textColor = focused ? BrowserTVFocusedTextColor() : UIColor.whiteColor;
+            cell.detailTextLabel.textColor = focused ? BrowserTVFocusedTextColor() : [UIColor colorWithWhite:1 alpha:0.7];
+            cell.contentView.backgroundColor = focused ? BrowserTVFocusedSurfaceColor()
+                                                       : BrowserTVRestingSurfaceColor();
             if (focused) focusedCell = cell;
         } else if ([view isKindOfClass:UIButton.class]) {
             UIButton *button = (UIButton *)view;
-            [button setTitleColor:focused ? UIColor.blackColor : UIColor.whiteColor forState:UIControlStateNormal];
+            button.backgroundColor = focused ? BrowserTVFocusedSurfaceColor()
+                : [button isDescendantOfView:self.actionsPanel]
+                    ? [UIColor colorWithWhite:0.18 alpha:0.85] : BrowserTVRestingSurfaceColor();
+            [button setTitleColor:focused ? BrowserTVFocusedTextColor() : UIColor.whiteColor forState:UIControlStateNormal];
+            UIImageView *icon = (UIImageView *)[button viewWithTag:kTorrentRowActionIconTag];
+            icon.tintColor = focused ? BrowserTVFocusedTextColor() : UIColor.whiteColor;
+            UIView *parent = button.superview;
+            while (parent && ![parent isKindOfClass:UITableViewCell.class]) parent = parent.superview;
+            if (focused && [parent isKindOfClass:UITableViewCell.class]) focusedCell = (UITableViewCell *)parent;
         }
     }
     NSIndexPath *path = focusedCell ? [self.tableView indexPathForCell:focusedCell] : nil;
-    self.focusedFileRow = path ? path.row : NSNotFound;
+    if (path) {
+        self.focusedFileRow = path.row;
+        if (!self.selectedIdentifier && path.row < self.torrents.count)
+            self.focusedTorrentIdentifier = self.torrents[path.row].identifier;
+    } else if (![context.nextFocusedView isDescendantOfView:self.actionsPanel]) {
+        self.focusedFileRow = NSNotFound;
+    }
+    [self updateTorrentActionsPanelPosition];
 }
 
 - (void)pressesEnded:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
-    if (presses.anyObject.type == UIPressTypePlayPause && self.selectedIdentifier &&
-        self.focusedFileRow >= 0 && self.focusedFileRow < self.files.count) {
-        BrowserTorrentFile *file = self.files[self.focusedFileRow];
-        if ([self isPlayableFile:file]) {
-            [self playFile:file];
+    if (presses.anyObject.type == UIPressTypeMenu) {
+        [self handleBackPress];
+        return;
+    }
+    if (presses.anyObject.type == UIPressTypePlayPause && self.focusedFileRow >= 0) {
+        if (self.selectedIdentifier && self.focusedFileRow < self.files.count) {
+            BrowserTorrentFile *file = self.files[self.focusedFileRow];
+            if ([self isPlayableFile:file]) {
+                [self playFile:file];
+                return;
+            }
+        } else if (!self.selectedIdentifier && self.focusedFileRow < self.torrents.count) {
+            [self startDownloadForTorrent:self.torrents[self.focusedFileRow]];
             return;
         }
     }
     [super pressesEnded:presses withEvent:event];
+}
+
+- (void)startDownloadForTorrent:(BrowserTorrentSnapshot *)torrent {
+    if (![[BrowserTorrentManager sharedManager] downloadAllFilesForTorrent:torrent.identifier]) {
+        [self showMessage:@"Wait for torrent metadata, then try Download All Files again."];
+        return;
+    }
+    [self refresh];
 }
 
 - (void)playFile:(BrowserTorrentFile *)file {
@@ -353,37 +650,6 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Torrents" message:message preferredStyle:UIAlertControllerStyleAlert];
     [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
     [self presentViewController:alert animated:YES completion:nil];
-}
-
-- (void)promptToAddTorrent {
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Add Torrent" message:@"Paste a magnet link or a .torrent URL" preferredStyle:UIAlertControllerStyleAlert];
-    [alert addTextFieldWithConfigurationHandler:^(UITextField *field) {
-        field.placeholder = @"magnet:?xt=… or https://…/file.torrent";
-        field.keyboardType = UIKeyboardTypeURL;
-        field.autocapitalizationType = UITextAutocapitalizationTypeNone;
-    }];
-    __weak typeof(self) weakSelf = self;
-    [alert addAction:[UIAlertAction actionWithTitle:@"Add" style:UIAlertActionStyleDefault handler:^(__unused UIAlertAction *action) {
-        [weakSelf addInput:alert.textFields.firstObject.text ?: @""];
-    }]];
-    [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
-    [self presentViewController:alert animated:YES completion:nil];
-}
-
-- (void)addInput:(NSString *)input {
-    NSString *trimmed = [input stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
-    if ([trimmed.lowercaseString hasPrefix:@"magnet:"]) {
-        NSError *error = nil;
-        NSString *identifier = [[BrowserTorrentManager sharedManager] identifierForMagnetString:trimmed error:&error];
-        if (identifier) [self selectTorrent:identifier]; else [self showMessage:error.localizedDescription];
-        return;
-    }
-    NSURL *URL = [NSURL URLWithString:trimmed];
-    if (![@[@"http", @"https"] containsObject:URL.scheme.lowercaseString ?: @""]) {
-        [self showMessage:@"Enter a magnet link or an HTTP(S) .torrent URL."];
-        return;
-    }
-    [self importTorrentRequest:[NSURLRequest requestWithURL:URL]];
 }
 
 - (void)importTorrentRequest:(NSURLRequest *)request {
@@ -426,14 +692,37 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
             NSString *resultIdentifier = data && !importError ? [[BrowserTorrentManager sharedManager] identifierForTorrentData:data error:&importError] : nil;
             NSString *message = importError.localizedDescription ?: @"Could not add torrent.";
             weakSelf.loadingMessage = nil;
-            if (resultIdentifier) [weakSelf selectTorrent:resultIdentifier];
+            if (resultIdentifier) [weakSelf focusTorrent:resultIdentifier];
             else [weakSelf showImportError:message];
         });
         [session finishTasksAndInvalidate];
     }] resume];
 }
 
-- (void)backPressed { self.pendingPlaybackFile = nil; self.pendingPlaybackIdentifier = nil; self.selectedIdentifier = nil; self.files = nil; [self refresh]; }
+- (void)backPressed {
+    self.pendingPlaybackFile = nil;
+    self.pendingPlaybackIdentifier = nil;
+    self.focusedTorrentIdentifier = self.selectedIdentifier;
+    self.focusedFileRow = NSNotFound;
+    self.selectedIdentifier = nil;
+    self.files = nil;
+    [self refresh];
+}
+- (void)handleBackGesture:(UITapGestureRecognizer *)gesture {
+    if (gesture.state == UIGestureRecognizerStateRecognized) [self handleBackPress];
+}
+- (void)handleBackPress {
+    NSTimeInterval now = NSDate.date.timeIntervalSince1970;
+    if (now - self.lastBackPressTime < 0.35) return;
+    self.lastBackPressTime = now;
+    if (self.presentedViewController) {
+        [self.presentedViewController dismissViewControllerAnimated:YES completion:nil];
+    } else if (self.selectedIdentifier.length > 0) {
+        [self backPressed];
+    } else {
+        [self donePressed];
+    }
+}
 - (void)donePressed { self.pendingPlaybackFile = nil; self.pendingPlaybackIdentifier = nil; [self dismissViewControllerAnimated:YES completion:nil]; }
 
 - (void)pausePressed {
@@ -446,28 +735,41 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
 }
 
 - (void)deletePressed {
+    for (BrowserTorrentSnapshot *torrent in self.torrents) {
+        if ([torrent.identifier isEqualToString:self.selectedIdentifier]) {
+            [self confirmRemovalForTorrent:torrent];
+            return;
+        }
+    }
+}
+
+- (void)confirmRemovalForTorrent:(BrowserTorrentSnapshot *)torrent {
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Remove Torrent" message:@"Remove the torrent and its cached files?" preferredStyle:UIAlertControllerStyleAlert];
     __weak typeof(self) weakSelf = self;
     [alert addAction:[UIAlertAction actionWithTitle:@"Remove" style:UIAlertActionStyleDestructive handler:^(__unused UIAlertAction *action) {
-        [[BrowserTorrentManager sharedManager] removeTorrent:weakSelf.selectedIdentifier deleteFiles:YES];
-        weakSelf.selectedIdentifier = nil;
+        [[BrowserTorrentManager sharedManager] removeTorrent:torrent.identifier deleteFiles:YES];
+        if ([weakSelf.selectedIdentifier isEqualToString:torrent.identifier]) weakSelf.selectedIdentifier = nil;
         [weakSelf refresh];
+        [weakSelf updateCacheSizeNote];
     }]];
     [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
     [self presentViewController:alert animated:YES completion:nil];
 }
 
-- (void)cleanPressed {
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Clean Torrent Cache"
-        message:@"Remove cached files that are not used by any torrent in this library? Browser history and website data are not affected."
+- (void)purgePressed {
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Purge Torrent Downloads"
+        message:@"Delete all downloaded torrent data, including listed torrents? Torrent entries remain at 0% and wait for your manual Start. Browser history and website data are not affected."
         preferredStyle:UIAlertControllerStyleAlert];
     __weak typeof(self) weakSelf = self;
-    [alert addAction:[UIAlertAction actionWithTitle:@"Clean" style:UIAlertActionStyleDestructive handler:^(__unused UIAlertAction *action) {
+    [alert addAction:[UIAlertAction actionWithTitle:@"Purge All" style:UIAlertActionStyleDestructive handler:^(__unused UIAlertAction *action) {
         NSUInteger count = 0;
-        uint64_t freed = [[BrowserTorrentManager sharedManager] cleanUnlistedCacheFilesWithRemovedCount:&count];
-        [weakSelf showMessage:[NSString stringWithFormat:@"Removed %lu unlisted files and freed %.1f MB.",
-            (unsigned long)count, freed / 1048576.0]];
+        NSError *error = nil;
+        uint64_t freed = [[BrowserTorrentManager sharedManager] clearAllTorrentDownloadsWithRemovedCount:&count error:&error];
         [weakSelf refresh];
+        [weakSelf updateCacheSizeNote];
+        if (error) { [weakSelf showMessage:error.localizedDescription]; return; }
+        [weakSelf showMessage:[NSString stringWithFormat:@"Removed %lu files and freed %.1f MB. Torrent entries remain ready for manual Start.",
+            (unsigned long)count, freed / 1048576.0]];
     }]];
     [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
     [self presentViewController:alert animated:YES completion:nil];

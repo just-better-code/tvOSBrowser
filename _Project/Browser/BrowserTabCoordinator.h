@@ -16,6 +16,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)browserTabCoordinatorIsCursorModeEnabled;
 - (BOOL)browserTabCoordinatorIsTabOverviewVisible;
 - (void)browserTabCoordinatorSnapshotDidUpdateForTab:(BrowserTabViewModel *)tab;
+- (void)browserTabCoordinatorShowNativeStartPageSelectingGroup:(nullable NSString *)group index:(NSUInteger)index;
+- (void)browserTabCoordinatorHideNativeStartPage;
 
 @end
 

@@ -9,7 +9,12 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, copy) NSString *state;
 @property (nonatomic) double progress;
 @property (nonatomic) int64_t downloadRate;
+@property (nonatomic) int64_t uploadRate;
+@property (nonatomic) int64_t selectedSize;
+@property (nonatomic) int64_t selectedDownloaded;
+@property (nonatomic) int64_t totalSize;
 @property (nonatomic) NSInteger peers;
+@property (nonatomic) NSInteger seeds;
 @property (nonatomic) BOOL hasMetadata;
 @end
 
@@ -34,6 +39,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable NSURL *)fileURLForTorrent:(NSString *)identifier fileIndex:(NSInteger)index;
 - (void)prioritizePlaybackForTorrent:(NSString *)identifier fileIndex:(NSInteger)index;
 - (BOOL)setDownloadEnabled:(BOOL)enabled forTorrent:(NSString *)identifier fileIndex:(NSInteger)index;
+- (BOOL)downloadAllFilesForTorrent:(NSString *)identifier;
+- (BOOL)moveTorrent:(NSString *)identifier by:(NSInteger)direction;
 - (BOOL)isFileCompleteForTorrent:(NSString *)identifier fileIndex:(NSInteger)index;
 - (nullable NSData *)availableDataForTorrent:(NSString *)identifier
                                  fileIndex:(NSInteger)index
@@ -41,7 +48,8 @@ NS_ASSUME_NONNULL_BEGIN
                                     length:(NSUInteger)length;
 - (void)prioritizeTorrent:(NSString *)identifier fileIndex:(NSInteger)index offset:(int64_t)offset;
 - (BOOL)removeTorrent:(NSString *)identifier deleteFiles:(BOOL)deleteFiles;
-- (uint64_t)cleanUnlistedCacheFilesWithRemovedCount:(NSUInteger *)removedCount;
+- (uint64_t)clearAllTorrentDownloadsWithRemovedCount:(NSUInteger *)removedCount error:(NSError **)error;
+- (uint64_t)totalTorrentCacheBytes;
 - (BOOL)setPaused:(BOOL)paused forTorrent:(NSString *)identifier;
 @end
 

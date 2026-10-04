@@ -2,6 +2,7 @@
 
 #import "BrowserTorrentHTTPServer.h"
 #import "BrowserTorrentManager.h"
+#import "BrowserTVAppearance.h"
 
 #import <TVVLCKit/TVVLCKit.h>
 
@@ -28,6 +29,18 @@
 @end
 
 @implementation BrowserTorrentVLCPlayerViewController
+
+static NSInteger const kBrowserVLCControlIconTag = 9797;
+
+- (UIVisualEffectView *)glassBackdrop {
+    Class glassClass = NSClassFromString(@"UIGlassEffect");
+    UIVisualEffect *effect = BrowserTVPanelEffect();
+    UIVisualEffectView *backdrop = [[UIVisualEffectView alloc] initWithEffect:effect];
+    backdrop.translatesAutoresizingMaskIntoConstraints = NO;
+    backdrop.layer.borderWidth = glassClass != Nil ? 0 : 1;
+    backdrop.layer.borderColor = [UIColor colorWithWhite:1 alpha:0.25].CGColor;
+    return backdrop;
+}
 
 - (instancetype)initWithTorrentIdentifier:(NSString *)identifier fileIndex:(NSInteger)index title:(NSString *)title {
     self = [super initWithNibName:nil bundle:nil];
@@ -58,9 +71,11 @@
 
     UIView *header = [UIView new];
     header.translatesAutoresizingMaskIntoConstraints = NO;
-    header.backgroundColor = [UIColor colorWithWhite:0 alpha:0.82];
+    header.backgroundColor = UIColor.clearColor;
     [self.view addSubview:header];
     self.headerView = header;
+    UIVisualEffectView *headerBackdrop = [self glassBackdrop];
+    [header addSubview:headerBackdrop];
     UILabel *title = [UILabel new];
     title.translatesAutoresizingMaskIntoConstraints = NO;
     title.text = self.mediaTitle;
@@ -80,6 +95,10 @@
         [header.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
         [header.topAnchor constraintEqualToAnchor:self.view.topAnchor],
         [header.heightAnchor constraintEqualToConstant:145],
+        [headerBackdrop.leadingAnchor constraintEqualToAnchor:header.leadingAnchor],
+        [headerBackdrop.trailingAnchor constraintEqualToAnchor:header.trailingAnchor],
+        [headerBackdrop.topAnchor constraintEqualToAnchor:header.topAnchor],
+        [headerBackdrop.bottomAnchor constraintEqualToAnchor:header.bottomAnchor],
         [title.leadingAnchor constraintEqualToAnchor:header.leadingAnchor constant:80],
         [title.topAnchor constraintEqualToAnchor:header.topAnchor constant:55],
         [title.trailingAnchor constraintLessThanOrEqualToAnchor:header.trailingAnchor constant:-80],
@@ -89,9 +108,11 @@
 
     UIView *controls = [UIView new];
     controls.translatesAutoresizingMaskIntoConstraints = NO;
-    controls.backgroundColor = [UIColor colorWithWhite:0 alpha:0.88];
+    controls.backgroundColor = UIColor.clearColor;
     [self.view addSubview:controls];
     self.controlsView = controls;
+    UIVisualEffectView *controlsBackdrop = [self glassBackdrop];
+    [controls addSubview:controlsBackdrop];
     UIProgressView *progress = [UIProgressView new];
     progress.translatesAutoresizingMaskIntoConstraints = NO;
     progress.progressTintColor = UIColor.whiteColor;
@@ -126,6 +147,10 @@
         [controls.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
         [controls.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
         [controls.heightAnchor constraintEqualToConstant:205],
+        [controlsBackdrop.leadingAnchor constraintEqualToAnchor:controls.leadingAnchor],
+        [controlsBackdrop.trailingAnchor constraintEqualToAnchor:controls.trailingAnchor],
+        [controlsBackdrop.topAnchor constraintEqualToAnchor:controls.topAnchor],
+        [controlsBackdrop.bottomAnchor constraintEqualToAnchor:controls.bottomAnchor],
         [progress.leadingAnchor constraintEqualToAnchor:controls.leadingAnchor constant:80],
         [progress.trailingAnchor constraintEqualToAnchor:controls.trailingAnchor constant:-80],
         [progress.topAnchor constraintEqualToAnchor:controls.topAnchor constant:28],
@@ -137,7 +162,35 @@
         [buttons.heightAnchor constraintEqualToConstant:72],
     ]];
 
+    UILongPressGestureRecognizer *contextPress = [[UILongPressGestureRecognizer alloc] initWithTarget:self
+                                                                                               action:@selector(handleContextPress:)];
+    contextPress.minimumPressDuration = 0.6;
+    contextPress.allowedPressTypes = @[@(UIPressTypeSelect)];
+    contextPress.cancelsTouchesInView = YES;
+    [self.view addGestureRecognizer:contextPress];
+
     [self prepareCurrentFile];
+}
+
+- (void)handleContextPress:(UILongPressGestureRecognizer *)recognizer {
+    if (recognizer.state != UIGestureRecognizerStateBegan) return;
+    [self showControls];
+    UIAlertController *actions = [UIAlertController alertControllerWithTitle:self.mediaTitle
+                                                                     message:nil preferredStyle:UIAlertControllerStyleAlert];
+    __weak typeof(self) weakSelf = self;
+    [actions addAction:[UIAlertAction actionWithTitle:self.vlcPlayer.isPlaying ? @"Pause" : @"Play"
+                                                style:UIAlertActionStyleDefault handler:^(__unused UIAlertAction *action) {
+        [weakSelf playPausePressed];
+    }]];
+    [actions addAction:[UIAlertAction actionWithTitle:@"Start of File" style:UIAlertActionStyleDefault handler:^(__unused UIAlertAction *action) {
+        weakSelf.vlcPlayer.time = [VLCTime timeWithNumber:@0];
+        [weakSelf showControls];
+    }]];
+    [actions addAction:[UIAlertAction actionWithTitle:@"Close Player" style:UIAlertActionStyleDefault handler:^(__unused UIAlertAction *action) {
+        [weakSelf closePressed];
+    }]];
+    [actions addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+    [self presentViewController:actions animated:YES completion:nil];
 }
 
 - (void)prepareCurrentFile {
@@ -192,13 +245,24 @@
 }
 
 - (UIButton *)controlButtonWithSymbol:(NSString *)symbol label:(NSString *)label action:(SEL)action {
-    UIButton *button = [UIButton buttonWithType:UIButtonTypeCustom];
-    button.backgroundColor = [UIColor colorWithWhite:1 alpha:0.2];
-    button.layer.cornerRadius = 20;
+    UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
+    button.backgroundColor = BrowserTVRestingSurfaceColor();
+    button.layer.cornerRadius = 18;
     button.accessibilityLabel = label;
     UIImageSymbolConfiguration *configuration = [UIImageSymbolConfiguration configurationWithPointSize:34 weight:UIImageSymbolWeightSemibold];
-    [button setImage:[UIImage systemImageNamed:symbol withConfiguration:configuration] forState:UIControlStateNormal];
-    button.tintColor = UIColor.whiteColor;
+    UIImageView *icon = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:symbol withConfiguration:configuration]];
+    icon.translatesAutoresizingMaskIntoConstraints = NO;
+    icon.tag = kBrowserVLCControlIconTag;
+    icon.contentMode = UIViewContentModeScaleAspectFit;
+    icon.tintColor = UIColor.whiteColor;
+    icon.userInteractionEnabled = NO;
+    [button addSubview:icon];
+    [NSLayoutConstraint activateConstraints:@[
+        [icon.centerXAnchor constraintEqualToAnchor:button.centerXAnchor],
+        [icon.centerYAnchor constraintEqualToAnchor:button.centerYAnchor],
+        [icon.widthAnchor constraintEqualToConstant:44],
+        [icon.heightAnchor constraintEqualToConstant:44],
+    ]];
     [button addTarget:self action:action forControlEvents:UIControlEventPrimaryActionTriggered];
     return button;
 }
@@ -210,8 +274,9 @@
         if (![view isKindOfClass:UIButton.class] || ![view isDescendantOfView:self.controlsView]) continue;
         BOOL focused = view == context.nextFocusedView;
         [coordinator addCoordinatedAnimations:^{
-            view.backgroundColor = focused ? UIColor.whiteColor : [UIColor colorWithWhite:1 alpha:0.2];
-            view.tintColor = focused ? UIColor.blackColor : UIColor.whiteColor;
+            view.backgroundColor = focused ? BrowserTVFocusedSurfaceColor() : BrowserTVRestingSurfaceColor();
+            UIImageView *icon = (UIImageView *)[view viewWithTag:kBrowserVLCControlIconTag];
+            icon.tintColor = focused ? BrowserTVFocusedTextColor() : UIColor.whiteColor;
         } completion:nil];
     }
     if ([context.nextFocusedView isKindOfClass:UIButton.class] &&
@@ -247,8 +312,9 @@
     self.progressView.progress = duration > 0 ? MIN(1.0, MAX(0.0, (double)elapsed / duration)) : 0;
     BOOL playing = self.vlcPlayer.isPlaying;
     UIImageSymbolConfiguration *configuration = [UIImageSymbolConfiguration configurationWithPointSize:34 weight:UIImageSymbolWeightSemibold];
-    [self.playButton setImage:[UIImage systemImageNamed:playing ? @"pause.fill" : @"play.fill"
-                                      withConfiguration:configuration] forState:UIControlStateNormal];
+    UIImageView *playIcon = (UIImageView *)[self.playButton viewWithTag:kBrowserVLCControlIconTag];
+    playIcon.image = [UIImage systemImageNamed:playing ? @"pause.fill" : @"play.fill"
+                                  withConfiguration:configuration];
     self.playButton.accessibilityLabel = playing ? @"Pause" : @"Play";
 }
 

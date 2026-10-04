@@ -1,6 +1,6 @@
 # User Guide — tvOS Browser, just-better-code version
 
-Current for **2.15.26**. Button names match the application.
+Current for **2.17.0**. Button names match the application.
 
 ## Quick start
 
@@ -21,16 +21,17 @@ Open the visual quick guide through **Menu → Tools → User Guide**. **Show th
 | Navigate tab history | Back/Forward beside the domain in the main menu |
 | Open the tab overview | Double Left |
 | Close the focused overview tab | Double Up or Play/Pause |
-| Toggle the magnifier | Hold Center |
+| Toggle the magnifier on a website | Hold Center |
 | Open the menu or return from an overlay | Back/Menu, depending on context |
 | Play/pause supported video | Play/Pause |
 
-On New Tab, menus and lists, arrows move selection and Center activates it. The pointer hides on inactivity; a new touchpad movement brings it back.
+On app-owned pages, arrows move selection and Center activates the focused item. Hold Center for its context actions; Play/Pause performs the page's shortcut. Website controls retain their own behavior. The pointer hides on inactivity; a new touchpad movement brings it back.
 
 ### Back/Menu behavior
 
 - On an ordinary page, open the main menu.
 - In a menu, dialog, guide or tab overview, close that screen.
+- In a torrent's file list, return to the overall torrent list; from the overall list, return to the browser.
 - On New Tab, return to the previously active tab when available.
 - With the magnifier enabled, turn it off before opening the menu.
 - In a supported fullscreen player, leave fullscreen and return to the page.
@@ -61,9 +62,10 @@ The magnifier is also available through Settings → Magnifier. It turns off aft
 - Select a tab card and press Center to open it.
 - The **+** card opens New Tab; an empty New Tab does not occupy a saved tab slot.
 - Play/Pause closes the focused ordinary tab in the overview.
+- Hold Center on a tab card for Open and Close actions.
 - Double Up also closes the focused overview tab; repeated Up presses on a page scroll it.
 
-New Tab shows **Favorites** and recent history. Center opens an entry. **Play/Pause opens the selected entry's options**: Favorite actions or history deletion.
+The native New Tab page shows **Favorites** and recent history across the available screen width. Center opens an entry. **Play/Pause or Hold Center opens the selected entry's options**: Favorite actions or recent-visit actions.
 
 The session saves ordinary tabs, the active tab and each tab's Back/Forward list. An empty New Tab is temporary and is not restored as an ordinary page.
 
@@ -85,6 +87,7 @@ On New Tab, select a Favorite and press Play/Pause for editing and deletion opti
 | --- | --- |
 | Open an entry | Select its row and press Center |
 | Select/deselect a row | Play/Pause on the row |
+| Open row actions | Hold Center on the row |
 | Select every entry | Select All |
 | Open one selected entry | Open; exactly one row must be selected |
 | Delete selected entries | Delete |
@@ -108,11 +111,13 @@ Availability depends on the player, stream format and website. A pure canvas pla
 
 ## Torrents
 
-Select a magnet or `.torrent` link on a website to open **Torrents** immediately. You can also use **Menu → Quick Actions → Torrents → Add Torrent** to paste a magnet or HTTP(S) `.torrent` URL. The library selects a new or already imported torrent and shows its files after metadata arrives.
+Select a magnet or `.torrent` link on a website to open **Torrents** immediately. The library focuses the imported torrent in the overall list; press Center to open its files. Its row shows selected and total size, transfer rates, peer counts, and focusable Start, Priority Up, Priority Down, and Delete icons beside the focused row. Play/Pause on a torrent row also starts all its files. Priority order is saved across launches.
 
-New torrents start with files skipped. Select a file and choose **Download File** to fetch it, or **Play Now (Priority)** to fetch it and open the embedded VLC player. Press Play/Pause on a focused media file in the list as a shortcut for Play Now. The player offers MP4, M4V, MOV, MP3, M4A, MKV and AVI files. If libtorrent is checking an existing file, playback waits for that check; otherwise it starts as verified pieces arrive and may show **Buffering torrent…**. The format and codec still need to be supported by the embedded player and Apple TV hardware. The bottom panel has Close, previous/start, 10- and 30-second seek, Play/Pause, next file and progress controls. It and the file title hide during playback after inactivity; use Center or Up/Down to show them again. Previous returns to the start of the current file when more than five seconds have played, or opens the previous playable file near the start. Play/Pause toggles playback, Left/Right seek by 10 seconds while the panel is hidden, and Back/Menu returns to the library.
+New torrents start with files skipped. Center or Play/Pause on a focused playable file starts **Play Now (Priority)**. Hold Center on a file for Play Now and Download/Skip actions, or on a torrent for Open Files and Pause/Resume. The player offers MP4, M4V, MOV, MP3, M4A, MKV and AVI files. If libtorrent is checking an existing file, playback waits for that check; otherwise it starts as verified pieces arrive and may show **Buffering torrent…**. The format and codec still need to be supported by the embedded player and Apple TV hardware. The bottom panel has Close, previous/start, 10- and 30-second seek, Play/Pause, next file and progress controls. It and the file title hide during playback after inactivity; use Center or Up/Down to show them again. Previous returns to the start of the current file when more than five seconds have played, or opens the previous playable file near the start. Play/Pause toggles playback, Left/Right seek by 10 seconds while the panel is hidden, and Back/Menu returns to the library.
 
-From a torrent's file list, choose **Skip Download** to stop requesting that file, **Pause/Resume** to control the torrent, or **Remove** to delete the torrent and request removal of its cached files. From the library's main list, **Clean Cache** removes unlisted torrent files and reports space reclaimed after confirmation. It keeps files used by listed torrents and does not touch browser history or website data. Torrent payloads and metadata are in tvOS's purgeable cache, so the system may remove them when space is needed. **Settings → Keep Alive** is experimental and does not guarantee background downloading.
+All new torrents wait for manual file selection or Start. Playing a file enables that file; use Hold Center and **Download File** on other files, or Start on the torrent row, to transfer them.
+
+From a torrent's file list, choose **Skip Download** to stop requesting that file, **Pause/Resume** to control the torrent, or **Remove** to delete the torrent and request removal of its cached files. The hint beside the action shortcuts shows the total torrent cache size, which includes listed torrents. **Purge All** removes downloaded data for every torrent but keeps torrent entries at 0% for manual restart. This action does not touch browser history or website data. Torrent payloads and metadata are in tvOS's purgeable cache, so the system may remove them when space is needed. **Settings → Keep Alive** is experimental and does not guarantee background downloading.
 
 ### Episode, season and playback position
 

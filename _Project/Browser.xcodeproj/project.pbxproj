@@ -53,6 +53,7 @@
 		C0D3A0010000000000000011 /* TVVLCKit.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = C0D3A0010000000000000012 /* TVVLCKit.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		C0D3A0010000000000000015 /* BrowserTorrentHTTPServer.m in Sources */ = {isa = PBXBuildFile; fileRef = C0D3A0010000000000000014 /* BrowserTorrentHTTPServer.m */; };
 		C0D3A0010000000000000018 /* BrowserTorrentVLCPlayerViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = C0D3A0010000000000000017 /* BrowserTorrentVLCPlayerViewController.m */; };
+		D0A202600000000000000001 /* BrowserNativeStartPageView.m in Sources */ = {isa = PBXBuildFile; fileRef = D0A202600000000000000003 /* BrowserNativeStartPageView.m */; };
 		B002B8671BAE420500C744AF /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = B002B8661BAE420500C744AF /* main.m */; };
 		B002B86A1BAE420500C744AF /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = B002B8691BAE420500C744AF /* AppDelegate.m */; };
 		B002B86D1BAE420500C744AF /* ViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = B002B86C1BAE420500C744AF /* ViewController.m */; };
@@ -147,6 +148,9 @@
 		C0D3A0010000000000000014 /* BrowserTorrentHTTPServer.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserTorrentHTTPServer.m; sourceTree = "<group>"; };
 		C0D3A0010000000000000016 /* BrowserTorrentVLCPlayerViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserTorrentVLCPlayerViewController.h; sourceTree = "<group>"; };
 		C0D3A0010000000000000017 /* BrowserTorrentVLCPlayerViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserTorrentVLCPlayerViewController.m; sourceTree = "<group>"; };
+		D0A202600000000000000002 /* BrowserNativeStartPageView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserNativeStartPageView.h; sourceTree = "<group>"; };
+		D0A202600000000000000003 /* BrowserNativeStartPageView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserNativeStartPageView.m; sourceTree = "<group>"; };
+		D0A202600000000000000004 /* BrowserTVAppearance.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserTVAppearance.h; sourceTree = "<group>"; };
 		B002B8621BAE420500C744AF /* Browser.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Browser.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B002B8661BAE420500C744AF /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
 		B002B8681BAE420500C744AF /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
@@ -249,6 +253,9 @@
 				A1B49A9A2D700060001D58A1 /* BrowserFavoriteEditorViewController.m */,
 				A1B49A9C2D700070001D58A1 /* BrowserHistoryViewController.h */,
 				A1B49A9D2D700070001D58A1 /* BrowserHistoryViewController.m */,
+				D0A202600000000000000002 /* BrowserNativeStartPageView.h */,
+				D0A202600000000000000003 /* BrowserNativeStartPageView.m */,
+				D0A202600000000000000004 /* BrowserTVAppearance.h */,
 				A1B49A852D6D2000001D58A1 /* BrowserVideoPlaybackCoordinator.h */,
 				A1B49A862D6D2000001D58A1 /* BrowserVideoPlaybackCoordinator.m */,
 			);
@@ -504,6 +511,7 @@
 				C0D3A001000000000000000B /* BrowserTorrentKeepAlive.m in Sources */,
 				C0D3A0010000000000000015 /* BrowserTorrentHTTPServer.m in Sources */,
 				C0D3A0010000000000000018 /* BrowserTorrentVLCPlayerViewController.m in Sources */,
+				D0A202600000000000000001 /* BrowserNativeStartPageView.m in Sources */,
 				A1B49A872D6D2000001D58A1 /* BrowserVideoPlaybackCoordinator.m in Sources */,
 				A1B49A842D6D2000001D58A1 /* BrowserDOMInteractionService.m in Sources */,
 				A1B49A4E2D680900001D58A1 /* BrowserNavigationService.m in Sources */,
@@ -670,7 +678,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.16.0;
+				MARKETING_VERSION = 2.17.0;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SCAN_ALL_SOURCE_FILES_FOR_INCLUDES = NO;
 				TVOS_DEPLOYMENT_TARGET = 15.6;
@@ -700,7 +708,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.16.0;
+				MARKETING_VERSION = 2.17.0;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SCAN_ALL_SOURCE_FILES_FOR_INCLUDES = NO;
 				TVOS_DEPLOYMENT_TARGET = 15.6;
