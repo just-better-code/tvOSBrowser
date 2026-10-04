@@ -6,8 +6,8 @@
 
 ## Working agreements
 
-- Use the Apple TV Simulator by default. Discovering, inspecting, installing, launching, or interacting with a physical Apple TV requires the user’s permission for that work.
-- Git commits are authorized. Do not push this repository unless the user requests it.
+- Use the Apple TV Simulator by default. Discovering, inspecting, installing, launching, or interacting with a physical Apple TV requires the user’s permission for that work. In this project, a user request to “push” or “запуш” means build, install, and launch on the physical Apple TV and grants permission for that device work.
+- Git commits are authorized. Push the Git repository only when the user explicitly asks to push to GitHub or the remote repository.
 - Preserve automatic signing and the effective local development-team and bundle-identifier settings. Personal values belong in the ignored `Signing.local.xcconfig`; shared configuration uses neutral defaults.
 - Add or run tests only when the user asks for testing or verification. Run builds when requested. Report exactly what was checked; compilation or launch alone does not prove an interaction bug is fixed.
 - Define completion in terms of the user's observable outcome. Ask for user participation when the required observation cannot be made locally; do not claim device verification without evidence.
