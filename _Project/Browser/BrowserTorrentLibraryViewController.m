@@ -1,6 +1,8 @@
 #import "BrowserTorrentLibraryViewController.h"
 
 #import "BrowserTorrentManager.h"
+#import "BrowserTorrentHTTPServer.h"
+#import "BrowserTorrentKeepAlive.h"
 #import "BrowserPreferencesStore.h"
 #import "BrowserTorrentVLCPlayerViewController.h"
 #import "BrowserWebView.h"
@@ -23,6 +25,39 @@ static NSArray<NSHTTPCookie *> *BrowserTorrentCookiesForURL(NSArray<NSHTTPCookie
 }
 
 static NSInteger const kTorrentRowActionIconTag = 9902;
+
+static UIImage *BrowserVLCButtonIcon(void) {
+    UIGraphicsImageRenderer *renderer = [[UIGraphicsImageRenderer alloc] initWithSize:CGSizeMake(38, 38)];
+    return [[renderer imageWithActions:^(UIGraphicsImageRendererContext *context) {
+        [UIColor.whiteColor setFill];
+        UIBezierPath *cone = [UIBezierPath bezierPath];
+        [cone moveToPoint:CGPointMake(19, 2)];
+        [cone addLineToPoint:CGPointMake(29, 29)];
+        [cone addLineToPoint:CGPointMake(9, 29)];
+        [cone closePath];
+        [cone fill];
+
+        CGContextSetBlendMode(context.CGContext, kCGBlendModeClear);
+        UIBezierPath *upperBand = [UIBezierPath bezierPath];
+        [upperBand moveToPoint:CGPointMake(16, 10)];
+        [upperBand addLineToPoint:CGPointMake(22, 10)];
+        [upperBand addLineToPoint:CGPointMake(23.5, 14)];
+        [upperBand addLineToPoint:CGPointMake(14.5, 14)];
+        [upperBand closePath];
+        [upperBand fill];
+        UIBezierPath *lowerBand = [UIBezierPath bezierPath];
+        [lowerBand moveToPoint:CGPointMake(12.5, 20)];
+        [lowerBand addLineToPoint:CGPointMake(25.5, 20)];
+        [lowerBand addLineToPoint:CGPointMake(27, 24)];
+        [lowerBand addLineToPoint:CGPointMake(11, 24)];
+        [lowerBand closePath];
+        [lowerBand fill];
+
+        CGContextSetBlendMode(context.CGContext, kCGBlendModeNormal);
+        [[UIBezierPath bezierPathWithRoundedRect:CGRectMake(7, 28, 24, 4) cornerRadius:1] fill];
+        [[UIBezierPath bezierPathWithRoundedRect:CGRectMake(4, 32, 30, 5) cornerRadius:1.5] fill];
+    }] imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+}
 
 @interface BrowserTorrentDownloadDelegate : NSObject <NSURLSessionTaskDelegate>
 @property (nonatomic, copy) NSArray<NSHTTPCookie *> *cookies;
@@ -57,6 +92,10 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
 @property (nonatomic) UIView *actionsPanel;
 @property (nonatomic) UIView *fileActionsPanel;
 @property (nonatomic) UIButton *fileDownloadButton;
+@property (nonatomic) UIButton *fileVLCButton;
+@property (nonatomic) BrowserTorrentHTTPServer *externalPlaybackServer;
+@property (nonatomic) BOOL pendingExternalPlayback;
+@property (nonatomic) BOOL externalVLCFocused;
 @property (nonatomic) NSArray<UIButton *> *torrentActionButtons;
 @property (nonatomic) NSLayoutConstraint *tableTrailingConstraint;
 @property (nonatomic, copy) NSString *cacheSizeText;
@@ -152,6 +191,8 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
     contextPress.allowedPressTypes = @[@(UIPressTypeSelect)];
     contextPress.cancelsTouchesInView = YES;
     [table addGestureRecognizer:contextPress];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(applicationWillEnterForeground:)
+                                                 name:UIApplicationWillEnterForegroundNotification object:nil];
     UITapGestureRecognizer *backGesture = [[UITapGestureRecognizer alloc] initWithTarget:self
                                                                                  action:@selector(handleBackGesture:)];
     backGesture.allowedPressTypes = @[@(UIPressTypeMenu)];
@@ -194,6 +235,17 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
     self.tableTrailingConstraint = [table.trailingAnchor constraintEqualToAnchor:done.trailingAnchor constant:-360];
     self.tableTrailingConstraint.active = YES;
     [self refresh];
+}
+
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+    [self stopExternalPlaybackServer];
+}
+
+- (void)applicationWillEnterForeground:(NSNotification *)notification {
+    (void)notification;
+    [self stopExternalPlaybackServer];
+    [self updateFileActionsPanelPosition];
 }
 
 - (void)viewDidLayoutSubviews {
@@ -282,7 +334,7 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
     self.pauseButton.hidden = !details;
     self.purgeButton.hidden = details;
     self.actionsPanel.hidden = details || self.torrents.count == 0;
-    self.tableTrailingConstraint.constant = details ? -96 : -276;
+    self.tableTrailingConstraint.constant = details ? -204 : -276;
     NSInteger count = details ? MAX(1, self.visibleEntries.count) : self.torrents.count;
     NSString *displayKey = details ? [NSString stringWithFormat:@"%@/%@", self.selectedIdentifier, self.folderPath ?: @""] : @"";
     if (self.displayedRowCount != count || ![(self.displayedIdentifier ?: @"") isEqualToString:displayKey]) {
@@ -304,11 +356,14 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
         if (!pendingTorrent || ![self.pendingPlaybackIdentifier isEqualToString:self.selectedIdentifier]) {
             self.pendingPlaybackFile = nil;
             self.pendingPlaybackIdentifier = nil;
+            self.pendingExternalPlayback = NO;
         } else if (![pendingTorrent.state isEqualToString:@"Checking files"]) {
             BrowserTorrentFile *file = self.pendingPlaybackFile;
+            BOOL external = self.pendingExternalPlayback;
             self.pendingPlaybackFile = nil;
             self.pendingPlaybackIdentifier = nil;
-            [self launchPlayerForFile:file];
+            self.pendingExternalPlayback = NO;
+            if (external) [self openFileInVLCApp:file]; else [self launchPlayerForFile:file];
         }
     }
     [self updateTorrentActionsPanelPosition];
@@ -444,20 +499,28 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
 }
 
 - (void)installFileActionsPanel {
-    UIView *container = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 72, 72)];
+    UIView *container = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 156, 72)];
     container.backgroundColor = UIColor.clearColor;
     [self.view addSubview:container];
     self.fileActionsPanel = container;
     UIButton *download = [self torrentActionButtonWithSymbol:@"arrow.down.to.line" label:@"Download file or folder"
                                                    action:@selector(downloadFileButtonPressed:) row:0];
-    [container addSubview:download];
+    UIButton *vlc = [self torrentActionButtonWithSymbol:@"play.tv.fill" label:@"Open in VLC app"
+                                              action:@selector(openFileInVLCButtonPressed:) row:0];
+    UIImageView *vlcIcon = (UIImageView *)[vlc viewWithTag:kTorrentRowActionIconTag];
+    vlcIcon.image = BrowserVLCButtonIcon();
+    UIStackView *buttons = [[UIStackView alloc] initWithArrangedSubviews:@[download, vlc]];
+    buttons.translatesAutoresizingMaskIntoConstraints = NO;
+    buttons.axis = UILayoutConstraintAxisHorizontal;
+    buttons.spacing = 12;
+    [container addSubview:buttons];
     [NSLayoutConstraint activateConstraints:@[
-        [download.leadingAnchor constraintEqualToAnchor:container.leadingAnchor],
-        [download.trailingAnchor constraintEqualToAnchor:container.trailingAnchor],
-        [download.topAnchor constraintEqualToAnchor:container.topAnchor],
-        [download.bottomAnchor constraintEqualToAnchor:container.bottomAnchor],
+        [buttons.leadingAnchor constraintEqualToAnchor:container.leadingAnchor],
+        [buttons.topAnchor constraintEqualToAnchor:container.topAnchor],
+        [buttons.bottomAnchor constraintEqualToAnchor:container.bottomAnchor],
     ]];
     self.fileDownloadButton = download;
+    self.fileVLCButton = vlc;
     container.hidden = YES;
 }
 
@@ -481,9 +544,52 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
     }
     CGRect inView = [self.tableView convertRect:rowRect toView:self.view];
     self.fileActionsPanel.frame = CGRectMake(CGRectGetMaxX(self.tableView.frame) + 18,
-                                              CGRectGetMidY(inView) - 36, 72, 72);
+                                              CGRectGetMidY(inView) - 36, 156, 72);
     self.fileDownloadButton.tag = row;
+    self.fileVLCButton.tag = row;
+    self.fileVLCButton.hidden = ![entry isKindOfClass:BrowserTorrentFile.class] ||
+                                ![self isPlayableFile:(BrowserTorrentFile *)entry];
+    [self updateVLCButtonAppearance];
     self.fileActionsPanel.hidden = NO;
+}
+
+- (BOOL)isExternalVLCAvailable {
+    return [UIApplication.sharedApplication canOpenURL:[NSURL URLWithString:@"vlc-x-callback://x-callback-url/stream"]];
+}
+
+- (void)updateVLCButtonAppearance {
+    BOOL installed = [self isExternalVLCAvailable];
+    BOOL ready = installed && BrowserTorrentKeepAlive.sharedKeepAlive.enabled;
+    self.fileVLCButton.enabled = YES;
+    self.fileVLCButton.backgroundColor = self.externalVLCFocused
+        ? [BrowserTVFocusedSurfaceColor() colorWithAlphaComponent:ready ? 1 : 0.55]
+        : [UIColor colorWithWhite:0.18 alpha:ready ? 0.85 : 0.45];
+    UIImageView *icon = (UIImageView *)[self.fileVLCButton viewWithTag:kTorrentRowActionIconTag];
+    icon.tintColor = self.externalVLCFocused ? BrowserTVFocusedTextColor() : UIColor.whiteColor;
+    icon.alpha = ready ? 1.0 : 0.35;
+    self.fileVLCButton.accessibilityLabel = !installed ? @"Open in VLC app. VLC is not installed"
+        : ready ? @"Open in VLC app" : @"Open in VLC app. Enable Keep Alive first";
+}
+
+- (void)openFileInVLCButtonPressed:(UIButton *)button {
+    if (!self.selectedIdentifier || button.tag < 0 || button.tag >= self.visibleEntries.count) return;
+    id entry = self.visibleEntries[button.tag];
+    if (![entry isKindOfClass:BrowserTorrentFile.class] || ![self isPlayableFile:entry]) return;
+    BOOL installed = [self isExternalVLCAvailable];
+    BOOL keepAlive = BrowserTorrentKeepAlive.sharedKeepAlive.enabled;
+    if (!installed && !keepAlive) {
+        [self showMessage:@"Install VLC on this Apple TV and turn on Settings → Keep Alive to use this button."];
+        return;
+    }
+    if (!installed) {
+        [self showMessage:@"Install VLC on this Apple TV to use this button."];
+        return;
+    }
+    if (!keepAlive) {
+        [self showMessage:@"Turn on Settings → Keep Alive before opening a file in the VLC app."];
+        return;
+    }
+    [self playFile:entry externally:YES];
 }
 
 - (void)downloadFileButtonPressed:(UIButton *)button {
@@ -723,6 +829,7 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
 - (void)didUpdateFocusInContext:(UIFocusUpdateContext *)context
        withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     [super didUpdateFocusInContext:context withAnimationCoordinator:coordinator];
+    self.externalVLCFocused = context.nextFocusedView == self.fileVLCButton;
     UITableViewCell *focusedCell = nil;
     for (id item in @[context.previouslyFocusedView ?: [UIView new], context.nextFocusedView ?: [UIView new]]) {
         UIView *view = [item isKindOfClass:UIView.class] ? item : nil;
@@ -746,7 +853,8 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
             UIView *parent = button.superview;
             while (parent && ![parent isKindOfClass:UITableViewCell.class]) parent = parent.superview;
             if (focused && [parent isKindOfClass:UITableViewCell.class]) focusedCell = (UITableViewCell *)parent;
-            if (focused && button == self.fileDownloadButton) self.focusedFileRow = button.tag;
+            if (focused && (button == self.fileDownloadButton || button == self.fileVLCButton))
+                self.focusedFileRow = button.tag;
         }
     }
     NSIndexPath *path = focusedCell ? [self.tableView indexPathForCell:focusedCell] : nil;
@@ -759,6 +867,7 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
         self.focusedFileRow = NSNotFound;
     }
     [self updateTorrentActionsPanelPosition];
+    [self updateVLCButtonAppearance];
 }
 
 - (void)pressesEnded:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
@@ -798,16 +907,56 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
 }
 
 - (void)playFile:(BrowserTorrentFile *)file {
+    [self playFile:file externally:NO];
+}
+
+- (void)playFile:(BrowserTorrentFile *)file externally:(BOOL)external {
     if (!self.selectedIdentifier) return;
     for (BrowserTorrentSnapshot *torrent in [[BrowserTorrentManager sharedManager] torrents]) {
         if ([torrent.identifier isEqualToString:self.selectedIdentifier] && [torrent.state isEqualToString:@"Checking files"]) {
             self.pendingPlaybackFile = file;
             self.pendingPlaybackIdentifier = self.selectedIdentifier;
+            self.pendingExternalPlayback = external;
             [self refresh];
             return;
         }
     }
-    [self launchPlayerForFile:file];
+    if (external) [self openFileInVLCApp:file]; else [self launchPlayerForFile:file];
+}
+
+- (void)openFileInVLCApp:(BrowserTorrentFile *)file {
+    if (!self.selectedIdentifier || ![self isExternalVLCAvailable] ||
+        !BrowserTorrentKeepAlive.sharedKeepAlive.enabled) {
+        [self showMessage:@"VLC must be installed and Settings → Keep Alive must be on."];
+        [self updateFileActionsPanelPosition];
+        return;
+    }
+    [[BrowserTorrentManager sharedManager] prioritizePlaybackForTorrent:self.selectedIdentifier fileIndex:file.index];
+    BrowserTorrentHTTPServer *server = [[BrowserTorrentHTTPServer alloc]
+        initWithTorrentIdentifier:self.selectedIdentifier fileIndex:file.index];
+    NSError *error = nil;
+    if (![server startWithError:&error]) {
+        [self showMessage:error.localizedDescription ?: @"Could not prepare the VLC stream."];
+        return;
+    }
+    [self stopExternalPlaybackServer];
+    self.externalPlaybackServer = server;
+    NSURLComponents *components = [NSURLComponents componentsWithString:@"vlc-x-callback://x-callback-url/stream"];
+    components.queryItems = @[[NSURLQueryItem queryItemWithName:@"url" value:server.mediaURL.absoluteString]];
+    __weak typeof(self) weakSelf = self;
+    [UIApplication.sharedApplication openURL:components.URL options:@{} completionHandler:^(BOOL success) {
+        if (success) {
+            BrowserDebugLog(@"[TorrentVLC] external handoff fileIndex=%ld", (long)file.index);
+            return;
+        }
+        [weakSelf stopExternalPlaybackServer];
+        [weakSelf showMessage:@"VLC did not accept the stream. Play the file in the built-in player."];
+    }];
+}
+
+- (void)stopExternalPlaybackServer {
+    [self.externalPlaybackServer stop];
+    self.externalPlaybackServer = nil;
 }
 
 - (void)launchPlayerForFile:(BrowserTorrentFile *)file {
@@ -881,6 +1030,7 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
     }
     self.pendingPlaybackFile = nil;
     self.pendingPlaybackIdentifier = nil;
+    self.pendingExternalPlayback = NO;
     self.focusedTorrentIdentifier = self.selectedIdentifier;
     self.focusedFileRow = NSNotFound;
     self.selectedIdentifier = nil;
@@ -903,7 +1053,12 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
         [self donePressed];
     }
 }
-- (void)donePressed { self.pendingPlaybackFile = nil; self.pendingPlaybackIdentifier = nil; [self dismissViewControllerAnimated:YES completion:nil]; }
+- (void)donePressed {
+    self.pendingPlaybackFile = nil;
+    self.pendingPlaybackIdentifier = nil;
+    self.pendingExternalPlayback = NO;
+    [self dismissViewControllerAnimated:YES completion:nil];
+}
 
 - (void)pausePressed {
     BrowserTorrentSnapshot *selected = nil;
