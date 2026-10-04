@@ -746,4 +746,27 @@ static NSString *BrowserTorrentHashString(lt::sha1_hash const& hash) {
     return YES;
 }
 
+- (void)backgroundTransferPending:(BOOL *)pending downloadedBytes:(int64_t *)downloadedBytes {
+    BOOL hasPending = NO;
+    int64_t downloaded = 0;
+    for (lt::torrent_handle const& handle : _session->get_torrents()) {
+        if (!handle.is_valid()) continue;
+        [self applyStoredFileSelectionsForHandle:handle];
+        lt::torrent_status status = handle.status();
+        if (!status.has_metadata || (status.flags & lt::torrent_flags::paused)) continue;
+        downloaded += status.total_wanted_done;
+        if (status.total_wanted > status.total_wanted_done) hasPending = YES;
+    }
+    if (pending) *pending = hasPending;
+    if (downloadedBytes) *downloadedBytes = downloaded;
+}
+
+- (void)requestFastResumeCheckpoint {
+    for (lt::torrent_handle const& handle : _session->get_torrents()) {
+        if (!handle.is_valid() || !handle.torrent_file()) continue;
+        handle.save_resume_data(lt::torrent_handle::save_info_dict);
+    }
+    NSLog(@"[TorrentState] background resume checkpoint requested");
+}
+
 @end

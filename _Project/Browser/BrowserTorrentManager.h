@@ -51,6 +51,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (uint64_t)clearAllTorrentDownloadsWithRemovedCount:(NSUInteger *)removedCount error:(NSError **)error;
 - (uint64_t)totalTorrentCacheBytes;
 - (BOOL)setPaused:(BOOL)paused forTorrent:(NSString *)identifier;
+/// Aggregate only manually selected, incomplete, unpaused payloads for background scheduling.
+- (void)backgroundTransferPending:(BOOL *)pending downloadedBytes:(int64_t *)downloadedBytes;
+- (void)requestFastResumeCheckpoint;
 @end
 
 NS_ASSUME_NONNULL_END

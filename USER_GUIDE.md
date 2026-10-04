@@ -1,6 +1,6 @@
 # User Guide — tvOS Browser, just-better-code version
 
-Current for **2.17.0**. Button names match the application.
+Current for **2.18.0**. Button names match the application.
 
 ## Quick start
 
@@ -118,6 +118,8 @@ New torrents start with files skipped. Center or Play/Pause on a focused playabl
 All new torrents wait for manual file selection or Start. Playing a file enables that file; use Hold Center and **Download File** on other files, or Start on the torrent row, to transfer them.
 
 From a torrent's file list, choose **Skip Download** to stop requesting that file, **Pause/Resume** to control the torrent, or **Remove** to delete the torrent and request removal of its cached files. The hint beside the action shortcuts shows the total torrent cache size, which includes listed torrents. **Purge All** removes downloaded data for every torrent but keeps torrent entries at 0% for manual restart. This action does not touch browser history or website data. Torrent payloads and metadata are in tvOS's purgeable cache, so the system may remove them when space is needed. **Settings → Keep Alive** is experimental and does not guarantee background downloading.
+
+The app can request system-managed Background App Refresh and Background Processing time after you leave it. The tvOS switch for this app may be changed in system Settings at any time. These requests are opportunistic: tvOS chooses when to run them, and a pending request does not keep a torrent downloading continuously. The small **Background probe** line on the Torrents list measures elapsed background time, timer-covered execution time, and the longest timer gap without requiring a torrent. It also records whether the app's experimental **Keep Alive** was on when the measurement began. A long elapsed interval with little active time means the app was suspended. In Debug builds, a probe-only request is submitted even if no torrent is pending; ordinary releases submit tasks only for manually started, incomplete torrents.
 
 ### Episode, season and playback position
 

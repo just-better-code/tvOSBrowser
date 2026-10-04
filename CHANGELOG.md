@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.18.0 - 2026-10-04
+
+### Added
+
+- Offer system-managed background refresh and processing opportunities for manually started torrents, and show a torrent-free runtime probe to measure actual execution after leaving the browser ([user guide](USER_GUIDE.md#torrents), [background research](docs/agent/TVOS_BACKGROUND_DOWNLOADS.md)).
+
 ## 2.17.0 - 2026-10-04
 
 ### Changed

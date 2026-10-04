@@ -108,7 +108,7 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
     self.subtitle = [UILabel new];
     self.subtitle.translatesAutoresizingMaskIntoConstraints = NO;
     self.subtitle.font = [UIFont systemFontOfSize:22];
-    self.subtitle.numberOfLines = 2;
+    self.subtitle.numberOfLines = 3;
     self.subtitle.textColor = [UIColor colorWithWhite:1 alpha:0.7];
     [self.view addSubview:self.subtitle];
 
@@ -290,9 +290,18 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
 }
 
 - (NSString *)torrentListHint {
-    return [NSString stringWithFormat:
+    NSString *hint = [NSString stringWithFormat:
         @"Center: files • Play/Pause: Start • Hold Center: actions  •  Cache: %@ total (tvOS may remove files)",
         self.cacheSizeText ?: @"0 bytes"];
+    NSDictionary *probe = [[NSUserDefaults standardUserDefaults] dictionaryForKey:@"BrowserBackgroundProbeSummary"];
+    if (![probe isKindOfClass:NSDictionary.class]) return hint;
+    NSString *state = [probe[@"running"] boolValue] ? @"running" :
+        [probe[@"interrupted"] boolValue] ? @"interrupted" : @"finished";
+    NSString *mode = [probe[@"keepAlive"] boolValue] ? @"Keep Alive on" : @"Keep Alive off";
+    return [hint stringByAppendingFormat:
+        @"\nBackground probe (%@, %@): %.0f s elapsed • %.0f s active • %.0f s longest gap • %lu ticks",
+        mode, state, [probe[@"elapsed"] doubleValue], [probe[@"active"] doubleValue],
+        [probe[@"maxGap"] doubleValue], (unsigned long)[probe[@"ticks"] unsignedIntegerValue]];
 }
 
 - (void)selectTorrent:(NSString *)identifier {

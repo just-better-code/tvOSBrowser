@@ -12,6 +12,12 @@ Dates in the chronological account describe project discussions in Europe/Kiev. 
 
 ## Chronological account
 
+### 2026-10-04 — tvOS background task experiment
+
+The user observed the system Background App Refresh switch for other apps and asked whether it could help torrent transfers. Apple documents tvOS refresh and processing tasks, but the system chooses when to run them and can suspend or interrupt the app. The user requested a temporary way to measure Keep Alive without finding new torrents and reminded us that the system permission may be toggled at any time. The implementation registers short refresh and longer processing tasks, checks the system status before submitting, handles status changes and expiration, and logs numeric task events. In Debug, a no-torrent request plus a five-second heartbeat produces an elapsed/active/longest-gap summary on the Torrents screen. The existing audio Keep Alive remains a separate experiment and all torrent/VLC diagnostics remain.
+
+The first physical Debug build declared `processing` only. It registered the task and tvOS accepted a probe-only request with Keep Alive off, but the user could not find the app in the system Background App Refresh list. A revised build added `fetch` and a short `BGAppRefreshTask`. Both handlers registered, and the user reported that the app appeared in the system list immediately with the switch already enabled. This proves settings visibility and successful registration, not a background transfer. In a no-torrent test with Keep Alive off, the user saw 235 seconds elapsed, 0 seconds active, and a 234-second longest gap. The app was effectively suspended during that interval. A Keep Alive-on comparison and any task-launch or transfer observation remain pending.
+
 ### 2026-10-04 — native tvOS pages and torrent library follow-up
 
 The user supplied a photo of tvOS Settings as a visual reference, requested full-width app pages, and explicitly kept the existing translucent browser menu unchanged. A shared UIKit appearance was added for New Tab, All History, Torrents, tab overview, dialogs, and VLC controls. New Tab moved from generated HTML to a native table. An initial device build showed two highlighted rows; the focus styling was corrected. The user then confirmed New Tab looked ideal and All History looked right. Other screens still require separate visual observation.
