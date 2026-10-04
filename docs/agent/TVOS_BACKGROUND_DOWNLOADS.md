@@ -1,0 +1,16 @@
+# tvOS background torrent downloads — research checkpoint
+
+The user observed a Background App Refresh switch for other tvOS apps and asked whether the browser could use it for torrent downloads. This is research, not an implemented feature or a device result.
+
+## Platform findings
+
+- tvOS supports `BGTaskScheduler`, `BGAppRefreshTaskRequest`, and `BGProcessingTaskRequest` from tvOS 13 onward in the installed tvOS SDK. Apple lists the `processing` background mode for tvOS. A processing request can require network connectivity and may receive minutes of runtime, but the system chooses when to launch it, may interrupt it, and stops it when the device becomes active. Sources: [background execution modes](https://developer.apple.com/documentation/Xcode/configuring-background-execution-modes), [BGProcessingTask](https://developer.apple.com/documentation/backgroundtasks/bgprocessingtask), [background strategies](https://developer.apple.com/documentation/backgroundtasks/choosing-background-strategies-for-your-app).
+- Background App Refresh is a system setting for brief content updates. Apple documents it for Apple TV Podcasts; it does not promise continuous execution or a scheduled interval. Source: [Apple TV Podcasts settings](https://support.apple.com/guide/tv/adjust-podcast-app-settings-atvbfb643016/tvos), [Apple background execution explanation](https://developer.apple.com/forums/thread/685525).
+- A background `URLSession` transfers HTTP(S) files in a system process. The current torrent payload arrives through libtorrent's peer-to-peer engine inside this app, so changing the `.torrent` metadata fetch to a background URL session would not keep the payload transferring while the app is suspended. Source: [background URL session](https://developer.apple.com/documentation/foundation/urlsessionconfiguration/background(withidentifier:)).
+- The current `Info.plist` declares only the `audio` background mode. `BrowserTorrentKeepAlive` plays looping quiet audio as an experiment; it does not register a background refresh or processing task. Keep the existing torrent/VLC Debug diagnostics until the user declares the feature ready.
+
+## Viable experiment
+
+Register one `BGProcessingTask` before launch completes, add `processing` to `UIBackgroundModes` and its identifier to `BGTaskSchedulerPermittedIdentifiers`, and submit a request only while manually started torrents remain incomplete. Require network connectivity. In the handler, initialize/restore the torrent manager, run the session only during the granted window, request fast-resume checkpoints on expiration, and resubmit while work remains. Log task submission, launch, expiration, and byte deltas without torrent names, URLs, or hashes. Test on the authorized physical Apple TV by comparing progress before leaving the app and after a substantial idle period. Also test when the setting is off and when another app becomes active. A successful submission or appearance of a settings switch alone does not prove a useful transfer window.
+
+This can offer opportunistic background progress, not uninterrupted torrent downloading. The system may defer or omit a run, and tvOS can purge downloaded cache files. Keep the manual Start policy and persist priorities and selected files.
