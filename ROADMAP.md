@@ -20,7 +20,7 @@ Investigate Firefox Account/Sync integration, authentication, and synchronizatio
 - Integrate download management into the browser menu and keep playback inside the application. Handoff to a separate VLC app was rejected in the earlier discussion because it would take focus away from the browser.
 - Later, consider an indicator listing torrent/magnet links found on the page to avoid precise cursor targeting.
 
-A prototype exists in another branch. The complete website-click-to-background-download-and-playback flow is not implemented in the current version.
+A prototype exists, but the complete website-click-to-background-download-and-playback flow is not implemented. The [torrent-client plan and reference map](docs/agent/plans/torrent-client.md) records the relevant sources and remaining work.
 
 ### Mobile Firefox and its WebKit integration
 
