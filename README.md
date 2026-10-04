@@ -1,36 +1,84 @@
 # tvOSofaBrowse
 
-A personal-use web browser for Apple TV, built around `WKWebView` and the Siri Remote. This fork extends the [upstream tvOS Browser](https://github.com/jvanakker/tvOSBrowser) to make ordinary websites, embedded video, and torrent media practical to use from a sofa. There is no prebuilt app or App Store release.
+### The web from your sofa.
 
-**A touchpad-equipped remote is required. The browser cannot be used without a touchpad.**
+> **A Siri Remote with a touch surface or touch-enabled clickpad is required.** Button-only remotes cannot move the browser pointer.
 
-## Why this fork
+> **Do not publish this app on the App Store.** It uses private tvOS and WebKit APIs. The source is provided as-is for personal development and sideloading, without warranty.
 
-- **Mouse-like control with a TV remote:** slide on the touchpad to move a pointer, press Center to click website controls, and use Up/Down for smooth scrolling. A cursor magnifier helps target small controls.
-- **Custom video players in iframes:** interact with supported player controls inside embedded frames, including some cross-origin frames and Shadow DOM, using the pointer and remote playback buttons.
-- **Torrent streaming:** open magnet and `.torrent` links from websites, choose files or folders, and play selected media through TVVLCKit as verified pieces arrive, before the whole file finishes downloading.
-- **Ad blocking:** turn WebKit content rules on or off from the browser menu to block advertising and tracking requests.
-- **Comfortable reading:** scale the whole page and its text from 50% to 200% in 10% steps, with a saved zoom level and an easy reset to 100%.
-- **A menu made for Apple TV:** use a tiled panel for address entry, tabs, history, Favorites, Torrents, zoom, settings, and data-clearing actions without a desktop-style toolbar covering the page.
+![tvOSofaBrowse menu with address, navigation, zoom, ad blocking and torrents](assets/readme/menu-approved.png)
 
-The browser also restores tabs and their Back/Forward navigation, shows Favorites and recent visits on a native New Tab page, and keeps full local history without automatic age-based deletion. A compressed local backup can recover history, Favorites, and tab navigation if the main database is missing or damaged.
+*Visual style tested on tvOS 27.*
 
-Playback and website interaction depend on each site's player, format, codec, and DRM. Torrent downloads may pause when tvOS suspends the app; Background App Refresh and the experimental Keep Alive setting do not guarantee continuous background transfers. Website cookies and storage are separate from the browser database backup.
+**Point like a mouse.** Click supported custom video players inside iframes. Block ads, zoom to read, and reach your tabs and tools from one menu.
 
-## Build for personal use
+![Torrent library and video playback shown as two separate screens with a diagonal cut](assets/readme/torrent-approved.png)
 
-Open [`_Project/Browser.xcodeproj`](_Project/Browser.xcodeproj) in Xcode and select the `Browser` scheme. The Apple TV Simulator is the easiest starting point. For a physical Apple TV, use your own local automatic-signing settings by copying `_Project/Browser/Config/Signing.local.xcconfig.example` to `Signing.local.xcconfig` and filling in your development team and bundle identifier. The local file is ignored by Git. A paid Apple Developer membership and App Store publication are not part of this project.
+**Choose a torrent. Watch while it downloads.** The diagonal cut presents two separate app screens. Keep the app open for uninterrupted transfers; tvOS may suspend downloads in the background. [Details](docs/USER_GUIDE.md#background-downloads).
 
-The torrent feature needs the pinned dependencies installed by `scripts/bootstrap-torrent-deps.sh` and `scripts/bootstrap-vlc-deps.sh` before building. These install libtorrent, Boost, and TVVLCKit into ignored `.deps/` with pinned checksums. Preserve their upstream licenses when distributing source or binaries.
+![The in-app tvOSofaBrowse User Guide showing touchpad gestures and remote controls](assets/readme/user-guide.png)
 
-The app uses private tvOS and WebKit APIs and is intended for personal development and sideloading.
+**One touchpad. Everywhere.** This guide opens from **Menu → Tools → User Guide**. [Read the full User Guide](docs/USER_GUIDE.md).
 
-## Using the remote
+<details>
+<summary>Install on your Apple TV</summary>
 
-Slide on the touchpad to move the pointer, press Center to click, and use Up/Down to scroll. Back/Menu opens the browser menu. The menu provides address entry, tabs, Favorites, history, Torrents, zoom, settings, and data-clearing actions. App-owned pages use tvOS focus: Center activates, holding Center opens context actions, and Play/Pause performs the page's shortcut.
+### 1. Prepare your Mac
 
-The visual quick guide is available in the app's Tools menu. On New Tab, Center opens a Favorite or recent visit; Play/Pause opens its actions. In All History, Center opens a row and Play/Pause marks it for selection. In Torrents, Center or Play/Pause plays a focused media file, while the download icon selects it without playback. Hold Center on app-owned rows for more actions.
+Install Xcode with the tvOS SDK and open it once to finish setup. Sign in under **Xcode → Settings → Apple Accounts**; a personal Apple Account can be used for local development. The dependency scripts need `curl`, `unzip`, `tar`, `shasum` and `python3`; no Homebrew package is required by this repository.
 
-## Project status
+Pair the Apple TV before building:
 
-Current source version: **2.17.9**. The version number describes the current source state; this personal-use fork has no corresponding published releases or Git tags. Detailed development notes, changelog, roadmap, and user guide are kept locally under the ignored `docs/agent/` directory.
+1. Connect the Mac and Apple TV to the same local network with IPv6 enabled.
+2. On Apple TV, open **Settings → Remotes and Devices → Remote App and Devices**.
+3. In Xcode, open **Device Hub** from **Xcode → Open Developer Tool → Device Hub** (or **Manage Devices** from the destination menu). Choose **+ → Pair Nearby Device → Apple TV**, select your TV and enter the PIN shown on it.
+4. Wait until the TV appears as an available run destination. See [Apple's device-pairing instructions](https://developer.apple.com/documentation/xcode/pairing-your-devices-with-your-mac) if pairing does not complete.
+
+Clone the source:
+
+```sh
+git clone https://github.com/just-better-code/tvOSofaBrowse.git
+cd tvOSofaBrowse
+```
+
+### 2. Install media dependencies
+
+From the repository root, run:
+
+```sh
+./scripts/bootstrap-torrent-deps.sh
+./scripts/bootstrap-vlc-deps.sh
+```
+
+The scripts download pinned libtorrent, Boost and TVVLCKit versions, check archive SHA-256 hashes, and place the binaries in the ignored `.deps/` directory. Run them before building the Xcode project. They can be rerun if a dependency is missing; an existing complete installation is skipped.
+
+### 3. Set up local signing
+
+Create your ignored local signing file:
+
+```sh
+cp _Project/Browser/Config/Signing.local.xcconfig.example _Project/Browser/Config/Signing.local.xcconfig
+```
+
+Edit only that local file: replace `YOUR_TEAM_ID` with the team ID selected in Xcode, and replace `org.example.your.tvosbrowser` with your own unique bundle identifier. Do not put personal signing values in shared project files.
+
+### 4. Build, install and launch
+
+1. Open [`_Project/Browser.xcodeproj`](_Project/Browser.xcodeproj) in Xcode.
+2. Select the shared **Browser** scheme and your paired Apple TV as the destination.
+3. Press **Run** (`⌘R`). Xcode builds, signs, installs and launches the app. Use a touchpad-equipped remote to control it.
+
+If Xcode reports a missing libtorrent or TVVLCKit binary, rerun both bootstrap scripts and confirm `.deps/` contains their `.xcframework` directories. If signing fails, check the team and bundle identifier in `Signing.local.xcconfig` and Xcode's automatic signing status. The app is intended for local sideloading; there is no App Store or prebuilt release.
+
+</details>
+
+<details>
+<summary>Compatibility and project notes</summary>
+
+Website players, formats, codecs and DRM vary; some iframe controls and fullscreen paths still need work. This personal-use fork of [tvOS Browser](https://github.com/jvanakker/tvOSBrowser) uses private tvOS and WebKit APIs and has no App Store or prebuilt release. Preserve dependency licenses when redistributing source or binaries.
+
+Current source version: **2.17.11**. The retrospective version history has no matching published release or Git tag.
+
+</details>
+
+*Images are illustrative and based on anonymized app screenshots.*
