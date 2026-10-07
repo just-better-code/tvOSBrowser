@@ -1,11 +1,13 @@
 #import "BrowserUsageGuideViewController.h"
 
 #import "BrowserPreferencesStore.h"
+#import "BrowserTVAppearance.h"
 
 @interface BrowserUsageGuideViewController ()
 
 @property (nonatomic, strong) BrowserPreferencesStore *preferencesStore;
 @property (nonatomic, strong) UIButton *launchPreferenceButton;
+@property (nonatomic, strong) UILabel *launchPreferenceStateLabel;
 @property (nonatomic, strong) UIButton *continueButton;
 @property (nonatomic, strong) UIImageView *cursorView;
 @property (nonatomic, weak) UIView *preferredButton;
@@ -259,6 +261,18 @@
     [launchButton addTarget:self action:@selector(toggleLaunchPreference) forControlEvents:UIControlEventPrimaryActionTriggered];
     [content addSubview:launchButton];
     self.launchPreferenceButton = launchButton;
+
+    UILabel *launchStateLabel = [UILabel new];
+    launchStateLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    launchStateLabel.userInteractionEnabled = NO;
+    [launchButton addSubview:launchStateLabel];
+    self.launchPreferenceStateLabel = launchStateLabel;
+    [NSLayoutConstraint activateConstraints:@[
+        [launchStateLabel.trailingAnchor constraintEqualToAnchor:launchButton.trailingAnchor constant:-16.0],
+        [launchStateLabel.centerYAnchor constraintEqualToAnchor:launchButton.centerYAnchor],
+        [launchStateLabel.widthAnchor constraintEqualToConstant:42.0],
+        [launchStateLabel.heightAnchor constraintEqualToConstant:22.0],
+    ]];
     [self updateLaunchPreferenceButton];
 
     UIButton *continueButton = [UIButton buttonWithType:UIButtonTypeSystem];
@@ -389,10 +403,8 @@
 
 - (void)updateLaunchPreferenceButton {
     BOOL showOnLaunch = !self.preferencesStore.dontShowHintsOnLaunch;
-    NSString *symbol = showOnLaunch ? @"checkmark.square.fill" : @"square";
-    UIImage *image = [UIImage systemImageNamed:symbol];
-    [self.launchPreferenceButton setImage:image forState:UIControlStateNormal];
-    [self.launchPreferenceButton setTitle:@"  Show this guide at launch" forState:UIControlStateNormal];
+    [self.launchPreferenceButton setTitle:@"Show this guide at launch" forState:UIControlStateNormal];
+    BrowserTVConfigureToggleBadge(self.launchPreferenceStateLabel, showOnLaunch);
     self.launchPreferenceButton.accessibilityValue = showOnLaunch ? @"On" : @"Off";
 }
 

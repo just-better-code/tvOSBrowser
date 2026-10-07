@@ -14,6 +14,21 @@ static inline UIColor *BrowserTVFocusedTextColor(void) {
     return [UIColor colorWithRed:0.29 green:0.25 blue:0.37 alpha:1.0];
 }
 
+static inline UIColor *BrowserTVToggleBadgeColor(BOOL enabled) {
+    return enabled ? [UIColor colorWithRed:0.20 green:0.72 blue:0.42 alpha:0.95]
+                   : [UIColor colorWithWhite:0.42 alpha:0.65];
+}
+
+static inline void BrowserTVConfigureToggleBadge(UILabel *badge, BOOL enabled) {
+    badge.font = [UIFont systemFontOfSize:14.0 weight:UIFontWeightSemibold];
+    badge.textAlignment = NSTextAlignmentCenter;
+    badge.textColor = UIColor.whiteColor;
+    badge.layer.cornerRadius = 11.0;
+    badge.layer.masksToBounds = YES;
+    badge.text = enabled ? @"ON" : @"OFF";
+    badge.backgroundColor = BrowserTVToggleBadgeColor(enabled);
+}
+
 static inline UIVisualEffect *BrowserTVPanelEffect(void) {
     Class glassClass = NSClassFromString(@"UIGlassEffect");
     return glassClass != Nil ? [[glassClass alloc] init]
