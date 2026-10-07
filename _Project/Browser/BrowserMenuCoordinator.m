@@ -4,6 +4,7 @@
 #import "BrowserHistoryStore.h"
 #import "BrowserPreferencesStore.h"
 #import "BrowserTorrentKeepAlive.h"
+#import "BrowserTVAppearance.h"
 #import "BrowserWebView.h"
 
 static UIColor *MenuTextColor(void) {
@@ -29,6 +30,7 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
 @property (nonatomic, copy) NSString *tileSymbolName;
 @property (nonatomic) UIAlertActionStyle style;
 @property (nonatomic, copy) BrowserAdvancedMenuItemHandler handler;
+@property (nonatomic, copy) BrowserAdvancedMenuItemHandler longPressHandler;
 @property (nonatomic, copy) BrowserAdvancedMenuToggleStateProvider toggleStateProvider;
 @property (nonatomic, copy) BrowserAdvancedMenuTitleProvider tileTitleProvider;
 @property (nonatomic) BOOL enabled;
@@ -215,6 +217,7 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
 @property (nonatomic) UIView *dimView;
 @property (nonatomic) UIVisualEffectView *panelView;
 @property (nonatomic) UICollectionView *tileView;
+@property (nonatomic) NSIndexPath *focusedTileIndexPath;
 @property (nonatomic) NSLayoutConstraint *panelTrailingConstraint;
 @property (nonatomic) CGFloat panelWidth;
 @property (nonatomic) BOOL didAnimateIn;
@@ -433,6 +436,12 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
                withReuseIdentifier:@"MenuSectionHeader"];
     [panelView.contentView addSubview:tileView];
     self.tileView = tileView;
+    UILongPressGestureRecognizer *settingsPress = [[UILongPressGestureRecognizer alloc]
+        initWithTarget:self action:@selector(handleTileLongPress:)];
+    settingsPress.minimumPressDuration = 0.6;
+    settingsPress.allowedPressTypes = @[@(UIPressTypeSelect)];
+    settingsPress.cancelsTouchesInView = YES;
+    [tileView addGestureRecognizer:settingsPress];
 
     self.panelTrailingConstraint = [panelView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor
                                                                              constant:self.panelWidth + 32.0];
@@ -626,6 +635,15 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
     [self dismissMenuWithCompletion:handler];
 }
 
+- (void)handleTileLongPress:(UILongPressGestureRecognizer *)recognizer {
+    if (recognizer.state != UIGestureRecognizerStateBegan) return;
+    NSIndexPath *indexPath = [self.tileView indexPathForItemAtPoint:[recognizer locationInView:self.tileView]];
+    if (indexPath == nil) indexPath = self.focusedTileIndexPath;
+    if (indexPath == nil) return;
+    BrowserAdvancedMenuItem *item = self.sections[(NSUInteger)indexPath.section].items[(NSUInteger)indexPath.item];
+    if (item.longPressHandler != nil) [self dismissMenuWithCompletion:item.longPressHandler];
+}
+
 - (void)toolbarButtonPressed:(UIButton *)button {
     NSInteger index = button.tag - 10000;
     if (index < 0 || index >= (NSInteger)self.toolbarItems.count) {
@@ -684,6 +702,9 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
     [super didUpdateFocusInContext:context withAnimationCoordinator:coordinator];
     UIView *previousView = context.previouslyFocusedView;
     UIView *nextView = context.nextFocusedView;
+    if ([nextView isKindOfClass:BrowserAdvancedMenuTileCell.class]) {
+        self.focusedTileIndexPath = [self.tileView indexPathForCell:(BrowserAdvancedMenuTileCell *)nextView];
+    }
     if (previousView == self.addressButton) {
         previousView.layer.zPosition = 0.0;
         previousView.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.12];
@@ -739,6 +760,239 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
     if (press != nil && press.type == UIPressTypeMenu) {
         [self dismissMenuWithCompletion:nil];
         return;
+    }
+    [super pressesEnded:presses withEvent:event];
+}
+
+@end
+
+@interface BrowserAdBlockSettingsCell : UITableViewCell
+- (void)refreshAppearance;
+@end
+
+@implementation BrowserAdBlockSettingsCell
+
+- (instancetype)initWithStyle:(UITableViewCellStyle)style reuseIdentifier:(NSString *)identifier {
+    self = [super initWithStyle:UITableViewCellStyleValue1 reuseIdentifier:identifier];
+    if (self) {
+        self.backgroundColor = UIColor.clearColor;
+        self.selectionStyle = UITableViewCellSelectionStyleNone;
+        self.contentView.layer.cornerRadius = 14.0;
+        self.contentView.layer.masksToBounds = YES;
+        self.textLabel.font = [UIFont systemFontOfSize:23.0 weight:UIFontWeightMedium];
+        self.detailTextLabel.font = [UIFont systemFontOfSize:18.0 weight:UIFontWeightRegular];
+        self.detailTextLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+        [self refreshAppearance];
+    }
+    return self;
+}
+
+- (void)layoutSubviews {
+    [super layoutSubviews];
+    self.contentView.frame = CGRectInset(self.bounds, 0.0, 5.0);
+}
+
+- (void)refreshAppearance {
+    BOOL focused = self.isFocused;
+    self.contentView.backgroundColor = focused ? BrowserTVFocusedSurfaceColor()
+                                               : BrowserTVRestingSurfaceColor();
+    self.textLabel.textColor = focused ? BrowserTVFocusedTextColor() : UIColor.whiteColor;
+    self.detailTextLabel.textColor = focused ? BrowserTVFocusedTextColor()
+                                             : [UIColor colorWithWhite:1.0 alpha:0.72];
+}
+
+- (void)didUpdateFocusInContext:(UIFocusUpdateContext *)context
+       withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
+    [super didUpdateFocusInContext:context withAnimationCoordinator:coordinator];
+    [coordinator addCoordinatedAnimations:^{ [self refreshAppearance]; } completion:nil];
+}
+
+@end
+
+@interface BrowserAdBlockSettingsViewController : UIViewController <UITableViewDataSource, UITableViewDelegate>
+
+@property (nonatomic, copy) BOOL (^protectionEnabled)(void);
+@property (nonatomic, copy) void (^toggleProtection)(void);
+@property (nonatomic, copy) void (^toggleSource)(NSString *identifier);
+@property (nonatomic, copy) NSArray<NSDictionary<NSString *, NSString *> *> *sources;
+@property (nonatomic, strong) UITableView *tableView;
+
+- (instancetype)initWithProtectionEnabled:(BOOL (^)(void))protectionEnabled
+                         toggleProtection:(void (^)(void))toggleProtection
+                             toggleSource:(void (^)(NSString *identifier))toggleSource;
+
+@end
+
+@implementation BrowserAdBlockSettingsViewController
+
+- (instancetype)initWithProtectionEnabled:(BOOL (^)(void))protectionEnabled
+                         toggleProtection:(void (^)(void))toggleProtection
+                             toggleSource:(void (^)(NSString *identifier))toggleSource {
+    self = [super initWithNibName:nil bundle:nil];
+    if (self) {
+        _protectionEnabled = [protectionEnabled copy];
+        _toggleProtection = [toggleProtection copy];
+        _toggleSource = [toggleSource copy];
+        _sources = [BrowserWebView.adBlockSources copy];
+        self.modalPresentationStyle = UIModalPresentationOverCurrentContext;
+        self.modalTransitionStyle = UIModalTransitionStyleCrossDissolve;
+    }
+    return self;
+}
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.view.backgroundColor = [UIColor colorWithWhite:0.0 alpha:0.48];
+
+    UIVisualEffectView *panel = [[UIVisualEffectView alloc] initWithEffect:BrowserTVPanelEffect()];
+    panel.translatesAutoresizingMaskIntoConstraints = NO;
+    panel.layer.cornerRadius = 28.0;
+    panel.layer.masksToBounds = YES;
+    panel.layer.borderWidth = NSClassFromString(@"UIGlassEffect") != Nil ? 0.0 : 1.0;
+    panel.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.25].CGColor;
+    [self.view addSubview:panel];
+
+    UILabel *heading = [UILabel new];
+    heading.translatesAutoresizingMaskIntoConstraints = NO;
+    heading.text = @"Ad Block Settings";
+    heading.textColor = UIColor.whiteColor;
+    heading.font = [UIFont systemFontOfSize:40.0 weight:UIFontWeightBold];
+    [panel.contentView addSubview:heading];
+
+    UITableView *table = [[UITableView alloc] initWithFrame:CGRectZero style:UITableViewStylePlain];
+    table.translatesAutoresizingMaskIntoConstraints = NO;
+    table.dataSource = self;
+    table.delegate = self;
+    table.rowHeight = 72.0;
+    table.backgroundColor = UIColor.clearColor;
+    table.showsVerticalScrollIndicator = YES;
+    [panel.contentView addSubview:table];
+    self.tableView = table;
+
+    UIButton *doneButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    doneButton.translatesAutoresizingMaskIntoConstraints = NO;
+    doneButton.backgroundColor = BrowserTVRestingSurfaceColor();
+    doneButton.layer.cornerRadius = 14.0;
+    doneButton.titleLabel.font = [UIFont systemFontOfSize:24.0 weight:UIFontWeightMedium];
+    [doneButton setTitle:@"Done" forState:UIControlStateNormal];
+    [doneButton setTitleColor:UIColor.whiteColor forState:UIControlStateNormal];
+    [doneButton setTitleColor:BrowserTVFocusedTextColor() forState:UIControlStateFocused];
+    [doneButton addTarget:self action:@selector(donePressed:) forControlEvents:UIControlEventPrimaryActionTriggered];
+    [panel.contentView addSubview:doneButton];
+
+    CGFloat width = MIN(MAX(CGRectGetWidth(UIScreen.mainScreen.bounds) * 0.58, 720.0), 1100.0) * 0.5;
+    CGFloat contentHeight = 28.0 + 48.0 + 22.0 + ((CGFloat)self.sources.count + 2.0) * table.rowHeight + 18.0 + 64.0 + 24.0;
+    NSLayoutConstraint *preferredHeight = [panel.heightAnchor constraintEqualToConstant:MIN(contentHeight, 860.0)];
+    preferredHeight.priority = UILayoutPriorityDefaultHigh;
+    [NSLayoutConstraint activateConstraints:@[
+        [panel.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
+        [panel.centerYAnchor constraintEqualToAnchor:self.view.centerYAnchor],
+        [panel.widthAnchor constraintEqualToConstant:width],
+        [panel.widthAnchor constraintLessThanOrEqualToAnchor:self.view.safeAreaLayoutGuide.widthAnchor constant:-60.0],
+        preferredHeight,
+        [panel.heightAnchor constraintLessThanOrEqualToAnchor:self.view.safeAreaLayoutGuide.heightAnchor constant:-50.0],
+        [heading.leadingAnchor constraintEqualToAnchor:panel.contentView.leadingAnchor constant:24.0],
+        [heading.trailingAnchor constraintEqualToAnchor:panel.contentView.trailingAnchor constant:-24.0],
+        [heading.topAnchor constraintEqualToAnchor:panel.contentView.topAnchor constant:28.0],
+        [table.leadingAnchor constraintEqualToAnchor:panel.contentView.leadingAnchor constant:20.0],
+        [table.trailingAnchor constraintEqualToAnchor:panel.contentView.trailingAnchor constant:-20.0],
+        [table.topAnchor constraintEqualToAnchor:heading.bottomAnchor constant:22.0],
+        [table.bottomAnchor constraintEqualToAnchor:doneButton.topAnchor constant:-18.0],
+        [doneButton.centerXAnchor constraintEqualToAnchor:panel.contentView.centerXAnchor],
+        [doneButton.widthAnchor constraintEqualToConstant:200.0],
+        [doneButton.heightAnchor constraintEqualToConstant:64.0],
+        [doneButton.bottomAnchor constraintEqualToAnchor:panel.contentView.bottomAnchor constant:-24.0],
+    ]];
+
+    [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(sourceStatusDidChange:)
+        name:BrowserAdBlockSourceStatusDidChangeNotification object:nil];
+}
+
+- (void)dealloc {
+    [NSNotificationCenter.defaultCenter removeObserver:self
+        name:BrowserAdBlockSourceStatusDidChangeNotification object:nil];
+}
+
+- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
+    (void)tableView;
+    (void)section;
+    return (NSInteger)self.sources.count + 2;
+}
+
+- (void)configureCell:(BrowserAdBlockSettingsCell *)cell atIndexPath:(NSIndexPath *)indexPath {
+    NSInteger row = indexPath.row;
+    NSString *title = nil;
+    NSString *detail = nil;
+    if (row == 0) {
+        title = @"Ad Block";
+        BOOL (^enabledProvider)(void) = self.protectionEnabled;
+        detail = enabledProvider != nil && enabledProvider() ? @"ON" : @"OFF";
+    } else if (row <= (NSInteger)self.sources.count) {
+        NSDictionary *source = self.sources[(NSUInteger)(row - 1)];
+        NSString *identifier = source[@"id"];
+        title = [source[@"title"] stringByReplacingOccurrencesOfString:@"AdGuard " withString:@""];
+        detail = [NSString stringWithFormat:@"%@ · %@", [BrowserWebView adBlockSourceEnabled:identifier] ? @"ON" : @"OFF",
+                  [BrowserWebView adBlockSourceStatus:identifier]];
+    } else {
+        title = @"Update Filters Now";
+    }
+    cell.textLabel.text = title;
+    cell.detailTextLabel.text = detail;
+    cell.accessibilityLabel = detail.length > 0 ? [NSString stringWithFormat:@"%@, %@", title, detail] : title;
+    [cell refreshAppearance];
+}
+
+- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
+    BrowserAdBlockSettingsCell *cell = [tableView dequeueReusableCellWithIdentifier:@"AdBlockSource"];
+    if (cell == nil) cell = [[BrowserAdBlockSettingsCell alloc] initWithStyle:UITableViewCellStyleValue1
+                                                            reuseIdentifier:@"AdBlockSource"];
+    [self configureCell:cell atIndexPath:indexPath];
+    return cell;
+}
+
+- (void)refreshVisibleRows {
+    for (BrowserAdBlockSettingsCell *cell in self.tableView.visibleCells) {
+        NSIndexPath *indexPath = [self.tableView indexPathForCell:cell];
+        if (indexPath != nil) [self configureCell:cell atIndexPath:indexPath];
+    }
+}
+
+- (void)sourceStatusDidChange:(NSNotification *)notification {
+    (void)notification;
+    [self refreshVisibleRows];
+}
+
+- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
+    [tableView deselectRowAtIndexPath:indexPath animated:YES];
+    NSInteger row = indexPath.row;
+    if (row == 0) {
+        void (^toggleProtection)(void) = self.toggleProtection;
+        if (toggleProtection != nil) toggleProtection();
+    } else if (row <= (NSInteger)self.sources.count) {
+        void (^toggleSource)(NSString *) = self.toggleSource;
+        if (toggleSource != nil) toggleSource(self.sources[(NSUInteger)(row - 1)][@"id"]);
+    } else {
+        [BrowserWebView refreshAdBlockSources];
+    }
+    [self refreshVisibleRows];
+}
+
+- (void)donePressed:(UIButton *)button {
+    (void)button;
+    [self dismissViewControllerAnimated:YES completion:nil];
+}
+
+- (void)pressesEnded:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
+    for (UIPress *press in presses) {
+        if (press.type == UIPressTypeMenu) {
+            [self dismissViewControllerAnimated:YES completion:nil];
+            return;
+        }
+        if (press.type == UIPressTypePlayPause) {
+            [BrowserWebView refreshAdBlockSources];
+            [self refreshVisibleRows];
+            return;
+        }
     }
     [super pressesEnded:presses withEvent:event];
 }
@@ -1291,6 +1545,24 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
     return item;
 }
 
+- (void)presentAdBlockSettings {
+    __weak typeof(self) weakSelf = self;
+    BrowserAdBlockSettingsViewController *settings =
+        [[BrowserAdBlockSettingsViewController alloc] initWithProtectionEnabled:^BOOL {
+            return weakSelf.preferencesStore.adBlockEnabled;
+        } toggleProtection:^{
+            BrowserMenuCoordinator *strongSelf = weakSelf;
+            if (strongSelf == nil) return;
+            BOOL enabled = !strongSelf.preferencesStore.adBlockEnabled;
+            strongSelf.preferencesStore.adBlockEnabled = enabled;
+            [strongSelf.host browserSetAdBlockEnabled:enabled];
+        } toggleSource:^(NSString *identifier) {
+            [BrowserWebView setAdBlockSource:identifier
+                                    enabled:![BrowserWebView adBlockSourceEnabled:identifier]];
+        }];
+    [self.host browserPresentViewController:settings];
+}
+
 - (BrowserAdvancedMenuItem *)adBlockToggleMenuItem {
     BrowserAdvancedMenuItem *item = [self advancedMenuItemWithTitle:@"Ad Block"
                                                                style:UIAlertActionStyleDefault
@@ -1304,6 +1576,9 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
     item.toggleStateProvider = ^BOOL {
         return self.preferencesStore.adBlockEnabled ||
             [self.host.browserWebView.adBlockStatus isEqualToString:@"removal-unavailable"];
+    };
+    item.longPressHandler = ^{
+        [self presentAdBlockSettings];
     };
     return item;
 }
