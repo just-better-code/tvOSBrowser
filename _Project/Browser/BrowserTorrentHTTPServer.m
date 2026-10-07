@@ -20,6 +20,22 @@ static BOOL BrowserTorrentSendAll(int socketFD, const void *bytes, NSUInteger le
     return YES;
 }
 
+static NSString *BrowserTorrentSafeURLName(NSString *name) {
+    NSString *latin = [name stringByApplyingTransform:NSStringTransformToLatin reverse:NO] ?: name;
+    NSString *folded = [latin stringByFoldingWithOptions:NSDiacriticInsensitiveSearch locale:nil];
+    NSMutableString *safe = [NSMutableString string];
+    for (NSUInteger i = 0; i < folded.length && safe.length < 72; i++) {
+        unichar character = [folded characterAtIndex:i];
+        BOOL allowed = (character >= 'A' && character <= 'Z') ||
+                       (character >= 'a' && character <= 'z') ||
+                       (character >= '0' && character <= '9') || character == '-';
+        if (allowed) [safe appendFormat:@"%C", character];
+        else if (safe.length > 0 && ![safe hasSuffix:@"_"]) [safe appendString:@"_"];
+    }
+    while ([safe hasSuffix:@"_"]) [safe deleteCharactersInRange:NSMakeRange(safe.length - 1, 1)];
+    return safe;
+}
+
 @interface BrowserTorrentHTTPServer ()
 @property (nonatomic, copy) NSString *identifier;
 @property (nonatomic) NSInteger fileIndex;
@@ -74,7 +90,12 @@ static BOOL BrowserTorrentSendAll(int socketFD, const void *bytes, NSUInteger le
         return NO;
     }
     NSString *token = NSUUID.UUID.UUIDString;
-    self.requestPath = [NSString stringWithFormat:@"/%@/%ld.%@", token, (long)self.fileIndex, self.fileExtension];
+    NSString *safeName = BrowserTorrentSafeURLName(selected.name.lastPathComponent.stringByDeletingPathExtension);
+    if (safeName.length == 0) safeName = [NSString stringWithFormat:@"%ld", (long)self.fileIndex];
+    NSString *safeExtension = BrowserTorrentSafeURLName(self.fileExtension);
+    NSString *filename = safeExtension.length > 0
+        ? [NSString stringWithFormat:@"%@.%@", safeName, safeExtension] : safeName;
+    self.requestPath = [NSString stringWithFormat:@"/%@/%@", token, filename];
     self.mediaURL = [NSURL URLWithString:[NSString stringWithFormat:@"http://127.0.0.1:%u%@", ntohs(address.sin_port), self.requestPath]];
     @synchronized (self) { self.listenFD = fd; self.running = YES; }
     BrowserDebugLog(@"[TorrentHTTP] listening fileIndex=%ld size=%lld", (long)self.fileIndex, (long long)self.fileSize);

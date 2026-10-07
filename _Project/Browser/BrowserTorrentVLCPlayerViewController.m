@@ -19,6 +19,10 @@
 @property (nonatomic) UIProgressView *progressView;
 @property (nonatomic) UIView *controlsView;
 @property (nonatomic) UIButton *playButton;
+@property (nonatomic) UIButton *audioTrackButton;
+@property (nonatomic) UIButton *subtitleTrackButton;
+@property (nonatomic, copy) NSString *audioMenuKey;
+@property (nonatomic, copy) NSString *subtitleMenuKey;
 @property (nonatomic) NSTimer *progressTimer;
 @property (nonatomic) NSUInteger controlsGeneration;
 @property (nonatomic) NSInteger lastReportedState;
@@ -147,30 +151,43 @@ static NSInteger const kBrowserVLCControlIconTag = 9797;
     forward.tag = 10;
     forward30.tag = 30;
     self.playButton = play;
-    UIStackView *buttons = [[UIStackView alloc] initWithArrangedSubviews:@[close, previous, back30, back, play, forward, forward30, next]];
+    UIButton *audioTrack = [self trackButtonWithTitle:@"Audio: Unavailable" action:@selector(audioTrackPressed)];
+    UIButton *subtitleTrack = [self trackButtonWithTitle:@"Subtitles: Unavailable" action:@selector(subtitleTrackPressed)];
+    self.audioTrackButton = audioTrack;
+    self.subtitleTrackButton = subtitleTrack;
+    NSArray<UIButton *> *mainButtons = @[close, previous, back30, back, play, forward, forward30, next];
+    for (UIButton *button in mainButtons) {
+        [button.widthAnchor constraintEqualToConstant:68].active = YES;
+        [button.heightAnchor constraintEqualToConstant:68].active = YES;
+    }
+    for (UIButton *button in @[audioTrack, subtitleTrack]) {
+        [button.widthAnchor constraintEqualToConstant:220].active = YES;
+        [button.heightAnchor constraintEqualToConstant:68].active = YES;
+    }
+    UIStackView *buttons = [[UIStackView alloc] initWithArrangedSubviews:
+        [mainButtons arrayByAddingObjectsFromArray:@[audioTrack, subtitleTrack]]];
     buttons.translatesAutoresizingMaskIntoConstraints = NO;
     buttons.axis = UILayoutConstraintAxisHorizontal;
-    buttons.distribution = UIStackViewDistributionFillEqually;
-    buttons.spacing = 16;
+    buttons.alignment = UIStackViewAlignmentCenter;
+    buttons.spacing = 10;
     [controls addSubview:buttons];
     [NSLayoutConstraint activateConstraints:@[
         [controls.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
         [controls.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
         [controls.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
-        [controls.heightAnchor constraintEqualToConstant:205],
+        [controls.heightAnchor constraintEqualToConstant:190],
         [controlsBackdrop.leadingAnchor constraintEqualToAnchor:controls.leadingAnchor],
         [controlsBackdrop.trailingAnchor constraintEqualToAnchor:controls.trailingAnchor],
         [controlsBackdrop.topAnchor constraintEqualToAnchor:controls.topAnchor],
         [controlsBackdrop.bottomAnchor constraintEqualToAnchor:controls.bottomAnchor],
         [progress.leadingAnchor constraintEqualToAnchor:controls.leadingAnchor constant:80],
         [progress.trailingAnchor constraintEqualToAnchor:controls.trailingAnchor constant:-80],
-        [progress.topAnchor constraintEqualToAnchor:controls.topAnchor constant:28],
+        [progress.topAnchor constraintEqualToAnchor:controls.topAnchor constant:20],
         [time.leadingAnchor constraintEqualToAnchor:progress.leadingAnchor],
-        [time.topAnchor constraintEqualToAnchor:progress.bottomAnchor constant:12],
+        [time.topAnchor constraintEqualToAnchor:progress.bottomAnchor constant:10],
         [buttons.centerXAnchor constraintEqualToAnchor:controls.centerXAnchor],
-        [buttons.widthAnchor constraintEqualToConstant:1320],
-        [buttons.topAnchor constraintEqualToAnchor:time.bottomAnchor constant:12],
-        [buttons.heightAnchor constraintEqualToConstant:72],
+        [buttons.topAnchor constraintEqualToAnchor:time.bottomAnchor constant:22],
+        [buttons.heightAnchor constraintEqualToConstant:68],
     ]];
 
     UILongPressGestureRecognizer *contextPress = [[UILongPressGestureRecognizer alloc] initWithTarget:self
@@ -292,6 +309,10 @@ static NSInteger const kBrowserVLCControlIconTag = 9797;
     self.vlcPlayer.delegate = self;
     self.vlcPlayer.drawable = self.videoView;
     self.vlcPlayer.media = media;
+    self.audioMenuKey = nil;
+    self.subtitleMenuKey = nil;
+    [self updateTrackButton:self.audioTrackButton prefix:@"Audio" indexes:@[] names:@[] selectedIndex:-1];
+    [self updateTrackButton:self.subtitleTrackButton prefix:@"Subtitles" indexes:@[] names:@[] selectedIndex:-1];
     self.lastPlaybackTime = 0;
     self.lastPlaybackProgressTime = NSDate.date.timeIntervalSince1970;
     BrowserDebugLog(@"[TorrentVLC] prepared fileIndex=%ld local=%d", (long)self.fileIndex, mediaURL.isFileURL);
@@ -328,10 +349,20 @@ static NSInteger const kBrowserVLCControlIconTag = 9797;
 
 - (UIButton *)controlButtonWithSymbol:(NSString *)symbol label:(NSString *)label action:(SEL)action {
     UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
-    button.backgroundColor = BrowserTVRestingSurfaceColor();
-    button.layer.cornerRadius = 18;
+    button.backgroundColor = UIColor.clearColor;
+    button.layer.cornerRadius = 34;
+    button.clipsToBounds = YES;
+    UIVisualEffectView *backdrop = [self glassBackdrop];
+    backdrop.userInteractionEnabled = NO;
+    [button insertSubview:backdrop atIndex:0];
+    [NSLayoutConstraint activateConstraints:@[
+        [backdrop.leadingAnchor constraintEqualToAnchor:button.leadingAnchor],
+        [backdrop.trailingAnchor constraintEqualToAnchor:button.trailingAnchor],
+        [backdrop.topAnchor constraintEqualToAnchor:button.topAnchor],
+        [backdrop.bottomAnchor constraintEqualToAnchor:button.bottomAnchor],
+    ]];
     button.accessibilityLabel = label;
-    UIImageSymbolConfiguration *configuration = [UIImageSymbolConfiguration configurationWithPointSize:34 weight:UIImageSymbolWeightSemibold];
+    UIImageSymbolConfiguration *configuration = [UIImageSymbolConfiguration configurationWithPointSize:29 weight:UIImageSymbolWeightSemibold];
     UIImageView *icon = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:symbol withConfiguration:configuration]];
     icon.translatesAutoresizingMaskIntoConstraints = NO;
     icon.tag = kBrowserVLCControlIconTag;
@@ -342,11 +373,130 @@ static NSInteger const kBrowserVLCControlIconTag = 9797;
     [NSLayoutConstraint activateConstraints:@[
         [icon.centerXAnchor constraintEqualToAnchor:button.centerXAnchor],
         [icon.centerYAnchor constraintEqualToAnchor:button.centerYAnchor],
-        [icon.widthAnchor constraintEqualToConstant:44],
-        [icon.heightAnchor constraintEqualToConstant:44],
+        [icon.widthAnchor constraintEqualToConstant:38],
+        [icon.heightAnchor constraintEqualToConstant:38],
     ]];
     [button addTarget:self action:action forControlEvents:UIControlEventPrimaryActionTriggered];
     return button;
+}
+
+- (UIButton *)trackButtonWithTitle:(NSString *)title action:(SEL)action {
+    UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
+    button.backgroundColor = UIColor.clearColor;
+    button.layer.cornerRadius = 34;
+    button.clipsToBounds = YES;
+    UIVisualEffectView *backdrop = [self glassBackdrop];
+    backdrop.userInteractionEnabled = NO;
+    [button insertSubview:backdrop atIndex:0];
+    [NSLayoutConstraint activateConstraints:@[
+        [backdrop.leadingAnchor constraintEqualToAnchor:button.leadingAnchor],
+        [backdrop.trailingAnchor constraintEqualToAnchor:button.trailingAnchor],
+        [backdrop.topAnchor constraintEqualToAnchor:button.topAnchor],
+        [backdrop.bottomAnchor constraintEqualToAnchor:button.bottomAnchor],
+    ]];
+    button.titleLabel.font = [UIFont systemFontOfSize:18 weight:UIFontWeightSemibold];
+    button.titleLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+    button.titleLabel.adjustsFontSizeToFitWidth = YES;
+    button.titleLabel.minimumScaleFactor = 0.85;
+    [button setTitle:title forState:UIControlStateNormal];
+    [button setTitleColor:UIColor.whiteColor forState:UIControlStateNormal];
+    [button setTitleColor:BrowserTVFocusedTextColor() forState:UIControlStateFocused];
+    [button addTarget:self action:action forControlEvents:UIControlEventPrimaryActionTriggered];
+    button.enabled = NO;
+    return button;
+}
+
+- (void)refreshTrackControls {
+    [self updateTrackButton:self.audioTrackButton prefix:@"Audio"
+                   indexes:self.vlcPlayer.audioTrackIndexes names:self.vlcPlayer.audioTrackNames
+             selectedIndex:self.vlcPlayer.currentAudioTrackIndex];
+    [self updateTrackButton:self.subtitleTrackButton prefix:@"Subtitles"
+                   indexes:self.vlcPlayer.videoSubTitlesIndexes names:self.vlcPlayer.videoSubTitlesNames
+             selectedIndex:self.vlcPlayer.currentVideoSubTitleIndex];
+}
+
+- (void)updateTrackButton:(UIButton *)button prefix:(NSString *)prefix
+                  indexes:(NSArray<NSNumber *> *)indexes names:(NSArray<NSString *> *)names
+            selectedIndex:(int)selectedIndex {
+    NSUInteger count = MIN(indexes.count, names.count);
+    BOOL hasTrack = NO;
+    NSString *selection = @"Off";
+    for (NSUInteger i = 0; i < count; i++) {
+        int trackIndex = indexes[i].intValue;
+        if (trackIndex >= 0) hasTrack = YES;
+        if (trackIndex == selectedIndex) selection = trackIndex < 0 ? @"Off" : names[i];
+    }
+    button.enabled = hasTrack;
+    NSString *title = hasTrack ? [NSString stringWithFormat:@"%@: %@ ▾", prefix, selection]
+                               : [NSString stringWithFormat:@"%@: Unavailable", prefix];
+    if (![button.currentTitle isEqualToString:title]) [button setTitle:title forState:UIControlStateNormal];
+    button.accessibilityLabel = title;
+    if (@available(tvOS 17.0, *)) {
+        BOOL audio = button == self.audioTrackButton;
+        NSString *menuKey = [NSString stringWithFormat:@"%@|%@|%d", indexes, names, selectedIndex];
+        NSString *previousKey = audio ? self.audioMenuKey : self.subtitleMenuKey;
+        if (![menuKey isEqualToString:previousKey]) {
+            NSMutableArray<UIAction *> *actions = [NSMutableArray arrayWithCapacity:count];
+            VLCMediaPlayer *player = self.vlcPlayer;
+            __weak typeof(self) weakSelf = self;
+            for (NSUInteger i = 0; i < count; i++) {
+                int trackIndex = indexes[i].intValue;
+                NSString *name = trackIndex < 0 ? @"Off" : names[i];
+                UIAction *action = [UIAction actionWithTitle:name image:nil identifier:nil
+                    handler:^(__unused UIAction *selectedAction) {
+                        if (weakSelf.vlcPlayer != player) return;
+                        if (audio) player.currentAudioTrackIndex = trackIndex;
+                        else player.currentVideoSubTitleIndex = trackIndex;
+                        [weakSelf refreshTrackControls];
+                        [weakSelf showControls];
+                    }];
+                action.state = trackIndex == selectedIndex ? UIMenuElementStateOn : UIMenuElementStateOff;
+                [actions addObject:action];
+            }
+            button.menu = hasTrack ? [UIMenu menuWithTitle:prefix children:actions] : nil;
+            button.showsMenuAsPrimaryAction = hasTrack;
+            if (audio) self.audioMenuKey = menuKey; else self.subtitleMenuKey = menuKey;
+        }
+    }
+}
+
+- (void)audioTrackPressed {
+    [self presentTrackChoicesWithTitle:@"Audio Track" indexes:self.vlcPlayer.audioTrackIndexes
+                                  names:self.vlcPlayer.audioTrackNames
+                          selectedIndex:self.vlcPlayer.currentAudioTrackIndex audio:YES];
+}
+
+- (void)subtitleTrackPressed {
+    [self presentTrackChoicesWithTitle:@"Subtitles" indexes:self.vlcPlayer.videoSubTitlesIndexes
+                                  names:self.vlcPlayer.videoSubTitlesNames
+                          selectedIndex:self.vlcPlayer.currentVideoSubTitleIndex audio:NO];
+}
+
+- (void)presentTrackChoicesWithTitle:(NSString *)title indexes:(NSArray<NSNumber *> *)indexes
+                                names:(NSArray<NSString *> *)names selectedIndex:(int)selectedIndex
+                               audio:(BOOL)audio {
+    NSUInteger count = MIN(indexes.count, names.count);
+    if (!count || self.presentedViewController) return;
+    [self showControls];
+    UIAlertController *choices = [UIAlertController alertControllerWithTitle:title message:nil
+                                                               preferredStyle:UIAlertControllerStyleAlert];
+    VLCMediaPlayer *player = self.vlcPlayer;
+    __weak typeof(self) weakSelf = self;
+    for (NSUInteger i = 0; i < count; i++) {
+        int trackIndex = indexes[i].intValue;
+        NSString *name = trackIndex < 0 ? @"Off" : names[i];
+        NSString *optionTitle = trackIndex == selectedIndex ? [@"✓ " stringByAppendingString:name] : name;
+        [choices addAction:[UIAlertAction actionWithTitle:optionTitle style:UIAlertActionStyleDefault
+            handler:^(__unused UIAlertAction *action) {
+                if (weakSelf.vlcPlayer != player) return;
+                if (audio) player.currentAudioTrackIndex = trackIndex;
+                else player.currentVideoSubTitleIndex = trackIndex;
+                [weakSelf refreshTrackControls];
+                [weakSelf showControls];
+            }]];
+    }
+    [choices addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+    [self presentViewController:choices animated:YES completion:nil];
 }
 
 - (void)didUpdateFocusInContext:(UIFocusUpdateContext *)context
@@ -356,7 +506,7 @@ static NSInteger const kBrowserVLCControlIconTag = 9797;
         if (![view isKindOfClass:UIButton.class] || ![view isDescendantOfView:self.controlsView]) continue;
         BOOL focused = view == context.nextFocusedView;
         [coordinator addCoordinatedAnimations:^{
-            view.backgroundColor = focused ? BrowserTVFocusedSurfaceColor() : BrowserTVRestingSurfaceColor();
+            view.backgroundColor = focused ? BrowserTVFocusedSurfaceColor() : UIColor.clearColor;
             UIImageView *icon = (UIImageView *)[view viewWithTag:kBrowserVLCControlIconTag];
             icon.tintColor = focused ? BrowserTVFocusedTextColor() : UIColor.whiteColor;
         } completion:nil];
@@ -393,6 +543,7 @@ static NSInteger const kBrowserVLCControlIconTag = 9797;
 }
 
 - (void)refreshProgress {
+    [self refreshTrackControls];
     if (self.pendingResumeMs >= 5000 && self.vlcPlayer.isPlaying && self.vlcPlayer.isSeekable) {
         int64_t target = self.pendingResumeMs;
         self.pendingResumeMs = 0;
@@ -453,7 +604,7 @@ static NSInteger const kBrowserVLCControlIconTag = 9797;
     __weak typeof(self) weakSelf = self;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         if (!weakSelf || weakSelf.controlsGeneration != generation || !weakSelf.view.window) return;
-        if (!weakSelf.vlcPlayer.isPlaying ||
+        if (weakSelf.presentedViewController || !weakSelf.vlcPlayer.isPlaying ||
             NSDate.date.timeIntervalSince1970 - weakSelf.lastPlaybackProgressTime > 2.5) {
             [weakSelf scheduleControlsHideForGeneration:generation after:1];
             return;

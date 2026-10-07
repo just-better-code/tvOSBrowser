@@ -1,5 +1,41 @@
 # Changelog
 
+## 2.17.17 - 2026-10-04
+
+### Fixed
+
+- Hand external VLC an ASCII-only stream URL by transliterating the media filename and replacing unsupported characters ([user guide](docs/USER_GUIDE.md#torrents)).
+
+## 2.17.16 - 2026-10-04
+
+### Fixed
+
+- Match the external VLC cone icon to the monochrome torrent controls in normal, focused and unavailable states ([user guide](docs/USER_GUIDE.md#torrents)).
+
+## 2.17.15 - 2026-10-04
+
+### Fixed
+
+- Fit round glass playback controls and compact track selectors in one row, with native track menus on supported tvOS versions ([user guide](docs/USER_GUIDE.md#torrents)).
+
+## 2.17.14 - 2026-10-04
+
+### Fixed
+
+- Keep the VLC cone button beside its torrent row and use the media filename as the external VLC stream title ([user guide](docs/USER_GUIDE.md#torrents)).
+
+## 2.17.13 - 2026-10-04
+
+### Added
+
+- Open a torrent file in the installed VLC app from its file-row icon while Keep Alive serves the file through the browser's local HTTP stream, and show setup guidance when VLC or Keep Alive is unavailable ([user guide](docs/USER_GUIDE.md#torrents)).
+
+## 2.17.12 - 2026-10-04
+
+### Added
+
+- Choose an available audio track or subtitle track from the VLC player's bottom controls, including Off when the media supports it ([user guide](docs/USER_GUIDE.md#torrents)).
+
 ## 2.17.11 - 2026-10-04
 
 ### Fixed

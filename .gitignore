@@ -74,3 +74,6 @@ AGENTS.local.md
 
 # Personal signing configuration
 _Project/Browser/Config/Signing.local.xcconfig
+
+# Personal device deployment
+scripts/push-to-*
