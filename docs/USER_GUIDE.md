@@ -75,6 +75,8 @@ The native New Tab page shows **Favorites** and recent history across the availa
 
 The session saves ordinary tabs, the active tab and each tab's Back/Forward list. An empty New Tab is temporary and is not restored as an ordinary page.
 
+If the active webpage's WebKit process terminates while the app is in the foreground, the browser automatically reloads it. It allows two automatic attempts during a burst of crashes, then stops to avoid a reload loop. After 60 seconds without another termination, automatic attempts are available again. You can still use Reload manually. Background tabs are not automatically reloaded.
+
 ## Favorites
 
 1. Open the page to save.

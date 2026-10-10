@@ -15,6 +15,9 @@
 @property (nonatomic) NSInteger navigationIndex;
 @property (nonatomic) NSInteger pendingNavigationIndex;
 @property (nonatomic) BOOL navigationHistoryRestored;
+// Transient recovery state; never included in the saved browser session.
+@property (nonatomic) NSUInteger webContentProcessCrashCount;
+@property (nonatomic) NSTimeInterval lastWebContentProcessCrashUptime;
 
 - (void)recordNavigationURLString:(NSString *)URLString;
 

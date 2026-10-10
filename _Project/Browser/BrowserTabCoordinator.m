@@ -9,6 +9,8 @@
 
 static CGFloat const kThumbnailStagingOffset = 4096.0;
 static NSString * const kBrowserNewTabURL = @"about:blank";
+static NSUInteger const kMaximumWebContentProcessReloads = 2;
+static NSTimeInterval const kWebContentProcessCrashQuietInterval = 60.0;
 
 @interface BrowserTabCoordinator ()
 
@@ -122,24 +124,6 @@ static NSString * const kBrowserNewTabURL = @"about:blank";
                                                  0.0,
                                                  viewportSize.width,
                                                  viewportSize.height);
-}
-
-- (void)prepareWebViewLayoutForSnapshot:(BrowserWebView *)webView {
-    if (webView == nil) {
-        return;
-    }
-
-    if (webView.superview == self.thumbnailStagingView) {
-        webView.frame = self.thumbnailStagingView.bounds;
-    }
-    [webView setNeedsLayout];
-    [webView layoutIfNeeded];
-
-    UIScrollView *scrollView = webView.scrollView;
-    [scrollView setNeedsLayout];
-    [scrollView layoutIfNeeded];
-    [self.rootView setNeedsLayout];
-    [self.rootView layoutIfNeeded];
 }
 
 - (void)parkWebViewForThumbnailing:(BrowserWebView *)webView {
@@ -777,6 +761,35 @@ static NSString * const kBrowserNewTabURL = @"about:blank";
 - (void)webViewDidFailLoad:(id)webView {
     BrowserTabViewModel *tab = [self tabForWebView:webView];
     tab.pendingNavigationIndex = NSNotFound;
+}
+
+- (void)webViewWebContentProcessDidTerminate:(BrowserWebView *)webView {
+    BrowserTabViewModel *tab = [self tabForWebView:webView];
+    if (tab == nil || tab != self.activeTab || webView != self.activeWebView ||
+        [tab.URLString isEqualToString:kBrowserNewTabURL] ||
+        UIApplication.sharedApplication.applicationState != UIApplicationStateActive) {
+        return;
+    }
+
+    NSTimeInterval uptime = NSProcessInfo.processInfo.systemUptime;
+    if (uptime - tab.lastWebContentProcessCrashUptime >= kWebContentProcessCrashQuietInterval) {
+        tab.webContentProcessCrashCount = 0;
+    }
+    tab.lastWebContentProcessCrashUptime = uptime;
+    tab.webContentProcessCrashCount = MIN(tab.webContentProcessCrashCount + 1,
+                                        kMaximumWebContentProcessReloads + 1);
+    // Keep the budget across successful loads: a page can crash again just after
+    // didFinishNavigation. Only a quiet interval allows another recovery burst.
+    if (tab.webContentProcessCrashCount > kMaximumWebContentProcessReloads) {
+        BrowserLog(@"[WebKit] automatic recovery stopped after repeated process termination");
+        return;
+    }
+
+    tab.pendingNavigationIndex = NSNotFound;
+    tab.needsScrollRestore = tab.hasSavedScrollOffset;
+    BrowserLog(@"[WebKit] recovering active tab attempt=%lu",
+               (unsigned long)tab.webContentProcessCrashCount);
+    [webView reload];
 }
 
 - (void)webViewDidFinishLoad:(id)webView {

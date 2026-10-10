@@ -1648,25 +1648,6 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
     }];
 }
 
-- (UIAlertAction *)wkWebViewProofOfConceptAction {
-    return [self browserActionWithTitle:@"Open WKWebView PoC"
-                                  style:UIAlertActionStyleDefault
-                                handler:^(__unused UIAlertAction *action) {
-        Class proofOfConceptControllerClass = NSClassFromString(@"BrowserWKWebViewProofOfConceptViewController");
-        UIViewController *viewController = nil;
-        if (proofOfConceptControllerClass != Nil) {
-            viewController = [proofOfConceptControllerClass new];
-            viewController.modalPresentationStyle = UIModalPresentationFullScreen;
-        } else {
-            viewController = [UIAlertController alertControllerWithTitle:@"WKWebView PoC Missing"
-                                                                 message:@"The proof-of-concept controller was not compiled into this build."
-                                                          preferredStyle:UIAlertControllerStyleAlert];
-            [(UIAlertController *)viewController addAction:[self browserCancelAction]];
-        }
-        [self.host browserPresentViewController:viewController];
-    }];
-}
-
 - (BrowserAdvancedMenuItem *)userAgentModeMenuItem {
     BrowserAdvancedMenuItem *item = [self advancedMenuItemWithTitle:@"Mobile User Agent"
                                                                style:UIAlertActionStyleDefault
@@ -1691,16 +1672,6 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
         return self.host.browserCursorMagnifierEnabled;
     };
     return item;
-}
-
-- (UIAlertAction *)playVideoUnderCursorAction {
-    return [self browserActionWithTitle:@"Play Active Video"
-                                  style:UIAlertActionStyleDefault
-                                handler:^(__unused UIAlertAction *action) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [self.host browserPlayVideoUnderCursorIfAvailable];
-        });
-    }];
 }
 
 - (BrowserAdvancedMenuItem *)fullscreenVideoPlaybackToggleMenuItem {

@@ -68,6 +68,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)webViewDidFinishLoad:(id)webView;
 - (void)webViewDidChangeNavigationHistory:(id)webView;
 - (void)webViewDidFailLoad:(id)webView;
+- (void)webViewWebContentProcessDidTerminate:(BrowserWebView *)webView;
 - (void)prepareTabForRequest:(NSURLRequest *)request webView:(id)webView navigationType:(NSInteger)navigationType;
 - (BrowserTabViewModel *)tabForWebView:(id)webView;
 - (BOOL)isPrimaryDocumentRequest:(NSURLRequest *)request;

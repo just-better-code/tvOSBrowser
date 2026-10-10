@@ -90,10 +90,6 @@ static NSString * const kBrowserNativeVideoHTTPSProxyScheme = @"browserhttps";
     return components.URL;
 }
 
-- (NSString *)cookieHeaderValue {
-    return [self cookieHeaderValueForURL:nil];
-}
-
 - (BOOL)cookie:(NSHTTPCookie *)cookie matchesURL:(NSURL *)URL {
     if (cookie == nil || URL == nil) {
         return NO;

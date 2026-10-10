@@ -2139,6 +2139,9 @@ static NSString *BrowserAdBlockSourceRevision(NSURL *url) {
 
 - (void)webViewWebContentProcessDidTerminate:(id)webView {
     self.loading = NO;
+    if ([self.delegate respondsToSelector:@selector(webViewWebContentProcessDidTerminate:)]) {
+        [self.delegate webViewWebContentProcessDidTerminate:self];
+    }
 }
 
 - (NSURLRequest *)requestFromNavigationAction:(id)navigationAction {
