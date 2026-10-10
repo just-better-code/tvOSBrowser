@@ -28,6 +28,9 @@
 		A1B49A5F2D69F900001D58A1 /* WebAVPlayerViewController+FullscreenSubviewHack.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A5E2D69F900001D58A1 /* WebAVPlayerViewController+FullscreenSubviewHack.m */; };
 		A1B49A612D6A1000001D58A1 /* BrowserWKWebViewProofOfConceptViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A602D6A1000001D58A1 /* BrowserWKWebViewProofOfConceptViewController.m */; };
 		A1B49A632D6A3800001D58A1 /* BrowserWebView.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A622D6A3800001D58A1 /* BrowserWebView.m */; };
+		ADBB00000000000000000001 /* AdBlockCustomRules.json in Resources */ = {isa = PBXBuildFile; fileRef = ADBB00000000000000000002 /* AdBlockCustomRules.json */; };
+		ADBB00000000000000000003 /* BrowserAdBlockConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADBB00000000000000000004 /* BrowserAdBlockConverter.swift */; };
+		ADBB00000000000000000005 /* ContentBlockerConverter in Frameworks */ = {isa = PBXBuildFile; productRef = ADBB00000000000000000006 /* ContentBlockerConverter */; };
 		A1B49A662D6A7500001D58A1 /* AVPlayerViewController+BrowserFullscreenBlock.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A652D6A7500001D58A1 /* AVPlayerViewController+BrowserFullscreenBlock.m */; };
 		A1B49A682D6AD500001D58A1 /* UIApplication+BrowserSelectPressForwarding.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A672D6AD500001D58A1 /* UIApplication+BrowserSelectPressForwarding.m */; };
 		A1B49A6C2D6B1000001D58A1 /* BrowserNativeVideoPlayerViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A6B2D6B1000001D58A1 /* BrowserNativeVideoPlayerViewController.m */; };
@@ -103,6 +106,8 @@
 		A1B49A5E2D69F900001D58A1 /* WebAVPlayerViewController+FullscreenSubviewHack.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "WebAVPlayerViewController+FullscreenSubviewHack.m"; sourceTree = "<group>"; };
 		A1B49A602D6A1000001D58A1 /* BrowserWKWebViewProofOfConceptViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserWKWebViewProofOfConceptViewController.m; sourceTree = "<group>"; };
 		A1B49A622D6A3800001D58A1 /* BrowserWebView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserWebView.m; sourceTree = "<group>"; };
+		ADBB00000000000000000002 /* AdBlockCustomRules.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = AdBlockCustomRules.json; sourceTree = "<group>"; };
+		ADBB00000000000000000004 /* BrowserAdBlockConverter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserAdBlockConverter.swift; sourceTree = "<group>"; };
 		A1B49A642D6A3900001D58A1 /* BrowserWebView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserWebView.h; sourceTree = "<group>"; };
 		A1B49A652D6A7500001D58A1 /* AVPlayerViewController+BrowserFullscreenBlock.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "AVPlayerViewController+BrowserFullscreenBlock.m"; sourceTree = "<group>"; };
 		A1B49A672D6AD500001D58A1 /* UIApplication+BrowserSelectPressForwarding.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "UIApplication+BrowserSelectPressForwarding.m"; sourceTree = "<group>"; };
@@ -168,6 +173,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				ADBB00000000000000000005 /* ContentBlockerConverter in Frameworks */,
 				C0D3A001000000000000000E /* libtorrent.xcframework in Frameworks */,
 				C0D3A0010000000000000010 /* TVVLCKit.xcframework in Frameworks */,
 				9675E1FF20857AEF00A4A84A /* UIKit.framework in Frameworks */,
@@ -307,6 +313,8 @@
 		A1B49A7F2D6D0000001D58A1 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				ADBB00000000000000000002 /* AdBlockCustomRules.json */,
+				ADBB00000000000000000004 /* BrowserAdBlockConverter.swift */,
 				A1B49A642D6A3900001D58A1 /* BrowserWebView.h */,
 				A1B49A622D6A3800001D58A1 /* BrowserWebView.m */,
 			);
@@ -415,6 +423,9 @@
 			dependencies = (
 			);
 			name = Browser;
+			packageProductDependencies = (
+				ADBB00000000000000000006 /* ContentBlockerConverter */,
+			);
 			productName = Browser;
 			productReference = B002B8621BAE420500C744AF /* Browser.app */;
 			productType = "com.apple.product-type.application";
@@ -443,6 +454,9 @@
 				Base,
 			);
 			mainGroup = B002B8591BAE420500C744AF;
+			packageReferences = (
+				ADBB00000000000000000007 /* AdGuardConverter */,
+			);
 			productRefGroup = B002B8631BAE420500C744AF /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -457,6 +471,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				ADBB00000000000000000001 /* AdBlockCustomRules.json in Resources */,
 				3A2A7C1C21E783D00083CB13 /* menu-button.png in Resources */,
 				3A2A7C2021E784760083CB13 /* resize-arrows.png in Resources */,
 				3A2A7C2221E790000083CB13 /* multi-tab.png in Resources */,
@@ -495,6 +510,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				ADBB00000000000000000003 /* BrowserAdBlockConverter.swift in Sources */,
 				A1B49A482D67F2B3001D58A1 /* BrowserTabViewModel.m in Sources */,
 				A1B49A552D68143D001D58A1 /* BrowserMenuCoordinator.m in Sources */,
 				A1B49A922D700030001D58A1 /* BrowserPageActionCoordinator.m in Sources */,
@@ -678,9 +694,10 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.17.17;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SCAN_ALL_SOURCE_FILES_FOR_INCLUDES = NO;
+				MARKETING_VERSION = 2.18.13;
+			PRODUCT_NAME = "$(TARGET_NAME)";
+			SCAN_ALL_SOURCE_FILES_FOR_INCLUDES = NO;
+			SWIFT_VERSION = 5.0;
 				TVOS_DEPLOYMENT_TARGET = 15.6;
 			};
 			name = Debug;
@@ -708,9 +725,10 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.17.17;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SCAN_ALL_SOURCE_FILES_FOR_INCLUDES = NO;
+				MARKETING_VERSION = 2.18.13;
+			PRODUCT_NAME = "$(TARGET_NAME)";
+			SCAN_ALL_SOURCE_FILES_FOR_INCLUDES = NO;
+			SWIFT_VERSION = 5.0;
 				TVOS_DEPLOYMENT_TARGET = 15.6;
 			};
 			name = Release;
@@ -737,6 +755,21 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		ADBB00000000000000000007 /* AdGuardConverter */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Vendor/AdGuardConverter;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		ADBB00000000000000000006 /* ContentBlockerConverter */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = ADBB00000000000000000007 /* AdGuardConverter */;
+			productName = ContentBlockerConverter;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = B002B85A1BAE420500C744AF /* Project object */;
 }

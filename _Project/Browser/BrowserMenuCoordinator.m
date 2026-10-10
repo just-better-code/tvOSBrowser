@@ -4,6 +4,7 @@
 #import "BrowserHistoryStore.h"
 #import "BrowserPreferencesStore.h"
 #import "BrowserTorrentKeepAlive.h"
+#import "BrowserTVAppearance.h"
 #import "BrowserWebView.h"
 
 static UIColor *MenuTextColor(void) {
@@ -29,6 +30,7 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
 @property (nonatomic, copy) NSString *tileSymbolName;
 @property (nonatomic) UIAlertActionStyle style;
 @property (nonatomic, copy) BrowserAdvancedMenuItemHandler handler;
+@property (nonatomic, copy) BrowserAdvancedMenuItemHandler longPressHandler;
 @property (nonatomic, copy) BrowserAdvancedMenuToggleStateProvider toggleStateProvider;
 @property (nonatomic, copy) BrowserAdvancedMenuTitleProvider tileTitleProvider;
 @property (nonatomic) BOOL enabled;
@@ -215,6 +217,7 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
 @property (nonatomic) UIView *dimView;
 @property (nonatomic) UIVisualEffectView *panelView;
 @property (nonatomic) UICollectionView *tileView;
+@property (nonatomic) NSIndexPath *focusedTileIndexPath;
 @property (nonatomic) NSLayoutConstraint *panelTrailingConstraint;
 @property (nonatomic) CGFloat panelWidth;
 @property (nonatomic) BOOL didAnimateIn;
@@ -433,6 +436,12 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
                withReuseIdentifier:@"MenuSectionHeader"];
     [panelView.contentView addSubview:tileView];
     self.tileView = tileView;
+    UILongPressGestureRecognizer *settingsPress = [[UILongPressGestureRecognizer alloc]
+        initWithTarget:self action:@selector(handleTileLongPress:)];
+    settingsPress.minimumPressDuration = 0.6;
+    settingsPress.allowedPressTypes = @[@(UIPressTypeSelect)];
+    settingsPress.cancelsTouchesInView = YES;
+    [tileView addGestureRecognizer:settingsPress];
 
     self.panelTrailingConstraint = [panelView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor
                                                                              constant:self.panelWidth + 32.0];
@@ -626,6 +635,15 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
     [self dismissMenuWithCompletion:handler];
 }
 
+- (void)handleTileLongPress:(UILongPressGestureRecognizer *)recognizer {
+    if (recognizer.state != UIGestureRecognizerStateBegan) return;
+    NSIndexPath *indexPath = [self.tileView indexPathForItemAtPoint:[recognizer locationInView:self.tileView]];
+    if (indexPath == nil) indexPath = self.focusedTileIndexPath;
+    if (indexPath == nil) return;
+    BrowserAdvancedMenuItem *item = self.sections[(NSUInteger)indexPath.section].items[(NSUInteger)indexPath.item];
+    if (item.longPressHandler != nil) [self dismissMenuWithCompletion:item.longPressHandler];
+}
+
 - (void)toolbarButtonPressed:(UIButton *)button {
     NSInteger index = button.tag - 10000;
     if (index < 0 || index >= (NSInteger)self.toolbarItems.count) {
@@ -684,6 +702,9 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
     [super didUpdateFocusInContext:context withAnimationCoordinator:coordinator];
     UIView *previousView = context.previouslyFocusedView;
     UIView *nextView = context.nextFocusedView;
+    if ([nextView isKindOfClass:BrowserAdvancedMenuTileCell.class]) {
+        self.focusedTileIndexPath = [self.tileView indexPathForCell:(BrowserAdvancedMenuTileCell *)nextView];
+    }
     if (previousView == self.addressButton) {
         previousView.layer.zPosition = 0.0;
         previousView.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.12];
@@ -739,6 +760,367 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
     if (press != nil && press.type == UIPressTypeMenu) {
         [self dismissMenuWithCompletion:nil];
         return;
+    }
+    [super pressesEnded:presses withEvent:event];
+}
+
+@end
+
+@interface BrowserAdBlockSettingsCell : UITableViewCell
+@property (nonatomic, strong) UILabel *filterLabel;
+@property (nonatomic, strong) UILabel *stateLabel;
+@property (nonatomic, strong) UILabel *versionLabel;
+- (void)refreshAppearance;
+@end
+
+@implementation BrowserAdBlockSettingsCell
+
+- (instancetype)initWithStyle:(UITableViewCellStyle)style reuseIdentifier:(NSString *)identifier {
+    self = [super initWithStyle:UITableViewCellStyleDefault reuseIdentifier:identifier];
+    if (self) {
+        self.backgroundColor = UIColor.clearColor;
+        self.selectionStyle = UITableViewCellSelectionStyleNone;
+        self.contentView.layer.cornerRadius = 14.0;
+        self.contentView.layer.masksToBounds = YES;
+
+        UILabel *filterLabel = [UILabel new];
+        filterLabel.translatesAutoresizingMaskIntoConstraints = NO;
+        filterLabel.font = [UIFont systemFontOfSize:23.0 weight:UIFontWeightMedium];
+        filterLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+        [self.contentView addSubview:filterLabel];
+        self.filterLabel = filterLabel;
+
+        UILabel *stateLabel = [UILabel new];
+        stateLabel.translatesAutoresizingMaskIntoConstraints = NO;
+        BrowserTVConfigureToggleBadge(stateLabel, NO);
+        [self.contentView addSubview:stateLabel];
+        self.stateLabel = stateLabel;
+
+        UILabel *versionLabel = [UILabel new];
+        versionLabel.translatesAutoresizingMaskIntoConstraints = NO;
+        versionLabel.font = [UIFont systemFontOfSize:18.0 weight:UIFontWeightRegular];
+        versionLabel.textAlignment = NSTextAlignmentRight;
+        versionLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+        [self.contentView addSubview:versionLabel];
+        self.versionLabel = versionLabel;
+
+        [NSLayoutConstraint activateConstraints:@[
+            [filterLabel.leadingAnchor constraintEqualToAnchor:self.contentView.leadingAnchor constant:16.0],
+            [filterLabel.centerYAnchor constraintEqualToAnchor:self.contentView.centerYAnchor],
+            [filterLabel.trailingAnchor constraintLessThanOrEqualToAnchor:versionLabel.leadingAnchor constant:-10.0],
+            [stateLabel.centerYAnchor constraintEqualToAnchor:self.contentView.centerYAnchor],
+            [stateLabel.widthAnchor constraintEqualToConstant:42.0],
+            [stateLabel.heightAnchor constraintEqualToConstant:22.0],
+            [stateLabel.trailingAnchor constraintEqualToAnchor:self.contentView.trailingAnchor constant:-16.0],
+            [versionLabel.centerYAnchor constraintEqualToAnchor:self.contentView.centerYAnchor],
+            [versionLabel.trailingAnchor constraintEqualToAnchor:stateLabel.leadingAnchor constant:-8.0],
+            [versionLabel.widthAnchor constraintEqualToConstant:196.0],
+        ]];
+        [self refreshAppearance];
+    }
+    return self;
+}
+
+- (void)layoutSubviews {
+    [super layoutSubviews];
+    self.contentView.frame = CGRectInset(self.bounds, 0.0, 5.0);
+}
+
+- (void)refreshAppearance {
+    BOOL focused = self.isFocused;
+    self.contentView.backgroundColor = focused ? BrowserTVFocusedSurfaceColor()
+                                               : BrowserTVRestingSurfaceColor();
+    self.filterLabel.textColor = focused ? BrowserTVFocusedTextColor() : UIColor.whiteColor;
+    self.versionLabel.textColor = focused ? BrowserTVFocusedTextColor()
+                                          : [UIColor colorWithWhite:1.0 alpha:0.72];
+}
+
+- (void)didUpdateFocusInContext:(UIFocusUpdateContext *)context
+       withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
+    [super didUpdateFocusInContext:context withAnimationCoordinator:coordinator];
+    [coordinator addCoordinatedAnimations:^{ [self refreshAppearance]; } completion:nil];
+}
+
+@end
+
+@interface BrowserBadgeToggleControl : UIControl
+@property (nonatomic, strong) UILabel *stateLabel;
+@end
+
+@implementation BrowserBadgeToggleControl
+
+- (instancetype)initWithFrame:(CGRect)frame {
+    self = [super initWithFrame:frame];
+    if (self) {
+        self.backgroundColor = UIColor.clearColor;
+        self.accessibilityTraits = UIAccessibilityTraitButton;
+        UILabel *stateLabel = [UILabel new];
+        stateLabel.translatesAutoresizingMaskIntoConstraints = NO;
+        stateLabel.userInteractionEnabled = NO;
+        BrowserTVConfigureToggleBadge(stateLabel, NO);
+        [self addSubview:stateLabel];
+        self.stateLabel = stateLabel;
+        [NSLayoutConstraint activateConstraints:@[
+            [stateLabel.centerXAnchor constraintEqualToAnchor:self.centerXAnchor],
+            [stateLabel.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
+            [stateLabel.widthAnchor constraintEqualToConstant:42.0],
+            [stateLabel.heightAnchor constraintEqualToConstant:22.0],
+        ]];
+    }
+    return self;
+}
+
+- (BOOL)canBecomeFocused {
+    return YES;
+}
+
+- (void)pressesEnded:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
+    for (UIPress *press in presses) {
+        if (press.type == UIPressTypeSelect) {
+            [self sendActionsForControlEvents:UIControlEventPrimaryActionTriggered];
+            return;
+        }
+    }
+    [super pressesEnded:presses withEvent:event];
+}
+
+- (void)didUpdateFocusInContext:(UIFocusUpdateContext *)context
+       withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
+    [super didUpdateFocusInContext:context withAnimationCoordinator:coordinator];
+    [coordinator addCoordinatedAnimations:^{
+        self.stateLabel.transform = self.isFocused ? CGAffineTransformMakeScale(1.15, 1.15)
+                                                   : CGAffineTransformIdentity;
+    } completion:nil];
+}
+
+@end
+
+@interface BrowserAdBlockSettingsViewController : UIViewController <UITableViewDataSource, UITableViewDelegate>
+
+@property (nonatomic, copy) BOOL (^protectionEnabled)(void);
+@property (nonatomic, copy) void (^toggleProtection)(void);
+@property (nonatomic, copy) void (^toggleSource)(NSString *identifier);
+@property (nonatomic, copy) NSArray<NSDictionary<NSString *, NSString *> *> *sources;
+@property (nonatomic, strong) UITableView *tableView;
+@property (nonatomic, strong) BrowserBadgeToggleControl *protectionToggleButton;
+
+- (instancetype)initWithProtectionEnabled:(BOOL (^)(void))protectionEnabled
+                         toggleProtection:(void (^)(void))toggleProtection
+                             toggleSource:(void (^)(NSString *identifier))toggleSource;
+
+@end
+
+@implementation BrowserAdBlockSettingsViewController
+
+- (instancetype)initWithProtectionEnabled:(BOOL (^)(void))protectionEnabled
+                         toggleProtection:(void (^)(void))toggleProtection
+                             toggleSource:(void (^)(NSString *identifier))toggleSource {
+    self = [super initWithNibName:nil bundle:nil];
+    if (self) {
+        _protectionEnabled = [protectionEnabled copy];
+        _toggleProtection = [toggleProtection copy];
+        _toggleSource = [toggleSource copy];
+        _sources = [BrowserWebView.adBlockSources copy];
+        self.modalPresentationStyle = UIModalPresentationOverCurrentContext;
+        self.modalTransitionStyle = UIModalTransitionStyleCrossDissolve;
+    }
+    return self;
+}
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.view.backgroundColor = [UIColor colorWithWhite:0.0 alpha:0.48];
+
+    UIVisualEffectView *panel = [[UIVisualEffectView alloc] initWithEffect:BrowserTVPanelEffect()];
+    panel.translatesAutoresizingMaskIntoConstraints = NO;
+    panel.layer.cornerRadius = 28.0;
+    panel.layer.masksToBounds = YES;
+    panel.layer.borderWidth = NSClassFromString(@"UIGlassEffect") != Nil ? 0.0 : 1.0;
+    panel.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.25].CGColor;
+    [self.view addSubview:panel];
+
+    UILabel *heading = [UILabel new];
+    heading.translatesAutoresizingMaskIntoConstraints = NO;
+    heading.text = @"Settings";
+    heading.textColor = UIColor.whiteColor;
+    heading.font = [UIFont systemFontOfSize:40.0 weight:UIFontWeightBold];
+    [panel.contentView addSubview:heading];
+
+    UILabel *protectionLabel = [UILabel new];
+    protectionLabel.text = @"Ad Block";
+    protectionLabel.textColor = UIColor.whiteColor;
+    protectionLabel.font = [UIFont systemFontOfSize:23.0 weight:UIFontWeightMedium];
+
+    BrowserBadgeToggleControl *protectionToggleButton = [[BrowserBadgeToggleControl alloc] initWithFrame:CGRectZero];
+    protectionToggleButton.translatesAutoresizingMaskIntoConstraints = NO;
+    protectionToggleButton.accessibilityLabel = @"Ad Block";
+    [protectionToggleButton addTarget:self action:@selector(protectionTogglePressed:)
+               forControlEvents:UIControlEventPrimaryActionTriggered];
+    self.protectionToggleButton = protectionToggleButton;
+
+    UIStackView *headerControls = [[UIStackView alloc] initWithArrangedSubviews:@[protectionLabel, protectionToggleButton]];
+    headerControls.translatesAutoresizingMaskIntoConstraints = NO;
+    headerControls.axis = UILayoutConstraintAxisHorizontal;
+    headerControls.alignment = UIStackViewAlignmentCenter;
+    headerControls.spacing = 12.0;
+    [panel.contentView addSubview:headerControls];
+    [self refreshProtectionToggle];
+
+    UITableView *table = [[UITableView alloc] initWithFrame:CGRectZero style:UITableViewStylePlain];
+    table.translatesAutoresizingMaskIntoConstraints = NO;
+    table.dataSource = self;
+    table.delegate = self;
+    table.rowHeight = 72.0;
+    table.backgroundColor = UIColor.clearColor;
+    table.showsVerticalScrollIndicator = YES;
+    [panel.contentView addSubview:table];
+    self.tableView = table;
+
+    UIButton *updateButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    updateButton.translatesAutoresizingMaskIntoConstraints = NO;
+    updateButton.backgroundColor = BrowserTVRestingSurfaceColor();
+    updateButton.layer.cornerRadius = 14.0;
+    updateButton.titleLabel.font = [UIFont systemFontOfSize:21.0 weight:UIFontWeightMedium];
+    [updateButton setTitle:@"Update Filters Now" forState:UIControlStateNormal];
+    [updateButton setTitleColor:UIColor.whiteColor forState:UIControlStateNormal];
+    [updateButton setTitleColor:BrowserTVFocusedTextColor() forState:UIControlStateFocused];
+    [updateButton addTarget:self action:@selector(updatePressed:) forControlEvents:UIControlEventPrimaryActionTriggered];
+
+    UIButton *doneButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    doneButton.translatesAutoresizingMaskIntoConstraints = NO;
+    doneButton.backgroundColor = BrowserTVRestingSurfaceColor();
+    doneButton.layer.cornerRadius = 14.0;
+    doneButton.titleLabel.font = [UIFont systemFontOfSize:24.0 weight:UIFontWeightMedium];
+    [doneButton setTitle:@"Done" forState:UIControlStateNormal];
+    [doneButton setTitleColor:UIColor.whiteColor forState:UIControlStateNormal];
+    [doneButton setTitleColor:BrowserTVFocusedTextColor() forState:UIControlStateFocused];
+    [doneButton addTarget:self action:@selector(donePressed:) forControlEvents:UIControlEventPrimaryActionTriggered];
+    UIStackView *actionButtons = [[UIStackView alloc] initWithArrangedSubviews:@[updateButton, doneButton]];
+    actionButtons.translatesAutoresizingMaskIntoConstraints = NO;
+    actionButtons.axis = UILayoutConstraintAxisHorizontal;
+    actionButtons.spacing = 12.0;
+    [panel.contentView addSubview:actionButtons];
+
+    CGFloat width = MIN(MAX(CGRectGetWidth(UIScreen.mainScreen.bounds) * 0.58, 720.0), 1100.0) * 0.5;
+    CGFloat contentHeight = 28.0 + 48.0 + 22.0 + ((CGFloat)self.sources.count + 1.5) * table.rowHeight + 18.0 + 64.0 + 24.0;
+    NSLayoutConstraint *preferredHeight = [panel.heightAnchor constraintEqualToConstant:MIN(contentHeight, 860.0)];
+    preferredHeight.priority = UILayoutPriorityDefaultHigh;
+    [NSLayoutConstraint activateConstraints:@[
+        [panel.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
+        [panel.centerYAnchor constraintEqualToAnchor:self.view.centerYAnchor],
+        [panel.widthAnchor constraintEqualToConstant:width],
+        [panel.widthAnchor constraintLessThanOrEqualToAnchor:self.view.safeAreaLayoutGuide.widthAnchor constant:-60.0],
+        preferredHeight,
+        [panel.heightAnchor constraintLessThanOrEqualToAnchor:self.view.safeAreaLayoutGuide.heightAnchor constant:-50.0],
+        [heading.leadingAnchor constraintEqualToAnchor:panel.contentView.leadingAnchor constant:24.0],
+        [heading.trailingAnchor constraintLessThanOrEqualToAnchor:headerControls.leadingAnchor constant:-16.0],
+        [heading.topAnchor constraintEqualToAnchor:panel.contentView.topAnchor constant:28.0],
+        [headerControls.centerYAnchor constraintEqualToAnchor:heading.centerYAnchor],
+        [headerControls.trailingAnchor constraintEqualToAnchor:panel.contentView.trailingAnchor constant:-24.0],
+        [protectionToggleButton.widthAnchor constraintEqualToConstant:70.0],
+        [protectionToggleButton.heightAnchor constraintEqualToConstant:44.0],
+        [table.leadingAnchor constraintEqualToAnchor:panel.contentView.leadingAnchor constant:20.0],
+        [table.trailingAnchor constraintEqualToAnchor:panel.contentView.trailingAnchor constant:-20.0],
+        [table.topAnchor constraintEqualToAnchor:heading.bottomAnchor constant:22.0],
+        [table.bottomAnchor constraintEqualToAnchor:actionButtons.topAnchor constant:-18.0],
+        [actionButtons.centerXAnchor constraintEqualToAnchor:panel.contentView.centerXAnchor],
+        [actionButtons.bottomAnchor constraintEqualToAnchor:panel.contentView.bottomAnchor constant:-24.0],
+        [actionButtons.heightAnchor constraintEqualToConstant:64.0],
+        [updateButton.widthAnchor constraintEqualToConstant:300.0],
+        [doneButton.widthAnchor constraintEqualToConstant:150.0],
+    ]];
+
+    [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(sourceStatusDidChange:)
+        name:BrowserAdBlockSourceStatusDidChangeNotification object:nil];
+}
+
+- (void)dealloc {
+    [NSNotificationCenter.defaultCenter removeObserver:self
+        name:BrowserAdBlockSourceStatusDidChangeNotification object:nil];
+}
+
+- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
+    (void)tableView;
+    (void)section;
+    return (NSInteger)self.sources.count;
+}
+
+- (void)configureCell:(BrowserAdBlockSettingsCell *)cell atIndexPath:(NSIndexPath *)indexPath {
+    NSDictionary *source = self.sources[(NSUInteger)indexPath.row];
+    NSString *identifier = source[@"id"];
+    NSString *title = [source[@"title"] stringByReplacingOccurrencesOfString:@"AdGuard " withString:@""];
+    BOOL enabled = [BrowserWebView adBlockSourceEnabled:identifier];
+    NSString *version = [BrowserWebView adBlockSourceStatus:identifier];
+    cell.filterLabel.text = title;
+    BrowserTVConfigureToggleBadge(cell.stateLabel, enabled);
+    cell.versionLabel.text = version;
+    cell.accessibilityLabel = [NSString stringWithFormat:@"%@, %@, %@", source[@"title"], enabled ? @"On" : @"Off", version];
+    [cell refreshAppearance];
+}
+
+- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
+    BrowserAdBlockSettingsCell *cell = [tableView dequeueReusableCellWithIdentifier:@"AdBlockSource"];
+    if (cell == nil) cell = [[BrowserAdBlockSettingsCell alloc] initWithStyle:UITableViewCellStyleDefault
+                                                            reuseIdentifier:@"AdBlockSource"];
+    [self configureCell:cell atIndexPath:indexPath];
+    return cell;
+}
+
+- (void)refreshVisibleRows {
+    for (BrowserAdBlockSettingsCell *cell in self.tableView.visibleCells) {
+        NSIndexPath *indexPath = [self.tableView indexPathForCell:cell];
+        if (indexPath != nil) [self configureCell:cell atIndexPath:indexPath];
+    }
+}
+
+- (void)sourceStatusDidChange:(NSNotification *)notification {
+    (void)notification;
+    [self refreshVisibleRows];
+}
+
+- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
+    [tableView deselectRowAtIndexPath:indexPath animated:YES];
+    void (^toggleSource)(NSString *) = self.toggleSource;
+    if (toggleSource != nil) toggleSource(self.sources[(NSUInteger)indexPath.row][@"id"]);
+    [self refreshVisibleRows];
+}
+
+- (void)refreshProtectionToggle {
+    BOOL (^enabledProvider)(void) = self.protectionEnabled;
+    BOOL enabled = enabledProvider != nil && enabledProvider();
+    BrowserTVConfigureToggleBadge(self.protectionToggleButton.stateLabel, enabled);
+    self.protectionToggleButton.accessibilityValue = enabled ? @"On" : @"Off";
+}
+
+- (void)protectionTogglePressed:(BrowserBadgeToggleControl *)button {
+    (void)button;
+    void (^toggleProtection)(void) = self.toggleProtection;
+    if (toggleProtection != nil) toggleProtection();
+    [self refreshProtectionToggle];
+}
+
+- (void)updatePressed:(UIButton *)button {
+    (void)button;
+    [BrowserWebView refreshAdBlockSources];
+    [self refreshVisibleRows];
+}
+
+- (void)donePressed:(UIButton *)button {
+    (void)button;
+    [self dismissViewControllerAnimated:YES completion:nil];
+}
+
+- (void)pressesEnded:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
+    for (UIPress *press in presses) {
+        if (press.type == UIPressTypeMenu) {
+            [self dismissViewControllerAnimated:YES completion:nil];
+            return;
+        }
+        if (press.type == UIPressTypePlayPause) {
+            [BrowserWebView refreshAdBlockSources];
+            [self refreshVisibleRows];
+            return;
+        }
     }
     [super pressesEnded:presses withEvent:event];
 }
@@ -1291,6 +1673,24 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
     return item;
 }
 
+- (void)presentAdBlockSettings {
+    __weak typeof(self) weakSelf = self;
+    BrowserAdBlockSettingsViewController *settings =
+        [[BrowserAdBlockSettingsViewController alloc] initWithProtectionEnabled:^BOOL {
+            return weakSelf.preferencesStore.adBlockEnabled;
+        } toggleProtection:^{
+            BrowserMenuCoordinator *strongSelf = weakSelf;
+            if (strongSelf == nil) return;
+            BOOL enabled = !strongSelf.preferencesStore.adBlockEnabled;
+            strongSelf.preferencesStore.adBlockEnabled = enabled;
+            [strongSelf.host browserSetAdBlockEnabled:enabled];
+        } toggleSource:^(NSString *identifier) {
+            [BrowserWebView setAdBlockSource:identifier
+                                    enabled:![BrowserWebView adBlockSourceEnabled:identifier]];
+        }];
+    [self.host browserPresentViewController:settings];
+}
+
 - (BrowserAdvancedMenuItem *)adBlockToggleMenuItem {
     BrowserAdvancedMenuItem *item = [self advancedMenuItemWithTitle:@"Ad Block"
                                                                style:UIAlertActionStyleDefault
@@ -1304,6 +1704,9 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
     item.toggleStateProvider = ^BOOL {
         return self.preferencesStore.adBlockEnabled ||
             [self.host.browserWebView.adBlockStatus isEqualToString:@"removal-unavailable"];
+    };
+    item.longPressHandler = ^{
+        [self presentAdBlockSettings];
     };
     return item;
 }

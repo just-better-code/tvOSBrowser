@@ -11,7 +11,7 @@ Use a Siri Remote with a touch surface or touch-enabled clickpad. A button-only 
 3. Slide on the touchpad to move the pointer and press Center to click a page control.
 4. Press Up/Down to scroll. Hold a direction for continuous, accelerating scrolling.
 
-Open the visual quick guide through **Menu → Tools → User Guide**. **Show this guide at launch** controls whether it appears at startup.
+Open the visual quick guide through **Menu → Tools → User Guide**. **Show this guide at launch** uses the same ON/OFF badge as the browser menu and controls whether it appears at startup.
 
 ## Siri Remote controls
 
@@ -54,7 +54,9 @@ The address spans the top of the menu. Below it, the six-button row contains **B
 
 Quick Actions, Settings and the three Clear commands use three columns. In the last row, Debug takes one column and User Guide spans two. Clear commands are highlighted pink only when focused.
 
-Zoom ranges from **50% to 200%**, in **10%** steps. It scales the text and page together, starts at the left edge after a change, and remembers the chosen percentage across tabs and launches. Reset Zoom shows the current percentage, updates after each zoom action, and restores **100%** when pressed. Mobile Site changes the User Agent; presentation depends on the website. If Ad Block interferes with a page or player, try disabling it and reloading.
+Zoom ranges from **50% to 200%**, in **10%** steps. It scales the text and page together, starts at the left edge after a change, and remembers the chosen percentage across tabs and launches. Reset Zoom shows the current percentage, updates after each zoom action, and restores **100%** when pressed. Mobile Site changes the User Agent; presentation depends on the website.
+
+Press Center on **Ad Block** to switch protection on or off. Hold Center to open its settings popup. The master Ad Block toggle sits beside the **Settings** heading without an extra container; the list below switches the [AdGuard DNS filter](https://github.com/AdguardTeam/AdGuardSDNSFilter) and [AdGuard Base, Ukrainian, Social Media, Mobile Ads, and Annoyances filters](https://adguard.com/kb/general/ad-filtering/adguard-filters/) separately. Every toggle uses the browser menu's green ON or gray OFF badge. A filter badge sits at the right edge of its row, with its version just before it, or an update date if the list has no version. Downloading and errors appear in the same row; a failed update keeps its cached copy. **Update Filters Now** sits to the left of **Done** below the filter controls. While Ad Block is on, enabled filters download directly on the Apple TV, check for updates weekly, and remain cached for later launches. On later launches, unchanged filters reuse their compiled WebKit rules without converting the lists again; missing compiled rules are rebuilt from the cached filters. Browser filter rules are converted with [SafariConverterLib](https://github.com/AdguardTeam/SafariConverterLib) to support network and native cosmetic rules; rules requiring a Safari extension runtime are not applied. If one filter's rules fail to compile, other successfully compiled filters remain active. Ad Block also suppresses script-opened external windows. A bundled custom-rules file blocks the observed Hraimo banner source across websites and is reserved for requested gaps in online filters; changing it requires a new app installation. If the first download is unavailable, protection from online lists starts when a download succeeds. Ads inserted directly into a video stream may remain. If Ad Block interferes with a page or player, disable it and reload.
 
 Remaining pointer alignment and website layout issues are tracked in the local roadmap.
 

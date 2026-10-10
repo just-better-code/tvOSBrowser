@@ -10,6 +10,7 @@
 - Git commits are authorized. Push the Git repository only when the user explicitly asks to push to GitHub or the remote repository.
 - Preserve automatic signing and the effective local development-team and bundle-identifier settings. Personal values belong in the ignored `Signing.local.xcconfig`; shared configuration uses neutral defaults.
 - Add or run tests only when the user asks for testing or verification. Run builds when requested. Report exactly what was checked; compilation or launch alone does not prove an interaction bug is fixed.
+- When a task includes a build, finish the code and build before updating the changelog, user guide, or development history.
 - Define completion in terms of the user's observable outcome. Ask for user participation when the required observation cannot be made locally; do not claim device verification without evidence.
 - Record durable user instructions and confirmed, reusable project workflows here or in linked agent runbooks. Keep temporary task status, personal diagnostics, and implementation chronology in their appropriate documents.
 
@@ -28,6 +29,7 @@
 - For complex features, substantial refactors, or work spanning sessions, use [planning guidance](docs/agent/PLANS.md). Small fixes and documentation edits do not need a plan file.
 - For torrent file selection and cache removal, read [torrent architecture](docs/agent/TORRENTS.md): libtorrent 1.2 supports per-file priority but has no supported per-file delete operation; never unlink an active payload as a substitute.
 - Follow the [tvOS interface style guide](docs/agent/TVOS_STYLE_GUIDE.md) for every app-owned screen, dialog, and playback control. Preserve the approved translucent browser menu layout and style. Do not invent a separate theme for a new feature. Prefer native UIKit controls and tvOS focus behavior over HTML for app UI. Keep actual website content in the web view. Local visual references are in `AGENTS.local.md`.
+- Use the browser menu's green ON and gray OFF badge for boolean controls throughout app-owned UI; align filter badges at the right edge with version text before them, and avoid an extra container around the Ad Block heading badge.
 - On app-owned pages, Center activates or confirms the focused item; holding Center opens its context actions; Play/Pause performs that screen's contextual shortcut. In All History, Play/Pause marks a row. In Torrents, Center and Play/Pause both play a focused playable file. Do not impose this mapping on website content or change the existing browser menu controls.
 - Read `docs/USER_GUIDE.md` for existing user-facing controls, `docs/agent/ROADMAP.md` for planned and rejected directions, and `docs/agent/DEVELOPMENT_HISTORY.md` when past decisions or verification matter. Read only what the task needs.
 - Repository skills live under `.codex/skills/`. Load a skill's `SKILL.md` when its workflow applies; keep reusable workflow details and supporting scripts with the skill.

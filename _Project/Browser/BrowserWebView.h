@@ -2,6 +2,8 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+FOUNDATION_EXPORT NSString * const BrowserAdBlockSourceStatusDidChangeNotification;
+
 @protocol BrowserWebViewDelegate <NSObject>
 
 @optional
@@ -58,6 +60,11 @@ NS_ASSUME_NONNULL_BEGIN
 + (void)clearCachedDataWithCompletion:(void (^ _Nullable)(void))completion;
 + (void)clearCookiesWithCompletion:(void (^ _Nullable)(void))completion;
 + (void)resetWebsiteDataWithCompletion:(void (^ _Nullable)(void))completion;
++ (NSArray<NSDictionary<NSString *, NSString *> *> *)adBlockSources;
++ (BOOL)adBlockSourceEnabled:(NSString *)identifier;
++ (void)setAdBlockSource:(NSString *)identifier enabled:(BOOL)enabled;
++ (NSString *)adBlockSourceStatus:(NSString *)identifier;
++ (void)refreshAdBlockSources;
 
 @end
 
