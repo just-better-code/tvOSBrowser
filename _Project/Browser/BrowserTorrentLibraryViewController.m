@@ -86,7 +86,8 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
 @property (nonatomic) UILabel *heading;
 @property (nonatomic) UILabel *subtitle;
 @property (nonatomic) UITableView *tableView;
-@property (nonatomic) UIButton *purgeButton;
+@property (nonatomic) UIButton *resetAllButton;
+@property (nonatomic) UIButton *deleteAllButton;
 @property (nonatomic) UIButton *backButton;
 @property (nonatomic) UIButton *pauseButton;
 @property (nonatomic) UIView *actionsPanel;
@@ -165,11 +166,12 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
     glassPanel.layer.borderColor = [UIColor colorWithWhite:1 alpha:0.25].CGColor;
     [self.view addSubview:glassPanel];
 
-    self.purgeButton = [self button:@"Purge All" action:@selector(purgePressed)];
+    self.deleteAllButton = [self button:@"Delete All" action:@selector(deleteAllPressed)];
+    self.resetAllButton = [self button:@"Reset All" action:@selector(resetAllPressed)];
     self.backButton = [self button:@"Back" action:@selector(backPressed)];
     self.pauseButton = [self button:@"Pause" action:@selector(pausePressed)];
     UIButton *done = [self button:@"Done" action:@selector(donePressed)];
-    for (UIButton *button in @[self.purgeButton, self.backButton, self.pauseButton, done]) {
+    for (UIButton *button in @[self.deleteAllButton, self.resetAllButton, self.backButton, self.pauseButton, done]) {
         [self.view addSubview:button];
     }
 
@@ -212,24 +214,28 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
         [self.subtitle.leadingAnchor constraintEqualToAnchor:self.heading.leadingAnchor],
         [self.subtitle.topAnchor constraintEqualToAnchor:self.heading.bottomAnchor constant:8],
         [self.subtitle.trailingAnchor constraintLessThanOrEqualToAnchor:self.view.trailingAnchor constant:-110],
-        [self.purgeButton.leadingAnchor constraintEqualToAnchor:self.heading.leadingAnchor],
-        [self.purgeButton.topAnchor constraintEqualToAnchor:self.subtitle.bottomAnchor constant:30],
+        [self.deleteAllButton.leadingAnchor constraintEqualToAnchor:self.heading.leadingAnchor],
+        [self.resetAllButton.leadingAnchor constraintEqualToAnchor:self.deleteAllButton.trailingAnchor constant:18],
+        [self.deleteAllButton.centerYAnchor constraintEqualToAnchor:self.resetAllButton.centerYAnchor],
+        [self.deleteAllButton.widthAnchor constraintEqualToConstant:190],
+        [self.deleteAllButton.heightAnchor constraintEqualToAnchor:self.resetAllButton.heightAnchor],
+        [self.resetAllButton.topAnchor constraintEqualToAnchor:self.subtitle.bottomAnchor constant:30],
         [self.backButton.leadingAnchor constraintEqualToAnchor:self.heading.leadingAnchor],
         [self.pauseButton.leadingAnchor constraintEqualToAnchor:self.backButton.trailingAnchor constant:18],
         [done.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-110],
-        [self.backButton.centerYAnchor constraintEqualToAnchor:self.purgeButton.centerYAnchor],
-        [self.pauseButton.centerYAnchor constraintEqualToAnchor:self.purgeButton.centerYAnchor],
-        [done.centerYAnchor constraintEqualToAnchor:self.purgeButton.centerYAnchor],
-        [self.purgeButton.widthAnchor constraintEqualToConstant:190],
+        [self.backButton.centerYAnchor constraintEqualToAnchor:self.resetAllButton.centerYAnchor],
+        [self.pauseButton.centerYAnchor constraintEqualToAnchor:self.resetAllButton.centerYAnchor],
+        [done.centerYAnchor constraintEqualToAnchor:self.resetAllButton.centerYAnchor],
+        [self.resetAllButton.widthAnchor constraintEqualToConstant:190],
         [self.backButton.widthAnchor constraintEqualToConstant:160],
         [self.pauseButton.widthAnchor constraintEqualToConstant:160],
         [done.widthAnchor constraintEqualToConstant:150],
-        [self.purgeButton.heightAnchor constraintEqualToConstant:68],
-        [self.backButton.heightAnchor constraintEqualToAnchor:self.purgeButton.heightAnchor],
-        [self.pauseButton.heightAnchor constraintEqualToAnchor:self.purgeButton.heightAnchor],
-        [done.heightAnchor constraintEqualToAnchor:self.purgeButton.heightAnchor],
+        [self.resetAllButton.heightAnchor constraintEqualToConstant:68],
+        [self.backButton.heightAnchor constraintEqualToAnchor:self.resetAllButton.heightAnchor],
+        [self.pauseButton.heightAnchor constraintEqualToAnchor:self.resetAllButton.heightAnchor],
+        [done.heightAnchor constraintEqualToAnchor:self.resetAllButton.heightAnchor],
         [table.leadingAnchor constraintEqualToAnchor:self.heading.leadingAnchor],
-        [table.topAnchor constraintEqualToAnchor:self.purgeButton.bottomAnchor constant:32],
+        [table.topAnchor constraintEqualToAnchor:self.resetAllButton.bottomAnchor constant:32],
         [table.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-70],
     ]];
     self.tableTrailingConstraint = [table.trailingAnchor constraintEqualToAnchor:done.trailingAnchor constant:-360];
@@ -332,7 +338,8 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
     BOOL details = self.selectedIdentifier.length > 0;
     self.backButton.hidden = !details;
     self.pauseButton.hidden = !details;
-    self.purgeButton.hidden = details;
+    self.resetAllButton.hidden = details;
+    self.deleteAllButton.hidden = details;
     self.actionsPanel.hidden = details || self.torrents.count == 0;
     self.tableTrailingConstraint.constant = details ? -204 : -276;
     NSInteger count = details ? MAX(1, self.visibleEntries.count) : self.torrents.count;
@@ -1100,20 +1107,52 @@ completionHandler:(void (^)(NSURLRequest *))completionHandler {
     [self presentViewController:alert animated:YES completion:nil];
 }
 
-- (void)purgePressed {
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Purge Torrent Downloads"
-        message:@"Delete all downloaded torrent data, including listed torrents? Torrent entries remain at 0% and wait for your manual Start. Browser history and website data are not affected."
+- (void)resetAllPressed {
+    NSArray<BrowserTorrentSnapshot *> *torrents = [[BrowserTorrentManager sharedManager] torrents];
+    if (torrents.count == 0) { [self showMessage:@"No torrents to reset."]; return; }
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Reset All Torrents"
+        message:[NSString stringWithFormat:@"Reset all %lu torrents? Their cached files and playback positions will be deleted. Torrent sources remain, with every file skipped.", (unsigned long)torrents.count]
         preferredStyle:UIAlertControllerStyleAlert];
     __weak typeof(self) weakSelf = self;
-    [alert addAction:[UIAlertAction actionWithTitle:@"Purge All" style:UIAlertActionStyleDestructive handler:^(__unused UIAlertAction *action) {
-        NSUInteger count = 0;
-        NSError *error = nil;
-        uint64_t freed = [[BrowserTorrentManager sharedManager] clearAllTorrentDownloadsWithRemovedCount:&count error:&error];
+    [alert addAction:[UIAlertAction actionWithTitle:@"Reset All" style:UIAlertActionStyleDestructive handler:^(__unused UIAlertAction *action) {
+        weakSelf.resetAllButton.enabled = NO;
+        weakSelf.deleteAllButton.enabled = NO;
+        __block NSUInteger remaining = torrents.count;
+        __block NSUInteger failures = 0;
+        void (^completed)(NSError *) = ^(NSError *error) {
+            if (error) failures++;
+            [weakSelf refresh];
+            if (--remaining > 0) return;
+            weakSelf.resetAllButton.enabled = YES;
+            weakSelf.deleteAllButton.enabled = YES;
+            [weakSelf updateCacheSizeNote];
+            if (failures > 0) [weakSelf showMessage:[NSString stringWithFormat:@"Could not reset %lu torrents. Their entries were kept; try again.", (unsigned long)failures]];
+        };
+        for (BrowserTorrentSnapshot *torrent in torrents) {
+            BOOL started = [[BrowserTorrentManager sharedManager] resetTorrent:torrent.identifier completion:completed];
+            if (!started) completed([NSError errorWithDomain:@"BrowserTorrent" code:1 userInfo:nil]);
+        }
+        [weakSelf refresh];
+    }]];
+    [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+    [self presentViewController:alert animated:YES completion:nil];
+}
+
+- (void)deleteAllPressed {
+    NSArray<BrowserTorrentSnapshot *> *torrents = [[BrowserTorrentManager sharedManager] torrents];
+    if (torrents.count == 0) { [self showMessage:@"No torrents to delete."]; return; }
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Delete All Torrents"
+        message:[NSString stringWithFormat:@"Delete all %lu torrent entries and their cached files and playback positions? Browser history and website data are not affected.", (unsigned long)torrents.count]
+        preferredStyle:UIAlertControllerStyleAlert];
+    __weak typeof(self) weakSelf = self;
+    [alert addAction:[UIAlertAction actionWithTitle:@"Delete All" style:UIAlertActionStyleDestructive handler:^(__unused UIAlertAction *action) {
+        NSUInteger failures = 0;
+        for (BrowserTorrentSnapshot *torrent in torrents) {
+            if (![[BrowserTorrentManager sharedManager] removeTorrent:torrent.identifier deleteFiles:YES]) failures++;
+        }
         [weakSelf refresh];
         [weakSelf updateCacheSizeNote];
-        if (error) { [weakSelf showMessage:error.localizedDescription]; return; }
-        [weakSelf showMessage:[NSString stringWithFormat:@"Removed %lu files and freed %.1f MB. Torrent entries remain ready for manual Start.",
-            (unsigned long)count, freed / 1048576.0]];
+        if (failures > 0) [weakSelf showMessage:[NSString stringWithFormat:@"Could not delete %lu torrents. Try again after any pending reset finishes.", (unsigned long)failures]];
     }]];
     [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
     [self presentViewController:alert animated:YES completion:nil];

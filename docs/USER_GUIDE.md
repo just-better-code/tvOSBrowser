@@ -1,6 +1,6 @@
 # User Guide — tvOSofaBrowse
 
-Current for **2.17.11**. Button names match the application.
+Current for **2.18.23**. Button names match the application.
 
 ## Quick start
 
@@ -9,7 +9,7 @@ Use a Siri Remote with a touch surface or touch-enabled clickpad. A button-only 
 1. Open the browser. On New Tab, choose a Favorite or history entry, or press Back/Menu to open the main menu.
 2. The domain/address button receives initial menu focus. Press Center to enter an address or search query.
 3. Slide on the touchpad to move the pointer and press Center to click a page control.
-4. Press Up/Down to scroll. Hold a direction for continuous, accelerating scrolling.
+4. Press Up/Down to scroll. Hold a direction for continuous, smoothly accelerating scrolling. Touchpad movement controls the pointer; swiping does not scroll the page.
 
 Open the visual quick guide through **Menu → Tools → User Guide**. **Show this guide at launch** uses the same ON/OFF badge as the browser menu and controls whether it appears at startup.
 
@@ -54,7 +54,7 @@ The address spans the top of the menu. Below it, the six-button row contains **B
 
 Quick Actions, Settings and the three Clear commands use three columns. In the last row, Debug takes one column and User Guide spans two. Clear commands are highlighted pink only when focused.
 
-Zoom ranges from **50% to 200%**, in **10%** steps. It scales the text and page together, starts at the left edge after a change, and remembers the chosen percentage across tabs and launches. Reset Zoom shows the current percentage, updates after each zoom action, and restores **100%** when pressed. Mobile Site changes the User Agent; presentation depends on the website.
+Zoom ranges from **50% to 200%**, in **10%** steps. It scales the text and page together, starts at the left edge after a change, and remembers the chosen percentage separately for each top-level domain across tabs and launches. Domains without a saved setting start at 100%; different subdomains have separate settings. Reset Zoom shows the current percentage, updates after each zoom action, and restores **100%** for the current domain when pressed. Mobile Site changes the User Agent; presentation depends on the website.
 
 Press Center on **Ad Block** to switch protection on or off. Hold Center to open its settings popup. The master Ad Block toggle sits beside the **Settings** heading without an extra container; the list below switches the [AdGuard DNS filter](https://github.com/AdguardTeam/AdGuardSDNSFilter) and [AdGuard Base, Ukrainian, Social Media, Mobile Ads, and Annoyances filters](https://adguard.com/kb/general/ad-filtering/adguard-filters/) separately. Every toggle uses the browser menu's green ON or gray OFF badge. A filter badge sits at the right edge of its row, with its version just before it, or an update date if the list has no version. Downloading and errors appear in the same row; a failed update keeps its cached copy. **Update Filters Now** sits to the left of **Done** below the filter controls. While Ad Block is on, enabled filters download directly on the Apple TV, check for updates weekly, and remain cached for later launches. On later launches, unchanged filters reuse their compiled WebKit rules without converting the lists again; missing compiled rules are rebuilt from the cached filters. Browser filter rules are converted with [SafariConverterLib](https://github.com/AdguardTeam/SafariConverterLib) to support network and native cosmetic rules; rules requiring a Safari extension runtime are not applied. If one filter's rules fail to compile, other successfully compiled filters remain active. Ad Block also suppresses script-opened external windows. A bundled custom-rules file blocks the observed Hraimo banner source across websites and is reserved for requested gaps in online filters; changing it requires a new app installation. If the first download is unavailable, protection from online lists starts when a download succeeds. Ads inserted directly into a video stream may remain. If Ad Block interferes with a page or player, disable it and reload.
 
@@ -74,6 +74,8 @@ The magnifier is also available through Settings → Magnifier. It turns off aft
 The native New Tab page shows **Favorites** and recent history across the available screen width. Center opens an entry. **Play/Pause or Hold Center opens the selected entry's options**: Favorite actions or recent-visit actions.
 
 The session saves ordinary tabs, the active tab and each tab's Back/Forward list. An empty New Tab is temporary and is not restored as an ordinary page.
+
+If the active webpage's WebKit process terminates while the app is in the foreground, the browser automatically reloads it. It allows two automatic attempts during a burst of crashes, then stops to avoid a reload loop. After 60 seconds without another termination, automatic attempts are available again. You can still use Reload manually. Background tabs are not automatically reloaded.
 
 ## Favorites
 
@@ -123,13 +125,13 @@ New torrents start with files skipped. Center opens a folder, and Back returns t
 
 All new torrents wait for manual file selection or Download All. Playing a file enables that file; use its right-hand download icon or Hold Center → **Download File** to transfer one file without opening the player.
 
-From a torrent's file list, choose **Skip Download** to stop requesting that file, or use **Pause/Resume** to control the torrent. Skipping a completed file does not erase its downloaded bytes; libtorrent 1.2 has no safe individual-file removal action in this app. In the overall list, Hold Center and choose **Reset Torrent** to delete its downloaded files, retain its `.torrent` or magnet source, and restore the entry with all files skipped. **Remove Torrent** deletes its entry and cached files. Both actions also clear that torrent's playback positions. The hint beside the action shortcuts shows the total torrent cache size, which includes listed torrents. **Purge All** removes downloaded data and playback positions for every torrent but keeps torrent entries at 0% for manual restart. This action does not touch browser history or website data. Torrent payloads and metadata are in tvOS's purgeable cache, so the system may remove them when space is needed. **Settings → Keep Alive** is experimental and does not guarantee background downloading.
+From a torrent's file list, choose **Skip Download** to stop requesting that file, or use **Pause/Resume** to control the torrent. Skipping a completed file does not erase its downloaded bytes; libtorrent 1.2 has no safe individual-file removal action in this app. In the overall list, Hold Center and choose **Reset Torrent** to delete its downloaded files, retain its `.torrent` or magnet source, and restore the entry with all files skipped. **Remove Torrent** deletes its entry and cached files. Both actions also clear that torrent's playback positions. The hint beside the action shortcuts shows the total torrent cache size, which includes listed torrents. **Reset All** applies Reset Torrent to every listed torrent: it removes downloaded files and playback positions, retains sources, and re-adds entries with all files skipped. **Delete All**, beside Reset All, removes every listed torrent and its cached files and playback positions. Both actions require confirmation. This action does not touch browser history or website data. Torrent payloads and metadata are in tvOS's purgeable cache, so the system may remove them when space is needed. **Settings → Keep Alive** is experimental and does not guarantee background downloading.
 
 ### Background downloads
 
 Torrent transfers continue while the app is active, including when Torrents is closed and you browse websites. Experimental **Settings → Keep Alive** can let a manually started torrent continue downloading after you leave the browser. tvOS may still suspend or interrupt the browser, so this does not guarantee every transfer will finish. The app can also request system-managed Background App Refresh and Background Processing time for manually started, incomplete torrents; tvOS decides whether and when to grant it. Keep the app open for a download that must continue without interruption.
 
-**Debug → Diagnostics** is the master switch for website and numeric torrent/background logging and the temporary background probe. **Debug → Recent Diagnostic Logs** shows the ten latest numeric diagnostic lines; **Debug → Background Probe** shows elapsed background time, timer-covered execution time, and the longest timer gap without requiring a torrent. It also records whether **Keep Alive** was on when measurement began. A long elapsed interval with little active time means the app was suspended. In Debug builds with Diagnostics enabled, a probe-only request is submitted even if no torrent is pending; ordinary releases submit tasks only for manually started, incomplete torrents.
+**Menu → Tools → Debug** toggles diagnostics with Center; hold Center to open its options with a **Debug ON/OFF** button at the top, plus **Recent Diagnostic Logs** and **Background Probe** report buttons below. Debug is the single master switch for app console logs, website logging, numeric torrent/background diagnostics, and the temporary background probe. Turning it off stops an active probe and cancels probe-only background requests without stopping torrent downloads. Saved reports remain readable while Debug is off; collecting fresh media or WebKit diagnostics requires Debug on. **Debug → Recent Diagnostic Logs** shows the ten latest numeric diagnostic lines; **Debug → Background Probe** shows elapsed background time, timer-covered execution time, and the longest timer gap without requiring a torrent. It also records whether **Keep Alive** was on when measurement began. A long elapsed interval with little active time means the app was suspended. In Debug builds with Debug enabled, a probe-only request is submitted even if no torrent is pending; ordinary releases submit tasks only for manually started, incomplete torrents.
 
 ### Episode, season and playback position
 
@@ -159,7 +161,7 @@ The browser automatically saves history, Favorites and tab sessions in a local d
 
 ## Diagnostic logging
 
-Open **Menu → Tools → Debug → Diagnostics: ON/OFF**.
+Press Center on **Menu → Tools → Debug** to toggle diagnostics using its green ON / gray OFF badge. Hold Center on Debug to open its options, styled like Ad Block settings with the same **Debug ON/OFF** button at the top. There are no separate logging or probe switches.
 
 - Activate the item to toggle website and numeric torrent/background diagnostics together.
 - The choice survives relaunch; diagnostics are initially enabled.

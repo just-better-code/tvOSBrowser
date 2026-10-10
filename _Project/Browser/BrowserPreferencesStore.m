@@ -3,12 +3,11 @@
 static NSString * const kUserAgentDefaultsKey = @"UserAgent";
 static NSString * const kMobileModeDefaultsKey = @"MobileMode";
 static NSString * const kTextFontSizeDefaultsKey = @"TextFontSize";
-static NSString * const kPageZoomPercentDefaultsKey = @"PageZoomPercent";
+static NSString * const kPageZoomByHostDefaultsKey = @"PageZoomByHost";
 static NSString * const kEnableFullscreenVideoPlaybackDefaultsKey = @"EnableFullscreenVideoPlayback";
 static NSString * const kAdBlockEnabledDefaultsKey = @"AdBlockEnabled";
 static NSString * const kCursorMagnifierEnabledDefaultsKey = @"CursorMagnifierEnabled";
 static NSString * const kDontShowHintsOnLaunchDefaultsKey = @"DontShowHintsOnLaunch";
-static NSString * const kWebsiteLoggingEnabledDefaultsKey = @"WebsiteLoggingEnabled";
 static NSString * const kDebugEnabledDefaultsKey = @"BrowserDebugEnabled";
 static NSString * const kDebugLastLogDefaultsKey = @"BrowserDebugLastLog";
 static NSString * const kDebugRecentLogsDefaultsKey = @"BrowserDebugRecentLogs";
@@ -17,6 +16,8 @@ static NSString * const kHomepageDefaultsKey = @"homepage";
 static NSUInteger const kDefaultTextFontSize = 100;
 static NSUInteger const kMinimumTextFontSize = 50;
 static NSUInteger const kMaximumTextFontSize = 200;
+
+NSNotificationName const BrowserDebugEnabledDidChangeNotification = @"BrowserDebugEnabledDidChangeNotification";
 
 @implementation BrowserPreferencesStore
 
@@ -29,10 +30,7 @@ static NSUInteger const kMaximumTextFontSize = 200;
 }
 
 + (BOOL)websiteLoggingEnabled {
-    if (!self.debugEnabled) return NO;
-    NSNumber *value = [NSUserDefaults.standardUserDefaults objectForKey:kWebsiteLoggingEnabledDefaultsKey];
-    // Preserve existing logging until the user explicitly switches it off.
-    return value == nil ? YES : value.boolValue;
+    return self.debugEnabled;
 }
 
 + (BOOL)debugEnabled {
@@ -44,8 +42,8 @@ static NSUInteger const kMaximumTextFontSize = 200;
 
 - (void)setDebugEnabled:(BOOL)enabled {
     [[self defaults] setBool:enabled forKey:kDebugEnabledDefaultsKey];
-    [[self defaults] setBool:enabled forKey:kWebsiteLoggingEnabledDefaultsKey];
     [[self defaults] synchronize];
+    [NSNotificationCenter.defaultCenter postNotificationName:BrowserDebugEnabledDidChangeNotification object:self];
 }
 
 - (BOOL)websiteLoggingEnabled {
@@ -53,8 +51,7 @@ static NSUInteger const kMaximumTextFontSize = 200;
 }
 
 - (void)setWebsiteLoggingEnabled:(BOOL)enabled {
-    [[self defaults] setBool:enabled forKey:kWebsiteLoggingEnabledDefaultsKey];
-    [[self defaults] synchronize];
+    self.debugEnabled = enabled;
 }
 
 - (NSUserDefaults *)defaults {
@@ -105,15 +102,33 @@ static NSUInteger const kMaximumTextFontSize = 200;
     [[self defaults] synchronize];
 }
 
-- (NSUInteger)pageZoomPercent {
-    NSNumber *storedValue = [[self defaults] objectForKey:kPageZoomPercentDefaultsKey];
-    NSUInteger value = storedValue == nil ? 100 : storedValue.unsignedIntegerValue;
+- (NSString *)pageZoomHostForURL:(NSURL *)URL {
+    NSString *scheme = URL.scheme.lowercaseString;
+    if (![scheme isEqualToString:@"http"] && ![scheme isEqualToString:@"https"]) return nil;
+    NSString *host = URL.host.lowercaseString;
+    // A trailing DNS dot refers to the same host. Keep distinct subdomains separate.
+    while ([host hasSuffix:@"."]) host = [host substringToIndex:host.length - 1];
+    return host.length > 0 ? host : nil;
+}
+
+- (NSUInteger)pageZoomPercentForURL:(NSURL *)URL {
+    NSString *host = [self pageZoomHostForURL:URL];
+    if (host == nil) return 100;
+    NSDictionary *values = [[self defaults] dictionaryForKey:kPageZoomByHostDefaultsKey];
+    id storedValue = values[host];
+    NSUInteger value = [storedValue isKindOfClass:NSNumber.class] ? [storedValue unsignedIntegerValue] : 100;
     return MIN((NSUInteger)200, MAX((NSUInteger)50, value));
 }
 
-- (void)setPageZoomPercent:(NSUInteger)pageZoomPercent {
-    NSUInteger value = MIN((NSUInteger)200, MAX((NSUInteger)50, pageZoomPercent));
-    [[self defaults] setObject:@(value) forKey:kPageZoomPercentDefaultsKey];
+- (void)setPageZoomPercent:(NSUInteger)percent forURL:(NSURL *)URL {
+    NSString *host = [self pageZoomHostForURL:URL];
+    if (host == nil) return;
+    NSMutableDictionary *values = [[[self defaults] dictionaryForKey:kPageZoomByHostDefaultsKey] mutableCopy]
+        ?: [NSMutableDictionary dictionary];
+    NSUInteger value = MIN((NSUInteger)200, MAX((NSUInteger)50, percent));
+    if (value == 100) [values removeObjectForKey:host];
+    else values[host] = @(value);
+    [[self defaults] setObject:values forKey:kPageZoomByHostDefaultsKey];
     [[self defaults] synchronize];
 }
 

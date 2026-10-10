@@ -1,0 +1,11 @@
+# Index all local research references requested by the user.
+!/.references/
+# Exclude repository metadata, tooling state and generated caches.
+**/.git/**
+**/.github/**
+**/.gradle/**
+**/node_modules/**
+**/__pycache__/**
+**/.DS_Store
+# Keep animation assets on disk; repetitive frames add no useful graph navigation.
+/.references/firefox-tv-master/app/src/main/res/drawable-xhdpi/progress_loading_indicator_*.png

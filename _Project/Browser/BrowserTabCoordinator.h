@@ -38,7 +38,6 @@ NS_ASSUME_NONNULL_BEGIN
            browserContainerView:(UIView *)browserContainerView
                     rootView:(UIView *)rootView
                   cursorView:(UIImageView *)cursorView
-     manualScrollPanRecognizer:(UIPanGestureRecognizer *)manualScrollPanRecognizer
              webViewDelegate:(id)webViewDelegate
          scrollViewAllowBounces:(BOOL)scrollViewAllowBounces NS_DESIGNATED_INITIALIZER;
 
@@ -68,6 +67,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)webViewDidFinishLoad:(id)webView;
 - (void)webViewDidChangeNavigationHistory:(id)webView;
 - (void)webViewDidFailLoad:(id)webView;
+- (void)webViewWebContentProcessDidTerminate:(BrowserWebView *)webView;
 - (void)prepareTabForRequest:(NSURLRequest *)request webView:(id)webView navigationType:(NSInteger)navigationType;
 - (BrowserTabViewModel *)tabForWebView:(id)webView;
 - (BOOL)isPrimaryDocumentRequest:(NSURLRequest *)request;

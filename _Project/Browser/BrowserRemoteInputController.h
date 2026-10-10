@@ -35,7 +35,6 @@ NS_ASSUME_NONNULL_BEGIN
 @interface BrowserRemoteInputController : NSObject
 
 @property (nonatomic, readonly) UIImageView *cursorView;
-@property (nonatomic, readonly) UIPanGestureRecognizer *manualScrollPanRecognizer;
 @property (nonatomic, readonly, getter=isCursorModeEnabled) BOOL cursorModeEnabled;
 @property (nonatomic, getter=isMagnifierEnabled) BOOL magnifierEnabled;
 

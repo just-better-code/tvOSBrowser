@@ -12,7 +12,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, copy) NSString *userAgent;
 @property (nonatomic) BOOL mobileModeEnabled;
 @property (nonatomic) NSUInteger textFontSize;
-@property (nonatomic) NSUInteger pageZoomPercent;
+// Page zoom belongs to the top-level HTTP(S) host, shared across its tabs.
+- (NSUInteger)pageZoomPercentForURL:(nullable NSURL *)URL;
+- (void)setPageZoomPercent:(NSUInteger)percent forURL:(nullable NSURL *)URL;
 @property (nonatomic) BOOL fullscreenVideoPlaybackEnabled;
 @property (nonatomic) BOOL adBlockEnabled;
 @property (nonatomic) BOOL cursorMagnifierEnabled;
@@ -24,6 +26,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)ensureUserAgentConsistency;
 
 @end
+
+// App-owned console logging follows the Debug master switch.
+#define BrowserLog(...) do { if (BrowserPreferencesStore.debugEnabled) NSLog(__VA_ARGS__); } while (0)
+FOUNDATION_EXPORT NSNotificationName const BrowserDebugEnabledDidChangeNotification;
 
 /// Numeric torrent/background diagnostics; never pass URLs, headers, or page content.
 FOUNDATION_EXPORT void BrowserDebugLog(NSString *format, ...) NS_FORMAT_FUNCTION(1, 2);

@@ -1,3 +1,4 @@
+#import "BrowserPreferencesStore.h"
 #import "BrowserNativeVideoAssetLoader.h"
 
 #import <AVFoundation/AVFoundation.h>
@@ -30,7 +31,7 @@ static NSString * const kBrowserNativeVideoHTTPSProxyScheme = @"browserhttps";
         NSRegularExpression *placeholders = [NSRegularExpression regularExpressionWithPattern:@"%[-+ #0]*[0-9]*(?:\\.[0-9]+)?(?:hh|ll|[hljztL])?[@diuoxXfFeEgGaAcsp]" options:0 error:NULL];
         message = [placeholders stringByReplacingMatchesInString:format options:0 range:NSMakeRange(0, format.length) withTemplate:@"<redacted>"];
     }
-    NSLog(@"%@ %@", kBrowserNativeVideoAssetLoaderLogPrefix, message);
+    BrowserLog(@"%@ %@", kBrowserNativeVideoAssetLoaderLogPrefix, message);
 }
 
 - (instancetype)initWithRequestHeaders:(NSDictionary<NSString *,NSString *> *)requestHeaders
@@ -87,10 +88,6 @@ static NSString * const kBrowserNativeVideoHTTPSProxyScheme = @"browserhttps";
         components.scheme = @"http";
     }
     return components.URL;
-}
-
-- (NSString *)cookieHeaderValue {
-    return [self cookieHeaderValueForURL:nil];
 }
 
 - (BOOL)cookie:(NSHTTPCookie *)cookie matchesURL:(NSURL *)URL {

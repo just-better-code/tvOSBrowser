@@ -1,6 +1,6 @@
+#import "BrowserPreferencesStore.h"
 #import "BrowserNativeVideoPlayerViewController.h"
 #import "BrowserNativeVideoAssetLoader.h"
-#import "BrowserTorrentAssetLoader.h"
 
 #import <AVFoundation/AVFoundation.h>
 
@@ -38,7 +38,6 @@ static NSString *BrowserNativePlayerPressPhaseString(UIPressPhase phase) {
 @property (nonatomic, copy) NSDictionary<NSString *, NSString *> *requestHeaders;
 @property (nonatomic, copy) NSArray<NSHTTPCookie *> *requestCookies;
 @property (nonatomic, strong) BrowserNativeVideoAssetLoader *assetLoader;
-@property (nonatomic, strong) BrowserTorrentAssetLoader *torrentAssetLoader;
 
 @end
 
@@ -55,7 +54,7 @@ static NSString *BrowserNativePlayerPressPhaseString(UIPressPhase phase) {
         NSRegularExpression *placeholders = [NSRegularExpression regularExpressionWithPattern:@"%[-+ #0]*[0-9]*(?:\\.[0-9]+)?(?:hh|ll|[hljztL])?[@diuoxXfFeEgGaAcsp]" options:0 error:NULL];
         message = [placeholders stringByReplacingMatchesInString:format options:0 range:NSMakeRange(0, format.length) withTemplate:@"<redacted>"];
     }
-    NSLog(@"%@ %@", kBrowserNativeVideoPlayerLogPrefix, message);
+    BrowserLog(@"%@ %@", kBrowserNativeVideoPlayerLogPrefix, message);
 }
 
 - (instancetype)initWithURL:(NSURL *)URL title:(NSString *)title {
@@ -83,12 +82,7 @@ static NSString *BrowserNativePlayerPressPhaseString(UIPressPhase phase) {
     self.view.backgroundColor = UIColor.blackColor;
     self.showsPlaybackControls = YES;
     AVPlayerItem *playerItem = nil;
-    if ([self.videoURL.scheme.lowercaseString isEqualToString:@"browsertorrent"]) {
-        self.torrentAssetLoader = [BrowserTorrentAssetLoader new];
-        AVURLAsset *asset = [AVURLAsset URLAssetWithURL:self.videoURL options:nil];
-        [self.torrentAssetLoader attachToAsset:asset];
-        playerItem = [AVPlayerItem playerItemWithAsset:asset];
-    } else if (self.requestHeaders.count > 0 || self.requestCookies.count > 0) {
+    if (self.requestHeaders.count > 0 || self.requestCookies.count > 0) {
         NSMutableDictionary *assetOptions = [NSMutableDictionary dictionary];
         if (self.requestHeaders.count > 0) {
             assetOptions[@"AVURLAssetHTTPHeaderFieldsKey"] = self.requestHeaders;
@@ -132,14 +126,14 @@ static NSString *BrowserNativePlayerPressPhaseString(UIPressPhase phase) {
 
 - (void)viewDidAppear:(BOOL)animated {
     [super viewDidAppear:animated];
-    NSLog(@"%@ viewDidAppear", kBrowserNativePlayerInputLogPrefix);
+    BrowserLog(@"%@ viewDidAppear", kBrowserNativePlayerInputLogPrefix);
     [self log:@"viewDidAppear play"];
     [self.player play];
 }
 
 - (void)viewWillDisappear:(BOOL)animated {
     [super viewWillDisappear:animated];
-    NSLog(@"%@ viewWillDisappear", kBrowserNativePlayerInputLogPrefix);
+    BrowserLog(@"%@ viewWillDisappear", kBrowserNativePlayerInputLogPrefix);
     [self log:@"viewWillDisappear pause"];
     [self.player pause];
 }
@@ -204,7 +198,6 @@ static NSString *BrowserNativePlayerPressPhaseString(UIPressPhase phase) {
 - (void)handlePlayerItemFailedToPlayToEndTime:(NSNotification *)notification {
     NSError *error = notification.userInfo[AVPlayerItemFailedToPlayToEndTimeErrorKey];
     [self log:@"failedToPlayToEnd error=%@", error];
-    if (self.torrentAssetLoader) [self log:@"torrent failedToEnd code=%ld underlyingCode=%ld", (long)error.code, (long)[error.userInfo[NSUnderlyingErrorKey] code]];
 }
 
 - (void)handlePlayerItemNewErrorLogEntry:(NSNotification *)notification {
@@ -232,10 +225,6 @@ static NSString *BrowserNativePlayerPressPhaseString(UIPressPhase phase) {
                 break;
             case AVPlayerItemStatusFailed:
                 [self log:@"item status=failed error=%@", self.player.currentItem.error];
-                if (self.torrentAssetLoader) {
-                    NSError *error = self.player.currentItem.error;
-                    [self log:@"torrent item failed code=%ld underlyingCode=%ld", (long)error.code, (long)[error.userInfo[NSUnderlyingErrorKey] code]];
-                }
                 break;
         }
         return;
@@ -266,7 +255,7 @@ static NSString *BrowserNativePlayerPressPhaseString(UIPressPhase phase) {
 - (void)pressesBegan:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
     UIPress *press = presses.anyObject;
     if (press != nil && (press.type == UIPressTypeMenu || press.type == UIPressTypePlayPause || press.type == UIPressTypeSelect)) {
-        NSLog(@"%@ pressesBegan type=%@ phase=%@",
+        BrowserLog(@"%@ pressesBegan type=%@ phase=%@",
               kBrowserNativePlayerInputLogPrefix,
               BrowserNativePlayerPressTypeString(press.type),
               BrowserNativePlayerPressPhaseString(press.phase));
@@ -277,7 +266,7 @@ static NSString *BrowserNativePlayerPressPhaseString(UIPressPhase phase) {
 - (void)pressesEnded:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
     UIPress *press = presses.anyObject;
     if (press != nil && (press.type == UIPressTypeMenu || press.type == UIPressTypePlayPause || press.type == UIPressTypeSelect)) {
-        NSLog(@"%@ pressesEnded type=%@ phase=%@",
+        BrowserLog(@"%@ pressesEnded type=%@ phase=%@",
               kBrowserNativePlayerInputLogPrefix,
               BrowserNativePlayerPressTypeString(press.type),
               BrowserNativePlayerPressPhaseString(press.phase));

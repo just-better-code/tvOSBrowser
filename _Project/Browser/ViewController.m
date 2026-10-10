@@ -87,7 +87,6 @@ static UIColor *kTextColor(void) {
                                                     browserContainerView:self.browserContainerView
                                                               rootView:self.view
                                                             cursorView:self.remoteInputController.cursorView
-                                               manualScrollPanRecognizer:self.remoteInputController.manualScrollPanRecognizer
                                                            webViewDelegate:self
                                                        scrollViewAllowBounces:self.scrollViewAllowBounces];
     self.tabOverviewController = [[BrowserTabOverviewController alloc] initWithHost:self
@@ -857,6 +856,10 @@ static UIColor *kTextColor(void) {
 
 - (void)webViewDidStartLoad:(id)webView {
     [self.tabCoordinator webViewDidStartLoad:webView];
+}
+
+- (void)webViewWebContentProcessDidTerminate:(id)webView {
+    [self.tabCoordinator webViewWebContentProcessDidTerminate:webView];
 }
 
 - (void)webViewDidChangeNavigationHistory:(id)webView {

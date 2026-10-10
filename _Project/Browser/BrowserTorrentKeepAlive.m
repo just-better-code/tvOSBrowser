@@ -1,3 +1,4 @@
+#import "BrowserPreferencesStore.h"
 #import "BrowserTorrentKeepAlive.h"
 
 #import <AVFoundation/AVFoundation.h>
@@ -62,14 +63,14 @@ static NSData *OneSecondOfSilence(void) {
     AVAudioSession *session = [AVAudioSession sharedInstance];
     if (![session setCategory:AVAudioSessionCategoryPlayback withOptions:AVAudioSessionCategoryOptionMixWithOthers error:&error] ||
         ![session setActive:YES error:&error]) {
-        NSLog(@"[TorrentKeepAlive] Audio session failed: %@", error);
+        BrowserLog(@"[TorrentKeepAlive] Audio session failed: %@", error);
         return;
     }
     self.player = [[AVAudioPlayer alloc] initWithData:OneSecondOfSilence() error:&error];
     self.player.numberOfLoops = -1;
     self.player.volume = 0.01;
     [self.player prepareToPlay];
-    if (![self.player play]) NSLog(@"[TorrentKeepAlive] Silent playback failed: %@", error);
+    if (![self.player play]) BrowserLog(@"[TorrentKeepAlive] Silent playback failed: %@", error);
 }
 
 - (void)stop {

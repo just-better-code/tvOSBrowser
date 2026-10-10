@@ -9,6 +9,8 @@
 
 static CGFloat const kThumbnailStagingOffset = 4096.0;
 static NSString * const kBrowserNewTabURL = @"about:blank";
+static NSUInteger const kMaximumWebContentProcessReloads = 2;
+static NSTimeInterval const kWebContentProcessCrashQuietInterval = 60.0;
 
 @interface BrowserTabCoordinator ()
 
@@ -20,7 +22,6 @@ static NSString * const kBrowserNewTabURL = @"about:blank";
 @property (nonatomic, weak) UIView *browserContainerView;
 @property (nonatomic, weak) UIView *rootView;
 @property (nonatomic, weak) UIImageView *cursorView;
-@property (nonatomic, weak) UIPanGestureRecognizer *manualScrollPanRecognizer;
 @property (nonatomic, weak) id webViewDelegate;
 @property (nonatomic) BOOL scrollViewAllowBounces;
 @property (nonatomic) NSMutableDictionary<NSString *, BrowserWebView *> *webViewsByTabIdentifier;
@@ -45,7 +46,6 @@ static NSString * const kBrowserNewTabURL = @"about:blank";
           browserContainerView:(UIView *)browserContainerView
                     rootView:(UIView *)rootView
                   cursorView:(UIImageView *)cursorView
-     manualScrollPanRecognizer:(UIPanGestureRecognizer *)manualScrollPanRecognizer
              webViewDelegate:(id)webViewDelegate
          scrollViewAllowBounces:(BOOL)scrollViewAllowBounces {
     self = [super init];
@@ -58,7 +58,6 @@ static NSString * const kBrowserNewTabURL = @"about:blank";
         _browserContainerView = browserContainerView;
         _rootView = rootView;
         _cursorView = cursorView;
-        _manualScrollPanRecognizer = manualScrollPanRecognizer;
         _webViewDelegate = webViewDelegate;
         _scrollViewAllowBounces = scrollViewAllowBounces;
         _webViewsByTabIdentifier = [NSMutableDictionary dictionary];
@@ -124,24 +123,6 @@ static NSString * const kBrowserNewTabURL = @"about:blank";
                                                  viewportSize.height);
 }
 
-- (void)prepareWebViewLayoutForSnapshot:(BrowserWebView *)webView {
-    if (webView == nil) {
-        return;
-    }
-
-    if (webView.superview == self.thumbnailStagingView) {
-        webView.frame = self.thumbnailStagingView.bounds;
-    }
-    [webView setNeedsLayout];
-    [webView layoutIfNeeded];
-
-    UIScrollView *scrollView = webView.scrollView;
-    [scrollView setNeedsLayout];
-    [scrollView layoutIfNeeded];
-    [self.rootView setNeedsLayout];
-    [self.rootView layoutIfNeeded];
-}
-
 - (void)parkWebViewForThumbnailing:(BrowserWebView *)webView {
     if (webView == nil) {
         return;
@@ -184,7 +165,7 @@ static NSString * const kBrowserNewTabURL = @"about:blank";
     [scrollView.panGestureRecognizer addTarget:self action:@selector(handleWebViewPanGesture:)];
     scrollView.scrollEnabled = NO;
 
-    webView.pageZoomFactor = self.preferencesStore.pageZoomPercent / 100.0;
+    webView.pageZoomFactor = 1.0;
     webView.contentMode = UIViewContentModeScaleToFill;
     webView.userInteractionEnabled = NO;
     return webView;
@@ -196,7 +177,8 @@ static NSString * const kBrowserNewTabURL = @"about:blank";
         return;
     }
 
-    self.activeWebView.pageZoomFactor = self.preferencesStore.pageZoomPercent / 100.0;
+    NSURL *pageURL = self.activeWebView.request.URL ?: [NSURL URLWithString:tab.URLString];
+    self.activeWebView.pageZoomFactor = [self.preferencesStore pageZoomPercentForURL:pageURL] / 100.0;
     if (![tab.URLString isEqualToString:kBrowserNewTabURL]) {
         [self.host browserTabCoordinatorHideNativeStartPage];
     }
@@ -317,9 +299,9 @@ static NSString * const kBrowserNewTabURL = @"about:blank";
 
     BOOL shouldAllowWebInteraction = ![self.host browserTabCoordinatorIsCursorModeEnabled] &&
         ![self.host browserTabCoordinatorIsTabOverviewVisible];
-    scrollView.scrollEnabled = shouldAllowWebInteraction;
+    // Keep native touchpad panning disabled when switching tabs as well.
+    scrollView.scrollEnabled = NO;
     self.activeWebView.userInteractionEnabled = shouldAllowWebInteraction;
-    self.manualScrollPanRecognizer.enabled = shouldAllowWebInteraction;
 
     [self refreshActiveTabUI];
 }
@@ -776,6 +758,35 @@ static NSString * const kBrowserNewTabURL = @"about:blank";
 - (void)webViewDidFailLoad:(id)webView {
     BrowserTabViewModel *tab = [self tabForWebView:webView];
     tab.pendingNavigationIndex = NSNotFound;
+}
+
+- (void)webViewWebContentProcessDidTerminate:(BrowserWebView *)webView {
+    BrowserTabViewModel *tab = [self tabForWebView:webView];
+    if (tab == nil || tab != self.activeTab || webView != self.activeWebView ||
+        [tab.URLString isEqualToString:kBrowserNewTabURL] ||
+        UIApplication.sharedApplication.applicationState != UIApplicationStateActive) {
+        return;
+    }
+
+    NSTimeInterval uptime = NSProcessInfo.processInfo.systemUptime;
+    if (uptime - tab.lastWebContentProcessCrashUptime >= kWebContentProcessCrashQuietInterval) {
+        tab.webContentProcessCrashCount = 0;
+    }
+    tab.lastWebContentProcessCrashUptime = uptime;
+    tab.webContentProcessCrashCount = MIN(tab.webContentProcessCrashCount + 1,
+                                        kMaximumWebContentProcessReloads + 1);
+    // Keep the budget across successful loads: a page can crash again just after
+    // didFinishNavigation. Only a quiet interval allows another recovery burst.
+    if (tab.webContentProcessCrashCount > kMaximumWebContentProcessReloads) {
+        BrowserLog(@"[WebKit] automatic recovery stopped after repeated process termination");
+        return;
+    }
+
+    tab.pendingNavigationIndex = NSNotFound;
+    tab.needsScrollRestore = tab.hasSavedScrollOffset;
+    BrowserLog(@"[WebKit] recovering active tab attempt=%lu",
+               (unsigned long)tab.webContentProcessCrashCount);
+    [webView reload];
 }
 
 - (void)webViewDidFinishLoad:(id)webView {

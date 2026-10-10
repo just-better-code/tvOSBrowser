@@ -25,16 +25,12 @@
 		A1B49A552D68143D001D58A1 /* BrowserMenuCoordinator.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A542D68143D001D58A1 /* BrowserMenuCoordinator.m */; };
 		A1B49A582D6828D4001D58A1 /* BrowserSessionStore.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A572D6828D4001D58A1 /* BrowserSessionStore.m */; };
 		A1B49A5D2D69F100001D58A1 /* WebCoreNSURLSessionTaskTransactionMetrics+AddPrivacyStance.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A5C2D69F100001D58A1 /* WebCoreNSURLSessionTaskTransactionMetrics+AddPrivacyStance.m */; };
-		A1B49A5F2D69F900001D58A1 /* WebAVPlayerViewController+FullscreenSubviewHack.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A5E2D69F900001D58A1 /* WebAVPlayerViewController+FullscreenSubviewHack.m */; };
-		A1B49A612D6A1000001D58A1 /* BrowserWKWebViewProofOfConceptViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A602D6A1000001D58A1 /* BrowserWKWebViewProofOfConceptViewController.m */; };
 		A1B49A632D6A3800001D58A1 /* BrowserWebView.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A622D6A3800001D58A1 /* BrowserWebView.m */; };
 		ADBB00000000000000000001 /* AdBlockCustomRules.json in Resources */ = {isa = PBXBuildFile; fileRef = ADBB00000000000000000002 /* AdBlockCustomRules.json */; };
 		ADBB00000000000000000003 /* BrowserAdBlockConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADBB00000000000000000004 /* BrowserAdBlockConverter.swift */; };
 		ADBB00000000000000000005 /* ContentBlockerConverter in Frameworks */ = {isa = PBXBuildFile; productRef = ADBB00000000000000000006 /* ContentBlockerConverter */; };
-		A1B49A662D6A7500001D58A1 /* AVPlayerViewController+BrowserFullscreenBlock.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A652D6A7500001D58A1 /* AVPlayerViewController+BrowserFullscreenBlock.m */; };
 		A1B49A682D6AD500001D58A1 /* UIApplication+BrowserSelectPressForwarding.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A672D6AD500001D58A1 /* UIApplication+BrowserSelectPressForwarding.m */; };
 		A1B49A6C2D6B1000001D58A1 /* BrowserNativeVideoPlayerViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A6B2D6B1000001D58A1 /* BrowserNativeVideoPlayerViewController.m */; };
-		A1B49A722D6B7000001D58A1 /* BrowserYouTubeExtractor.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A712D6B7000001D58A1 /* BrowserYouTubeExtractor.m */; };
 		A1B49A742D6C1000001D58A1 /* BrowserNativeVideoAssetLoader.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A732D6C1000001D58A1 /* BrowserNativeVideoAssetLoader.m */; };
 		A1B49A842D6D2000001D58A1 /* BrowserDOMInteractionService.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A832D6D2000001D58A1 /* BrowserDOMInteractionService.m */; };
 		A1B49A872D6D2000001D58A1 /* BrowserVideoPlaybackCoordinator.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A862D6D2000001D58A1 /* BrowserVideoPlaybackCoordinator.m */; };
@@ -48,7 +44,6 @@
 		A1B49A9E2D700070001D58A1 /* BrowserHistoryViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A9D2D700070001D58A1 /* BrowserHistoryViewController.m */; };
 		A1B49AA12D700080001D58A1 /* BrowserHistoryStore.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49AA02D700080001D58A1 /* BrowserHistoryStore.m */; };
 		C0D3A0010000000000000001 /* BrowserTorrentManager.mm in Sources */ = {isa = PBXBuildFile; fileRef = C0D3A0010000000000000002 /* BrowserTorrentManager.mm */; };
-		C0D3A0010000000000000005 /* BrowserTorrentAssetLoader.m in Sources */ = {isa = PBXBuildFile; fileRef = C0D3A0010000000000000006 /* BrowserTorrentAssetLoader.m */; };
 		C0D3A0010000000000000008 /* BrowserTorrentLibraryViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = C0D3A0010000000000000009 /* BrowserTorrentLibraryViewController.m */; };
 		C0D3A001000000000000000B /* BrowserTorrentKeepAlive.m in Sources */ = {isa = PBXBuildFile; fileRef = C0D3A001000000000000000C /* BrowserTorrentKeepAlive.m */; };
 		C0D3A001000000000000000E /* libtorrent.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = C0D3A001000000000000000F /* libtorrent.xcframework */; };
@@ -103,18 +98,13 @@
 		A1B49A562D6828D4001D58A1 /* BrowserSessionStore.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserSessionStore.h; sourceTree = "<group>"; };
 		A1B49A572D6828D4001D58A1 /* BrowserSessionStore.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserSessionStore.m; sourceTree = "<group>"; };
 		A1B49A5C2D69F100001D58A1 /* WebCoreNSURLSessionTaskTransactionMetrics+AddPrivacyStance.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "WebCoreNSURLSessionTaskTransactionMetrics+AddPrivacyStance.m"; sourceTree = "<group>"; };
-		A1B49A5E2D69F900001D58A1 /* WebAVPlayerViewController+FullscreenSubviewHack.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "WebAVPlayerViewController+FullscreenSubviewHack.m"; sourceTree = "<group>"; };
-		A1B49A602D6A1000001D58A1 /* BrowserWKWebViewProofOfConceptViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserWKWebViewProofOfConceptViewController.m; sourceTree = "<group>"; };
 		A1B49A622D6A3800001D58A1 /* BrowserWebView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserWebView.m; sourceTree = "<group>"; };
 		ADBB00000000000000000002 /* AdBlockCustomRules.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = AdBlockCustomRules.json; sourceTree = "<group>"; };
 		ADBB00000000000000000004 /* BrowserAdBlockConverter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserAdBlockConverter.swift; sourceTree = "<group>"; };
 		A1B49A642D6A3900001D58A1 /* BrowserWebView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserWebView.h; sourceTree = "<group>"; };
-		A1B49A652D6A7500001D58A1 /* AVPlayerViewController+BrowserFullscreenBlock.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "AVPlayerViewController+BrowserFullscreenBlock.m"; sourceTree = "<group>"; };
 		A1B49A672D6AD500001D58A1 /* UIApplication+BrowserSelectPressForwarding.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "UIApplication+BrowserSelectPressForwarding.m"; sourceTree = "<group>"; };
 		A1B49A692D6B1000001D58A1 /* BrowserNativeVideoPlayerViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserNativeVideoPlayerViewController.h; sourceTree = "<group>"; };
 		A1B49A6B2D6B1000001D58A1 /* BrowserNativeVideoPlayerViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserNativeVideoPlayerViewController.m; sourceTree = "<group>"; };
-		A1B49A702D6B7000001D58A1 /* BrowserYouTubeExtractor.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserYouTubeExtractor.h; sourceTree = "<group>"; };
-		A1B49A712D6B7000001D58A1 /* BrowserYouTubeExtractor.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserYouTubeExtractor.m; sourceTree = "<group>"; };
 		A1B49A732D6C1000001D58A1 /* BrowserNativeVideoAssetLoader.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserNativeVideoAssetLoader.m; sourceTree = "<group>"; };
 		A1B49A752D6C1000001D58A1 /* BrowserNativeVideoAssetLoader.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserNativeVideoAssetLoader.h; sourceTree = "<group>"; };
 		A1B49A822D6D2000001D58A1 /* BrowserDOMInteractionService.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserDOMInteractionService.h; sourceTree = "<group>"; };
@@ -141,8 +131,6 @@
 		A1B49AA02D700080001D58A1 /* BrowserHistoryStore.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserHistoryStore.m; sourceTree = "<group>"; };
 		C0D3A0010000000000000002 /* BrowserTorrentManager.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = BrowserTorrentManager.mm; sourceTree = "<group>"; };
 		C0D3A0010000000000000003 /* BrowserTorrentManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserTorrentManager.h; sourceTree = "<group>"; };
-		C0D3A0010000000000000006 /* BrowserTorrentAssetLoader.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserTorrentAssetLoader.m; sourceTree = "<group>"; };
-		C0D3A0010000000000000007 /* BrowserTorrentAssetLoader.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserTorrentAssetLoader.h; sourceTree = "<group>"; };
 		C0D3A0010000000000000009 /* BrowserTorrentLibraryViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserTorrentLibraryViewController.m; sourceTree = "<group>"; };
 		C0D3A001000000000000000A /* BrowserTorrentLibraryViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserTorrentLibraryViewController.h; sourceTree = "<group>"; };
 		C0D3A001000000000000000C /* BrowserTorrentKeepAlive.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserTorrentKeepAlive.m; sourceTree = "<group>"; };
@@ -301,7 +289,6 @@
 				B002B86C1BAE420500C744AF /* ViewController.m */,
 				A1B49A692D6B1000001D58A1 /* BrowserNativeVideoPlayerViewController.h */,
 				A1B49A6B2D6B1000001D58A1 /* BrowserNativeVideoPlayerViewController.m */,
-				A1B49A602D6A1000001D58A1 /* BrowserWKWebViewProofOfConceptViewController.m */,
 				C0D3A001000000000000000A /* BrowserTorrentLibraryViewController.h */,
 				C0D3A0010000000000000009 /* BrowserTorrentLibraryViewController.m */,
 				C0D3A0010000000000000016 /* BrowserTorrentVLCPlayerViewController.h */,
@@ -326,10 +313,6 @@
 			children = (
 				A1B49A752D6C1000001D58A1 /* BrowserNativeVideoAssetLoader.h */,
 				A1B49A732D6C1000001D58A1 /* BrowserNativeVideoAssetLoader.m */,
-				A1B49A702D6B7000001D58A1 /* BrowserYouTubeExtractor.h */,
-				A1B49A712D6B7000001D58A1 /* BrowserYouTubeExtractor.m */,
-				C0D3A0010000000000000007 /* BrowserTorrentAssetLoader.h */,
-				C0D3A0010000000000000006 /* BrowserTorrentAssetLoader.m */,
 			);
 			name = Video;
 			sourceTree = "<group>";
@@ -350,9 +333,7 @@
 		A1B49A812D6D0000001D58A1 /* Runtime */ = {
 			isa = PBXGroup;
 			children = (
-				A1B49A652D6A7500001D58A1 /* AVPlayerViewController+BrowserFullscreenBlock.m */,
 				A1B49A672D6AD500001D58A1 /* UIApplication+BrowserSelectPressForwarding.m */,
-				A1B49A5E2D69F900001D58A1 /* WebAVPlayerViewController+FullscreenSubviewHack.m */,
 				A1B49A5C2D69F100001D58A1 /* WebCoreNSURLSessionTaskTransactionMetrics+AddPrivacyStance.m */,
 			);
 			name = Runtime;
@@ -522,7 +503,6 @@
 				A1B49A9E2D700070001D58A1 /* BrowserHistoryViewController.m in Sources */,
 				A1B49AA12D700080001D58A1 /* BrowserHistoryStore.m in Sources */,
 				C0D3A0010000000000000001 /* BrowserTorrentManager.mm in Sources */,
-				C0D3A0010000000000000005 /* BrowserTorrentAssetLoader.m in Sources */,
 				C0D3A0010000000000000008 /* BrowserTorrentLibraryViewController.m in Sources */,
 				C0D3A001000000000000000B /* BrowserTorrentKeepAlive.m in Sources */,
 				C0D3A0010000000000000015 /* BrowserTorrentHTTPServer.m in Sources */,
@@ -534,13 +514,9 @@
 				A1B49A892D700000001D58A1 /* BrowserPreferencesStore.m in Sources */,
 				A1B49A582D6828D4001D58A1 /* BrowserSessionStore.m in Sources */,
 				A1B49A6C2D6B1000001D58A1 /* BrowserNativeVideoPlayerViewController.m in Sources */,
-				A1B49A722D6B7000001D58A1 /* BrowserYouTubeExtractor.m in Sources */,
 				A1B49A742D6C1000001D58A1 /* BrowserNativeVideoAssetLoader.m in Sources */,
-				A1B49A662D6A7500001D58A1 /* AVPlayerViewController+BrowserFullscreenBlock.m in Sources */,
 				A1B49A682D6AD500001D58A1 /* UIApplication+BrowserSelectPressForwarding.m in Sources */,
 				A1B49A632D6A3800001D58A1 /* BrowserWebView.m in Sources */,
-				A1B49A612D6A1000001D58A1 /* BrowserWKWebViewProofOfConceptViewController.m in Sources */,
-				A1B49A5F2D69F900001D58A1 /* WebAVPlayerViewController+FullscreenSubviewHack.m in Sources */,
 				A1B49A5D2D69F100001D58A1 /* WebCoreNSURLSessionTaskTransactionMetrics+AddPrivacyStance.m in Sources */,
 				A1B49A4B2D67F2C3001D58A1 /* BrowserViewModel.m in Sources */,
 				B002B86D1BAE420500C744AF /* ViewController.m in Sources */,
@@ -694,7 +670,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.18.13;
+				MARKETING_VERSION = 2.18.23;
 			PRODUCT_NAME = "$(TARGET_NAME)";
 			SCAN_ALL_SOURCE_FILES_FOR_INCLUDES = NO;
 			SWIFT_VERSION = 5.0;
@@ -725,7 +701,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.18.13;
+				MARKETING_VERSION = 2.18.23;
 			PRODUCT_NAME = "$(TARGET_NAME)";
 			SCAN_ALL_SOURCE_FILES_FOR_INCLUDES = NO;
 			SWIFT_VERSION = 5.0;

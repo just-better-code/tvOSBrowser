@@ -33,17 +33,18 @@
 - On app-owned pages, Center activates or confirms the focused item; holding Center opens its context actions; Play/Pause performs that screen's contextual shortcut. In All History, Play/Pause marks a row. In Torrents, Center and Play/Pause both play a focused playable file. Do not impose this mapping on website content or change the existing browser menu controls.
 - Read `docs/USER_GUIDE.md` for existing user-facing controls, `docs/agent/ROADMAP.md` for planned and rejected directions, and `docs/agent/DEVELOPMENT_HISTORY.md` when past decisions or verification matter. Read only what the task needs.
 - Repository skills live under `.codex/skills/`. Load a skill's `SKILL.md` when its workflow applies; keep reusable workflow details and supporting scripts with the skill.
-- `.codex/hooks.json` configures a `PreToolUse` hook for `Bash` running `graphify hook-check`; it does not establish that every execution surface runs that hook or that the graph is current.
+- `.codex/hooks.json` configures a `PreToolUse` hook for `Bash` running `graphify hook-check`; a hook notice does not require a graph query or rebuild, or establish that the graph is current.
 
 ## Knowledge graph
 
-This project has a knowledge graph under `graphify-out/`.
+The knowledge graph under `graphify-out/` is optional. Prefer `rg` and targeted source reads for routine questions and edits.
 
-- For codebase questions, run `graphify query "<question>"` first when `graphify-out/graph.json` exists.
-- Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts.
-- Dirty graph files are expected after hooks or incremental updates. Skip graphify only when the task concerns stale graph output or the user asks not to use it.
-- If `graphify-out/wiki/index.md` exists, use it for broad navigation. Read `GRAPH_REPORT.md` only for broad architecture reviews or when a query does not provide enough context.
-- After changing code, run `graphify update .`.
+- Use graphify only when it helps with a complex architecture or cross-file relationship question, or when the user explicitly requests it. No graph-first query is required.
+- Do not automatically update or rebuild the graph after code changes. Update it when explicitly requested or when fresh graph data is needed for a chosen architecture investigation.
+- Keep queries focused and output bounded; confirm graph findings in the source because the graph can be stale or partially extracted.
+- Local references remain useful through direct reading without graph indexing. Retain them independently of graph maintenance.
+- Actual token savings have not been measured. A benchmark against reading the entire corpus does not establish savings over targeted searches; avoid indexing the full reference corpus merely to claim token efficiency.
+- This user-selected policy takes precedence over the repository graphify skill's default graph-first and automatic-update workflow.
 
 ## Data protection and public documentation
 

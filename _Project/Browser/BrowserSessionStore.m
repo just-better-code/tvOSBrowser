@@ -1,3 +1,4 @@
+#import "BrowserPreferencesStore.h"
 #import "BrowserSessionStore.h"
 
 #import "BrowserNavigationService.h"
@@ -68,7 +69,7 @@ static NSNumber *BrowserSessionVersion(void) {
     BOOL saved = [[BrowserHistoryStore sharedStore] saveBrowserSession:sessionRepresentation];
     [[NSUserDefaults standardUserDefaults] setBool:!saved forKey:kBrowserSessionSQLiteSavePendingKey];
     if (!saved) {
-        NSLog(@"[Session] SQLite save failed; keeping the session in the preferences backup");
+        BrowserLog(@"[Session] SQLite save failed; keeping the session in the preferences backup");
     }
     // tvOS may purge caches. Keep a recoverable backup of the complete session.
     [[NSUserDefaults standardUserDefaults] setObject:sessionRepresentation forKey:kBrowserSessionDefaultsKey];
