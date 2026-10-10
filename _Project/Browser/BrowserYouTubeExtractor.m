@@ -1,3 +1,4 @@
+#import "BrowserPreferencesStore.h"
 #import "BrowserYouTubeExtractor.h"
 
 #import "BrowserWebView.h"
@@ -60,7 +61,7 @@ static NSString * const kBrowserYouTubeTVEmbeddedClientVersion = @"2.0";
         NSRegularExpression *placeholders = [NSRegularExpression regularExpressionWithPattern:@"%[-+ #0]*[0-9]*(?:\\.[0-9]+)?(?:hh|ll|[hljztL])?[@diuoxXfFeEgGaAcsp]" options:0 error:NULL];
         message = [placeholders stringByReplacingMatchesInString:format options:0 range:NSMakeRange(0, format.length) withTemplate:@"<redacted>"];
     }
-    NSLog(@"%@ %@", kBrowserYouTubeExtractorLogPrefix, message);
+    BrowserLog(@"%@ %@", kBrowserYouTubeExtractorLogPrefix, message);
 }
 
 - (instancetype)init {

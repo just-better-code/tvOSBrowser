@@ -1,3 +1,4 @@
+#import "BrowserPreferencesStore.h"
 #import "BrowserRemoteInputController.h"
 #import "BrowserTorrentLibraryViewController.h"
 
@@ -647,7 +648,7 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
         [self beginVerticalHoldForPressType:press.type];
     }
     if (press != nil && (press.type == UIPressTypeMenu || press.type == UIPressTypePlayPause || press.type == UIPressTypeSelect)) {
-        NSLog(@"[InputTrace][Root] pressesBegan type=%@ phase=%@ presented=%@",
+        BrowserLog(@"[InputTrace][Root] pressesBegan type=%@ phase=%@ presented=%@",
               BrowserPressTypeString(press.type),
               BrowserPressPhaseString(press.phase),
               [self.host browserRemoteInputControllerPresentedViewController] == nil ? @"(nil)" : NSStringFromClass([[self.host browserRemoteInputControllerPresentedViewController] class]));
@@ -683,7 +684,7 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
         self.lastTabOverviewUpPressTimestamp = 0.0;
     }
     if (press.type == UIPressTypeMenu || press.type == UIPressTypePlayPause || press.type == UIPressTypeSelect) {
-        NSLog(@"[InputTrace][Root] pressesEnded type=%@ phase=%@ presented=%@ tabOverview=%@",
+        BrowserLog(@"[InputTrace][Root] pressesEnded type=%@ phase=%@ presented=%@ tabOverview=%@",
               BrowserPressTypeString(press.type),
               BrowserPressPhaseString(press.phase),
               [self.host browserRemoteInputControllerPresentedViewController] == nil ? @"(nil)" : NSStringFromClass([[self.host browserRemoteInputControllerPresentedViewController] class]),

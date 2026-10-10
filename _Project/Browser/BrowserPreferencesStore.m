@@ -8,7 +8,6 @@ static NSString * const kEnableFullscreenVideoPlaybackDefaultsKey = @"EnableFull
 static NSString * const kAdBlockEnabledDefaultsKey = @"AdBlockEnabled";
 static NSString * const kCursorMagnifierEnabledDefaultsKey = @"CursorMagnifierEnabled";
 static NSString * const kDontShowHintsOnLaunchDefaultsKey = @"DontShowHintsOnLaunch";
-static NSString * const kWebsiteLoggingEnabledDefaultsKey = @"WebsiteLoggingEnabled";
 static NSString * const kDebugEnabledDefaultsKey = @"BrowserDebugEnabled";
 static NSString * const kDebugLastLogDefaultsKey = @"BrowserDebugLastLog";
 static NSString * const kDebugRecentLogsDefaultsKey = @"BrowserDebugRecentLogs";
@@ -17,6 +16,8 @@ static NSString * const kHomepageDefaultsKey = @"homepage";
 static NSUInteger const kDefaultTextFontSize = 100;
 static NSUInteger const kMinimumTextFontSize = 50;
 static NSUInteger const kMaximumTextFontSize = 200;
+
+NSNotificationName const BrowserDebugEnabledDidChangeNotification = @"BrowserDebugEnabledDidChangeNotification";
 
 @implementation BrowserPreferencesStore
 
@@ -29,10 +30,7 @@ static NSUInteger const kMaximumTextFontSize = 200;
 }
 
 + (BOOL)websiteLoggingEnabled {
-    if (!self.debugEnabled) return NO;
-    NSNumber *value = [NSUserDefaults.standardUserDefaults objectForKey:kWebsiteLoggingEnabledDefaultsKey];
-    // Preserve existing logging until the user explicitly switches it off.
-    return value == nil ? YES : value.boolValue;
+    return self.debugEnabled;
 }
 
 + (BOOL)debugEnabled {
@@ -44,8 +42,8 @@ static NSUInteger const kMaximumTextFontSize = 200;
 
 - (void)setDebugEnabled:(BOOL)enabled {
     [[self defaults] setBool:enabled forKey:kDebugEnabledDefaultsKey];
-    [[self defaults] setBool:enabled forKey:kWebsiteLoggingEnabledDefaultsKey];
     [[self defaults] synchronize];
+    [NSNotificationCenter.defaultCenter postNotificationName:BrowserDebugEnabledDidChangeNotification object:self];
 }
 
 - (BOOL)websiteLoggingEnabled {
@@ -53,8 +51,7 @@ static NSUInteger const kMaximumTextFontSize = 200;
 }
 
 - (void)setWebsiteLoggingEnabled:(BOOL)enabled {
-    [[self defaults] setBool:enabled forKey:kWebsiteLoggingEnabledDefaultsKey];
-    [[self defaults] synchronize];
+    self.debugEnabled = enabled;
 }
 
 - (NSUserDefaults *)defaults {

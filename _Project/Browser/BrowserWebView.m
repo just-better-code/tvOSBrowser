@@ -63,7 +63,7 @@ static BOOL BrowserPumpRunLoopUntil(BOOL *done) {
     }
     isPumpingRunLoop = NO;
     if (!*done) {
-        NSLog(@"[WebKit] timed out waiting for a synchronous callback");
+        BrowserLog(@"[WebKit] timed out waiting for a synchronous callback");
     }
     return *done;
 }
@@ -754,7 +754,7 @@ static void BrowserWriteWebsiteDiagnostic(NSDictionary *entry) {
         [file seekToEndOfFile];
         [file writeData:[line dataUsingEncoding:NSUTF8StringEncoding]];
         [file closeFile];
-    } @catch (NSException *exception) { NSLog(@"[WebsiteDiagnostics] Log write failed: %@", exception.name); }
+    } @catch (NSException *exception) { BrowserLog(@"[WebsiteDiagnostics] Log write failed: %@", exception.name); }
 }
 
 // Shared handler avoids retaining a web view through its message controller.
@@ -824,12 +824,12 @@ static id BrowserPersistentWebsiteDataStore(void) {
                 store = ((id (*)(id, SEL, id))objc_msgSend)(allocated, storeInitializer, configuration);
             }
             if (store) {
-                NSLog(@"[WebsiteData] Persistent store at %@", directory.path);
+                BrowserLog(@"[WebsiteData] Persistent store at %@", directory.path);
                 BrowserWriteWebsiteDiagnostic(@{@"event": @"store-start", @"directory": directory.path, @"process": @(NSProcessInfo.processInfo.processIdentifier)});
             }
         }
         if (store == nil && [storeClass respondsToSelector:NSSelectorFromString(@"defaultDataStore")]) {
-            NSLog(@"[WebsiteData] Custom persistent store unavailable: %@", error);
+            BrowserLog(@"[WebsiteData] Custom persistent store unavailable: %@", error);
             store = ((id (*)(id, SEL))objc_msgSend)((id)storeClass, NSSelectorFromString(@"defaultDataStore"));
         }
     });
@@ -1006,12 +1006,12 @@ static NSArray<NSString *> *BrowserAdBlockRuleChunks(BOOL includeOnlineHosts,
         NSString *json = converted[@"json"];
         if (![json isKindOfClass:NSString.class] || json.length == 0) {
             [failedSources addObject:source[@"id"]];
-            NSLog(@"[AdBlock] source=%@ conversion failed", source[@"id"]);
+            BrowserLog(@"[AdBlock] source=%@ conversion failed", source[@"id"]);
             continue;
         }
         [chunks addObject:json];
         [sourceIDs addObject:source[@"id"]];
-        NSLog(@"[AdBlock] source=%@ rules=%ld advanced=%ld discarded=%ld errors=%ld", source[@"id"],
+        BrowserLog(@"[AdBlock] source=%@ rules=%ld advanced=%ld discarded=%ld errors=%ld", source[@"id"],
               (long)[converted[@"rules"] integerValue], (long)[converted[@"advanced"] integerValue],
               (long)[converted[@"discarded"] integerValue], (long)[converted[@"errors"] integerValue]);
     }
@@ -1069,7 +1069,7 @@ static void BrowserCompileAdBlockChunks(id store, NSString *identifier, NSArray<
                     NSString *sourceID = sourceIDs[index];
                     [failedSources addObject:sourceID];
                     lastError = error;
-                    NSLog(@"[AdBlock] source=%@ chunk=%lu compile failed: %@",
+                    BrowserLog(@"[AdBlock] source=%@ chunk=%lu compile failed: %@",
                           sourceID, (unsigned long)index, error.localizedDescription ?: @"unknown error");
                     loadChunk(index + 1);
                     return;
@@ -1203,7 +1203,7 @@ static void BrowserLoadAdBlockRuleList(BrowserAdBlockRuleListCompletion completi
     BrowserLookUpAdBlockManifest(store, manifestURL, identifier, ^(NSArray *cachedRuleLists, NSError *error) {
         (void)error;
         if (cachedRuleLists != nil) {
-            NSLog(@"[AdBlock] restored %lu compiled chunks without filter conversion", (unsigned long)cachedRuleLists.count);
+            BrowserLog(@"[AdBlock] restored %lu compiled chunks without filter conversion", (unsigned long)cachedRuleLists.count);
             finishLoading(cachedRuleLists, [NSSet set], nil);
             return;
         }
@@ -1292,7 +1292,7 @@ static void BrowserCheckForAdBlockUpdate(BOOL force) {
                     [NSUserDefaults.standardUserDefaults setObject:NSDate.date forKey:checkKey];
                 } else {
                     [sBrowserAdBlockFailedSources addObject:identifier];
-                    NSLog(@"[AdBlock] source=%@ update failed: %@", identifier,
+                    BrowserLog(@"[AdBlock] source=%@ update failed: %@", identifier,
                           error.localizedDescription ?: @"invalid filter response");
                 }
                 [NSNotificationCenter.defaultCenter postNotificationName:BrowserAdBlockSourceStatusDidChangeNotification object:nil];
@@ -1513,7 +1513,7 @@ static NSString *BrowserAdBlockSourceRevision(NSURL *url) {
                 }
             } else {
                 self.adBlockStatus = @"removal-unavailable";
-                NSLog(@"[AdBlock] cannot remove content rules from this WebKit view");
+                BrowserLog(@"[AdBlock] cannot remove content rules from this WebKit view");
                 return;
             }
             self.appliedAdBlockRuleLists = nil;
@@ -1535,7 +1535,7 @@ static NSString *BrowserAdBlockSourceRevision(NSURL *url) {
         SEL addSelector = NSSelectorFromString(@"addContentRuleList:");
         if (ruleLists == nil || ![strongSelf.userContentController respondsToSelector:addSelector]) {
             strongSelf.adBlockStatus = @"unavailable";
-            NSLog(@"[AdBlock] unavailable: %@", error ?: @"WKUserContentController cannot install rule lists");
+            BrowserLog(@"[AdBlock] unavailable: %@", error ?: @"WKUserContentController cannot install rule lists");
             return;
         }
         if (ruleLists.count == 0) {

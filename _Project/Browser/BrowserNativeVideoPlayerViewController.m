@@ -1,3 +1,4 @@
+#import "BrowserPreferencesStore.h"
 #import "BrowserNativeVideoPlayerViewController.h"
 #import "BrowserNativeVideoAssetLoader.h"
 #import "BrowserTorrentAssetLoader.h"
@@ -55,7 +56,7 @@ static NSString *BrowserNativePlayerPressPhaseString(UIPressPhase phase) {
         NSRegularExpression *placeholders = [NSRegularExpression regularExpressionWithPattern:@"%[-+ #0]*[0-9]*(?:\\.[0-9]+)?(?:hh|ll|[hljztL])?[@diuoxXfFeEgGaAcsp]" options:0 error:NULL];
         message = [placeholders stringByReplacingMatchesInString:format options:0 range:NSMakeRange(0, format.length) withTemplate:@"<redacted>"];
     }
-    NSLog(@"%@ %@", kBrowserNativeVideoPlayerLogPrefix, message);
+    BrowserLog(@"%@ %@", kBrowserNativeVideoPlayerLogPrefix, message);
 }
 
 - (instancetype)initWithURL:(NSURL *)URL title:(NSString *)title {
@@ -132,14 +133,14 @@ static NSString *BrowserNativePlayerPressPhaseString(UIPressPhase phase) {
 
 - (void)viewDidAppear:(BOOL)animated {
     [super viewDidAppear:animated];
-    NSLog(@"%@ viewDidAppear", kBrowserNativePlayerInputLogPrefix);
+    BrowserLog(@"%@ viewDidAppear", kBrowserNativePlayerInputLogPrefix);
     [self log:@"viewDidAppear play"];
     [self.player play];
 }
 
 - (void)viewWillDisappear:(BOOL)animated {
     [super viewWillDisappear:animated];
-    NSLog(@"%@ viewWillDisappear", kBrowserNativePlayerInputLogPrefix);
+    BrowserLog(@"%@ viewWillDisappear", kBrowserNativePlayerInputLogPrefix);
     [self log:@"viewWillDisappear pause"];
     [self.player pause];
 }
@@ -266,7 +267,7 @@ static NSString *BrowserNativePlayerPressPhaseString(UIPressPhase phase) {
 - (void)pressesBegan:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
     UIPress *press = presses.anyObject;
     if (press != nil && (press.type == UIPressTypeMenu || press.type == UIPressTypePlayPause || press.type == UIPressTypeSelect)) {
-        NSLog(@"%@ pressesBegan type=%@ phase=%@",
+        BrowserLog(@"%@ pressesBegan type=%@ phase=%@",
               kBrowserNativePlayerInputLogPrefix,
               BrowserNativePlayerPressTypeString(press.type),
               BrowserNativePlayerPressPhaseString(press.phase));
@@ -277,7 +278,7 @@ static NSString *BrowserNativePlayerPressPhaseString(UIPressPhase phase) {
 - (void)pressesEnded:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
     UIPress *press = presses.anyObject;
     if (press != nil && (press.type == UIPressTypeMenu || press.type == UIPressTypePlayPause || press.type == UIPressTypeSelect)) {
-        NSLog(@"%@ pressesEnded type=%@ phase=%@",
+        BrowserLog(@"%@ pressesEnded type=%@ phase=%@",
               kBrowserNativePlayerInputLogPrefix,
               BrowserNativePlayerPressTypeString(press.type),
               BrowserNativePlayerPressPhaseString(press.phase));

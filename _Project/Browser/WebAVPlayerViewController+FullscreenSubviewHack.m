@@ -1,3 +1,4 @@
+#import "BrowserPreferencesStore.h"
 #import <UIKit/UIKit.h>
 #import <AVFoundation/AVFoundation.h>
 #import <string.h>
@@ -17,7 +18,7 @@ static BOOL const kBrowserFullscreenHackMethodDumpEnabled = YES;
 #define BrowserFullscreenHackLog(fmt, ...) \
     do { \
         if (kBrowserFullscreenHackLoggingEnabled) { \
-            NSLog((@"[FullscreenHack] " fmt), ##__VA_ARGS__); \
+            BrowserLog((@"[FullscreenHack] " fmt), ##__VA_ARGS__); \
         } \
     } while (0)
 

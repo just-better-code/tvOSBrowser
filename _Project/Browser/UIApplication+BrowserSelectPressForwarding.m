@@ -1,3 +1,4 @@
+#import "BrowserPreferencesStore.h"
 #import <UIKit/UIKit.h>
 #import <QuartzCore/QuartzCore.h>
 #import <objc/message.h>
@@ -147,7 +148,7 @@ static UIViewController *BrowserFindPresentedViewControllerOfClass(UIApplication
                             CGFloat step = sBrowserNativePendingScrubPixels > 0.0 ? kBrowserNativeScrubPixelStep : -kBrowserNativeScrubPixelStep;
                             ((void (*)(id, SEL, CGFloat))objc_msgSend)(nativeVideoPlayerViewController, scrubSelector, step);
                             sBrowserNativePendingScrubPixels -= step;
-                            NSLog(@"[InputTrace][App] scrub step delta=%.2f", step);
+                            BrowserLog(@"[InputTrace][App] scrub step delta=%.2f", step);
                         }
                     }
                 }
@@ -224,7 +225,7 @@ static UIViewController *BrowserFindPresentedViewControllerOfClass(UIApplication
             }
         }
         if (press.type == UIPressTypeMenu || press.type == UIPressTypePlayPause || press.type == UIPressTypeSelect) {
-            NSLog(@"[InputTrace][App] press=%@ phase=%@ top=%@",
+            BrowserLog(@"[InputTrace][App] press=%@ phase=%@ top=%@",
                   BrowserPressTypeString(press.type),
                   BrowserPressPhaseString(press.phase),
                   nativeVideoPlayerViewController == nil ? @"(nil)" : NSStringFromClass([nativeVideoPlayerViewController class]));
@@ -232,7 +233,7 @@ static UIViewController *BrowserFindPresentedViewControllerOfClass(UIApplication
 
         if (press.type == UIPressTypeMenu && press.phase == UIPressPhaseBegan) {
             if (nativeVideoPlayerClass != Nil && nativeVideoPlayerViewController != nil) {
-                NSLog(@"[InputTrace][App] swallow Menu for native player");
+                BrowserLog(@"[InputTrace][App] swallow Menu for native player");
                 dispatch_async(dispatch_get_main_queue(), ^{
                     [nativeVideoPlayerViewController dismissViewControllerAnimated:YES completion:nil];
                 });
@@ -244,7 +245,7 @@ static UIViewController *BrowserFindPresentedViewControllerOfClass(UIApplication
             if (nativeVideoPlayerClass != Nil && nativeVideoPlayerViewController != nil) {
                 SEL togglePlaybackSelector = NSSelectorFromString(@"togglePlayback");
                 if ([nativeVideoPlayerViewController respondsToSelector:togglePlaybackSelector]) {
-                    NSLog(@"[InputTrace][App] swallow PlayPause for native player");
+                    BrowserLog(@"[InputTrace][App] swallow PlayPause for native player");
                     dispatch_async(dispatch_get_main_queue(), ^{
                         ((void (*)(id, SEL))objc_msgSend)(nativeVideoPlayerViewController, togglePlaybackSelector);
                     });
@@ -257,7 +258,7 @@ static UIViewController *BrowserFindPresentedViewControllerOfClass(UIApplication
             if (nativeVideoPlayerClass != Nil && nativeVideoPlayerViewController != nil) {
                 SEL togglePlaybackSelector = NSSelectorFromString(@"togglePlayback");
                 if ([nativeVideoPlayerViewController respondsToSelector:togglePlaybackSelector]) {
-                    NSLog(@"[InputTrace][App] swallow Select for native player");
+                    BrowserLog(@"[InputTrace][App] swallow Select for native player");
                     dispatch_async(dispatch_get_main_queue(), ^{
                         ((void (*)(id, SEL))objc_msgSend)(nativeVideoPlayerViewController, togglePlaybackSelector);
                     });
@@ -271,7 +272,7 @@ static UIViewController *BrowserFindPresentedViewControllerOfClass(UIApplication
                 SEL skipSelector = NSSelectorFromString(@"skipByInterval:");
                 if ([nativeVideoPlayerViewController respondsToSelector:skipSelector]) {
                     NSTimeInterval delta = (press.type == UIPressTypeRightArrow) ? 10.0 : -10.0;
-                    NSLog(@"[InputTrace][App] swallow %@ for native player (delta=%0.1f)",
+                    BrowserLog(@"[InputTrace][App] swallow %@ for native player (delta=%0.1f)",
                           BrowserPressTypeString(press.type), delta);
                     dispatch_async(dispatch_get_main_queue(), ^{
                         ((void (*)(id, SEL, NSTimeInterval))objc_msgSend)(nativeVideoPlayerViewController, skipSelector, delta);
@@ -286,7 +287,7 @@ static UIViewController *BrowserFindPresentedViewControllerOfClass(UIApplication
 
     for (UIPress *press in presses) {
         if (press.type == UIPressTypeSelect && press.phase == UIPressPhaseEnded) {
-            NSLog(@"[InputTrace][App] post BrowserGlobalSelectPressEndedNotification");
+            BrowserLog(@"[InputTrace][App] post BrowserGlobalSelectPressEndedNotification");
             dispatch_async(dispatch_get_main_queue(), ^{
                 [[NSNotificationCenter defaultCenter] postNotificationName:BrowserGlobalSelectPressEndedNotification object:nil];
             });

@@ -27,6 +27,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 @end
 
+// App-owned console logging follows the Debug master switch.
+#define BrowserLog(...) do { if (BrowserPreferencesStore.debugEnabled) NSLog(__VA_ARGS__); } while (0)
+FOUNDATION_EXPORT NSNotificationName const BrowserDebugEnabledDidChangeNotification;
+
 /// Numeric torrent/background diagnostics; never pass URLs, headers, or page content.
 FOUNDATION_EXPORT void BrowserDebugLog(NSString *format, ...) NS_FORMAT_FUNCTION(1, 2);
 FOUNDATION_EXPORT NSString * _Nullable BrowserDebugLastLog(void);

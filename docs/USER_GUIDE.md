@@ -129,7 +129,7 @@ From a torrent's file list, choose **Skip Download** to stop requesting that fil
 
 Torrent transfers continue while the app is active, including when Torrents is closed and you browse websites. Experimental **Settings → Keep Alive** can let a manually started torrent continue downloading after you leave the browser. tvOS may still suspend or interrupt the browser, so this does not guarantee every transfer will finish. The app can also request system-managed Background App Refresh and Background Processing time for manually started, incomplete torrents; tvOS decides whether and when to grant it. Keep the app open for a download that must continue without interruption.
 
-**Debug → Diagnostics** is the master switch for website and numeric torrent/background logging and the temporary background probe. **Debug → Recent Diagnostic Logs** shows the ten latest numeric diagnostic lines; **Debug → Background Probe** shows elapsed background time, timer-covered execution time, and the longest timer gap without requiring a torrent. It also records whether **Keep Alive** was on when measurement began. A long elapsed interval with little active time means the app was suspended. In Debug builds with Diagnostics enabled, a probe-only request is submitted even if no torrent is pending; ordinary releases submit tasks only for manually started, incomplete torrents.
+**Menu → Tools → Debug** toggles diagnostics with Center; hold Center to open its options with a **Debug ON/OFF** button at the top, plus **Recent Diagnostic Logs** and **Background Probe** report buttons below. Debug is the single master switch for app console logs, website logging, numeric torrent/background diagnostics, and the temporary background probe. Turning it off stops an active probe and cancels probe-only background requests without stopping torrent downloads. Saved reports remain readable while Debug is off; collecting fresh media or WebKit diagnostics requires Debug on. **Debug → Recent Diagnostic Logs** shows the ten latest numeric diagnostic lines; **Debug → Background Probe** shows elapsed background time, timer-covered execution time, and the longest timer gap without requiring a torrent. It also records whether **Keep Alive** was on when measurement began. A long elapsed interval with little active time means the app was suspended. In Debug builds with Debug enabled, a probe-only request is submitted even if no torrent is pending; ordinary releases submit tasks only for manually started, incomplete torrents.
 
 ### Episode, season and playback position
 
@@ -159,7 +159,7 @@ The browser automatically saves history, Favorites and tab sessions in a local d
 
 ## Diagnostic logging
 
-Open **Menu → Tools → Debug → Diagnostics: ON/OFF**.
+Press Center on **Menu → Tools → Debug** to toggle diagnostics using its green ON / gray OFF badge. Hold Center on Debug to open its options, styled like Ad Block settings with the same **Debug ON/OFF** button at the top. There are no separate logging or probe switches.
 
 - Activate the item to toggle website and numeric torrent/background diagnostics together.
 - The choice survives relaunch; diagnostics are initially enabled.

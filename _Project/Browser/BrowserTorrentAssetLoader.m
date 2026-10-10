@@ -1,3 +1,4 @@
+#import "BrowserPreferencesStore.h"
 #import "BrowserTorrentAssetLoader.h"
 #import "BrowserTorrentManager.h"
 
@@ -37,7 +38,7 @@
 - (BOOL)resourceLoader:(AVAssetResourceLoader *)resourceLoader
 shouldWaitForLoadingOfRequestedResource:(AVAssetResourceLoadingRequest *)loadingRequest {
     [self.requests addObject:loadingRequest];
-    NSLog(@"[TorrentLoader] request started pending=%lu", (unsigned long)self.requests.count);
+    BrowserLog(@"[TorrentLoader] request started pending=%lu", (unsigned long)self.requests.count);
     [self processRequests];
     return YES;
 }
@@ -46,7 +47,7 @@ shouldWaitForLoadingOfRequestedResource:(AVAssetResourceLoadingRequest *)loading
 didCancelLoadingRequest:(AVAssetResourceLoadingRequest *)loadingRequest {
     [self.requests removeObject:loadingRequest];
     [self.waitingRequests removeObject:loadingRequest];
-    NSLog(@"[TorrentLoader] request cancelled pending=%lu", (unsigned long)self.requests.count);
+    BrowserLog(@"[TorrentLoader] request cancelled pending=%lu", (unsigned long)self.requests.count);
 }
 
 - (void)processRequests {
@@ -69,7 +70,7 @@ didCancelLoadingRequest:(AVAssetResourceLoadingRequest *)loadingRequest {
             self.selectedFile = file;
         }
         if (!file || file.size <= 0 || ![manager fileURLForTorrent:hash fileIndex:index]) {
-            NSLog(@"[TorrentLoader] unavailable index=%ld fileFound=%d size=%lld", (long)index, file != nil, file.size);
+            BrowserLog(@"[TorrentLoader] unavailable index=%ld fileFound=%d size=%lld", (long)index, file != nil, file.size);
             [request finishLoadingWithError:[NSError errorWithDomain:@"BrowserTorrent" code:2 userInfo:@{NSLocalizedDescriptionKey: @"Torrent file is unavailable"}]];
             [self.requests removeObject:request];
             [self.waitingRequests removeObject:request];
@@ -87,7 +88,7 @@ didCancelLoadingRequest:(AVAssetResourceLoadingRequest *)loadingRequest {
         }
         AVAssetResourceLoadingDataRequest *dataRequest = request.dataRequest;
         if (!dataRequest) {
-            NSLog(@"[TorrentLoader] content information completed index=%ld size=%lld", (long)index, file.size);
+            BrowserLog(@"[TorrentLoader] content information completed index=%ld size=%lld", (long)index, file.size);
             [request finishLoading];
             [self.requests removeObject:request];
             [self.waitingRequests removeObject:request];
@@ -98,7 +99,7 @@ didCancelLoadingRequest:(AVAssetResourceLoadingRequest *)loadingRequest {
             ? file.size
             : MIN(file.size, dataRequest.requestedOffset + dataRequest.requestedLength);
         if (offset >= end) {
-            NSLog(@"[TorrentLoader] range completed index=%ld offset=%lld end=%lld", (long)index, offset, end);
+            BrowserLog(@"[TorrentLoader] range completed index=%ld offset=%lld end=%lld", (long)index, offset, end);
             [request finishLoading];
             [self.requests removeObject:request];
             [self.waitingRequests removeObject:request];
@@ -108,18 +109,18 @@ didCancelLoadingRequest:(AVAssetResourceLoadingRequest *)loadingRequest {
         NSData *data = [manager availableDataForTorrent:hash fileIndex:index offset:offset length:length];
         if (data.length > 0) {
             if ([self.waitingRequests containsObject:request]) {
-                NSLog(@"[TorrentLoader] data arrived index=%ld offset=%lld bytes=%lu", (long)index, offset, (unsigned long)data.length);
+                BrowserLog(@"[TorrentLoader] data arrived index=%ld offset=%lld bytes=%lu", (long)index, offset, (unsigned long)data.length);
                 [self.waitingRequests removeObject:request];
             }
             [dataRequest respondWithData:data];
             if (offset + data.length >= end) {
-                NSLog(@"[TorrentLoader] request completed index=%ld end=%lld", (long)index, end);
+                BrowserLog(@"[TorrentLoader] request completed index=%ld end=%lld", (long)index, end);
                 [request finishLoading];
                 [self.requests removeObject:request];
             }
         } else {
             if (![self.waitingRequests containsObject:request]) {
-                NSLog(@"[TorrentLoader] waiting for pieces index=%ld offset=%lld length=%lu", (long)index, offset, (unsigned long)length);
+                BrowserLog(@"[TorrentLoader] waiting for pieces index=%ld offset=%lld length=%lu", (long)index, offset, (unsigned long)length);
                 [self.waitingRequests addObject:request];
             }
             [manager prioritizeTorrent:hash fileIndex:index offset:offset];

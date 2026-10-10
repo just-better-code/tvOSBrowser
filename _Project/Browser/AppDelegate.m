@@ -74,6 +74,8 @@ static NSTimeInterval const kBackgroundProbeInterval = 5;
         [[NSUserDefaults standardUserDefaults] synchronize];
     }
     [self restoreCookiesFromDefaults];
+    [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(debugEnabledDidChange:)
+        name:BrowserDebugEnabledDidChangeNotification object:nil];
     [self recoverInterruptedBackgroundProbe];
     __weak typeof(self) weakSelf = self;
     self.torrentProcessingRegistered = [BGTaskScheduler.sharedScheduler
@@ -99,6 +101,23 @@ static NSTimeInterval const kBackgroundProbeInterval = 5;
     }
     if (application.applicationState == UIApplicationStateBackground) [self beginBackgroundProbe];
 	return YES;
+}
+
+- (void)debugEnabledDidChange:(NSNotification *)notification {
+    (void)notification;
+    if (BrowserPreferencesStore.debugEnabled) {
+        if (UIApplication.sharedApplication.applicationState == UIApplicationStateBackground) [self beginBackgroundProbe];
+        return;
+    }
+    [self endBackgroundProbe];
+    BOOL pending = NO;
+    [BrowserTorrentManager.sharedManager backgroundTransferPending:&pending downloadedBytes:nil];
+    if (!pending) {
+        [BGTaskScheduler.sharedScheduler cancelTaskRequestWithIdentifier:kTorrentProcessingTaskIdentifier];
+        [BGTaskScheduler.sharedScheduler cancelTaskRequestWithIdentifier:kTorrentRefreshTaskIdentifier];
+        if (self.torrentProcessingProbeOnly) [self finishTorrentProcessingTask:YES];
+        [self finishTorrentRefreshTask:YES];
+    }
 }
 
 - (void)recoverInterruptedBackgroundProbe {
@@ -216,6 +235,10 @@ static NSTimeInterval const kBackgroundProbeInterval = 5;
     BOOL pending = NO;
     int64_t downloaded = 0;
     [[BrowserTorrentManager sharedManager] backgroundTransferPending:&pending downloadedBytes:&downloaded];
+    if (!pending && !BrowserPreferencesStore.debugEnabled) {
+        [task setTaskCompletedWithSuccess:YES];
+        return;
+    }
     self.torrentRefreshTask = task;
     self.torrentRefreshStarted = NSDate.date.timeIntervalSince1970;
     self.torrentRefreshStartBytes = downloaded;
@@ -291,6 +314,10 @@ static NSTimeInterval const kBackgroundProbeInterval = 5;
     BOOL pending = NO;
     int64_t downloaded = 0;
     [[BrowserTorrentManager sharedManager] backgroundTransferPending:&pending downloadedBytes:&downloaded];
+    if (!pending && !BrowserPreferencesStore.debugEnabled) {
+        [task setTaskCompletedWithSuccess:YES];
+        return;
+    }
     self.torrentProcessingTask = task;
     self.torrentProcessingStarted = NSDate.date.timeIntervalSince1970;
     self.torrentProcessingStartBytes = downloaded;

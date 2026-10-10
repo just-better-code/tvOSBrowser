@@ -1,3 +1,4 @@
+#import "BrowserPreferencesStore.h"
 #import "BrowserHistoryStore.h"
 #import <sqlite3.h>
 #import <limits.h>
@@ -65,7 +66,7 @@ static BOOL RestoreDatabase(NSString *path) {
         for (NSString *suffix in moved) [manager moveItemAtPath:[preserved stringByAppendingString:suffix]
             toPath:[path stringByAppendingString:suffix] error:nil];
         [manager removeItemAtPath:staging error:nil];
-    } else NSLog(@"[History] Restored complete local backup at %@", path);
+    } else BrowserLog(@"[History] Restored complete local backup at %@", path);
     return restored;
 }
 
@@ -109,14 +110,14 @@ static BOOL RestoreDatabase(NSString *path) {
                 NSError *directoryError = nil;
                 if (![fileManager createDirectoryAtURL:directory withIntermediateDirectories:YES
                                            attributes:nil error:&directoryError]) {
-                    NSLog(@"[History] Directory %@ unavailable: %@", directory.path, directoryError);
+                    BrowserLog(@"[History] Directory %@ unavailable: %@", directory.path, directoryError);
                     continue;
                 }
                 BOOL exists = [fileManager fileExistsAtPath:path];
                 BOOL hasBackup = [NSUserDefaults.standardUserDefaults objectForKey:DatabaseBackupKey] != nil;
                 BOOL emptyFile = exists && [[fileManager attributesOfItemAtPath:path error:nil][NSFileSize] unsignedLongLongValue] == 0;
                 if ((!exists || emptyFile) && hasBackup && !RestoreDatabase(path)) {
-                    NSLog(@"[History] Backup unavailable; preserving it instead of creating an empty database");
+                    BrowserLog(@"[History] Backup unavailable; preserving it instead of creating an empty database");
                     continue;
                 }
                 BOOL opened = sqlite3_open(path.UTF8String, &_database) == SQLITE_OK;
@@ -130,14 +131,14 @@ static BOOL RestoreDatabase(NSString *path) {
                     break;
                 }
                 if (exists) existingDatabaseFailed = YES;
-                NSLog(@"[History] Cannot open or initialize %@: %s", path,
+                BrowserLog(@"[History] Cannot open or initialize %@: %s", path,
                       _database ? sqlite3_errmsg(_database) : "open failed");
                 sqlite3_close(_database);
                 _database = NULL;
             }
         }
         if (_database == NULL) return self;
-        NSLog(@"[History] Opened database at %@", openedPath);
+        BrowserLog(@"[History] Opened database at %@", openedPath);
         [self migrateLegacyFavorites];
         [self syncHistoryBackup];
     }
@@ -212,7 +213,7 @@ static BOOL RestoreDatabase(NSString *path) {
     success = success && result == SQLITE_DONE;
     sqlite3_finalize(statement);
     if (!success) {
-        NSLog(@"[Session] Cannot read SQLite session: %s", sqlite3_errmsg(self.database));
+        BrowserLog(@"[Session] Cannot read SQLite session: %s", sqlite3_errmsg(self.database));
         return nil;
     }
     return @{@"version": version, @"activeTabIndex": activeIndex, @"tabs": tabs};
@@ -270,7 +271,7 @@ static BOOL RestoreDatabase(NSString *path) {
     sqlite3_finalize(navigation);
     if (success) success = sqlite3_exec(self.database, "COMMIT", NULL, NULL, NULL) == SQLITE_OK;
     if (!success) {
-        NSLog(@"[Session] Cannot save SQLite session: %s", sqlite3_errmsg(self.database));
+        BrowserLog(@"[Session] Cannot save SQLite session: %s", sqlite3_errmsg(self.database));
         sqlite3_exec(self.database, "ROLLBACK", NULL, NULL, NULL);
     }
     if (success) [self syncHistoryBackup];
@@ -316,33 +317,33 @@ static BOOL RestoreDatabase(NSString *path) {
     NSData *encoded = [NSPropertyListSerialization dataWithPropertyList:domain
         format:NSPropertyListBinaryFormat_v1_0 options:0 error:nil];
     if (encoded == nil || encoded.length > 450 * 1024) {
-        NSLog(@"[History] Local backup exceeds preferences budget; existing snapshot retained");
+        BrowserLog(@"[History] Local backup exceeds preferences budget; existing snapshot retained");
         return;
     }
     [defaults setObject:backup forKey:DatabaseBackupKey];
     [defaults removeObjectForKey:DatabaseBackupPendingKey];
     [defaults removeObjectForKey:@"HISTORY_BACKUP_V2"];
     [defaults removeObjectForKey:@"HISTORY"];
-    if (![defaults synchronize]) NSLog(@"[History] Cannot synchronize local backup");
+    if (![defaults synchronize]) BrowserLog(@"[History] Cannot synchronize local backup");
 }
 
 - (void)recordURLString:(NSString *)URLString title:(NSString *)title {
     if (self.database == NULL || URLString.length == 0) {
-        if (self.database == NULL) NSLog(@"[History] Cannot save visit: database unavailable");
+        if (self.database == NULL) BrowserLog(@"[History] Cannot save visit: database unavailable");
         return;
     }
     NSURL *url = [NSURL URLWithString:URLString];
     if (url.host.length == 0 || ![@[@"http", @"https"] containsObject:url.scheme.lowercaseString]) return;
     sqlite3_stmt *statement = NULL;
     if (sqlite3_prepare_v2(self.database, "INSERT INTO visits (url,title,visited_at) VALUES (?,?,?)", -1, &statement, NULL) != SQLITE_OK) {
-        NSLog(@"[History] Cannot prepare visit insert: %s", sqlite3_errmsg(self.database));
+        BrowserLog(@"[History] Cannot prepare visit insert: %s", sqlite3_errmsg(self.database));
         return;
     }
     sqlite3_bind_text(statement, 1, URLString.UTF8String, -1, SQLITE_TRANSIENT);
     sqlite3_bind_text(statement, 2, (title ?: @"").UTF8String, -1, SQLITE_TRANSIENT);
     sqlite3_bind_double(statement, 3, [NSDate date].timeIntervalSince1970);
     BOOL success = sqlite3_step(statement) == SQLITE_DONE;
-    if (!success) NSLog(@"[History] Cannot save visit: %s", sqlite3_errmsg(self.database));
+    if (!success) BrowserLog(@"[History] Cannot save visit: %s", sqlite3_errmsg(self.database));
     sqlite3_finalize(statement);
     if (success) [self syncHistoryBackup];
 }
@@ -351,7 +352,7 @@ static BOOL RestoreDatabase(NSString *path) {
     if (self.database == NULL) return @[];
     sqlite3_stmt *statement = NULL;
     if (sqlite3_prepare_v2(self.database, SQL, -1, &statement, NULL) != SQLITE_OK) {
-        NSLog(@"[History] Cannot read visits: %s", sqlite3_errmsg(self.database));
+        BrowserLog(@"[History] Cannot read visits: %s", sqlite3_errmsg(self.database));
         return @[];
     }
     if (limit > 0) sqlite3_bind_int64(statement, 1, (sqlite3_int64)limit);
@@ -399,7 +400,7 @@ static BOOL RestoreDatabase(NSString *path) {
     if (success) success = sqlite3_exec(self.database, "COMMIT", NULL, NULL, NULL) == SQLITE_OK;
     if (!success) {
         sqlite3_exec(self.database, "ROLLBACK", NULL, NULL, NULL);
-        NSLog(@"[History] Cannot delete visits: %s", sqlite3_errmsg(self.database));
+        BrowserLog(@"[History] Cannot delete visits: %s", sqlite3_errmsg(self.database));
     }
     [self syncHistoryBackup];
 }
@@ -411,7 +412,7 @@ static BOOL RestoreDatabase(NSString *path) {
     [self beginBackupMutation];
     sqlite3_bind_text(statement, 1, URLString.UTF8String, -1, SQLITE_TRANSIENT);
     if (sqlite3_step(statement) != SQLITE_DONE)
-        NSLog(@"[History] Cannot delete URL visits: %s", sqlite3_errmsg(self.database));
+        BrowserLog(@"[History] Cannot delete URL visits: %s", sqlite3_errmsg(self.database));
     sqlite3_finalize(statement);
     [self syncHistoryBackup];
 }
@@ -420,7 +421,7 @@ static BOOL RestoreDatabase(NSString *path) {
     if (self.database == NULL) return;
     [self beginBackupMutation];
     if (sqlite3_exec(self.database, "DELETE FROM visits", NULL, NULL, NULL) != SQLITE_OK)
-        NSLog(@"[History] Cannot clear visits: %s", sqlite3_errmsg(self.database));
+        BrowserLog(@"[History] Cannot clear visits: %s", sqlite3_errmsg(self.database));
     [self syncHistoryBackup];
 }
 
