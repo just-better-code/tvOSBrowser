@@ -22,7 +22,6 @@ static NSTimeInterval const kWebContentProcessCrashQuietInterval = 60.0;
 @property (nonatomic, weak) UIView *browserContainerView;
 @property (nonatomic, weak) UIView *rootView;
 @property (nonatomic, weak) UIImageView *cursorView;
-@property (nonatomic, weak) UIPanGestureRecognizer *manualScrollPanRecognizer;
 @property (nonatomic, weak) id webViewDelegate;
 @property (nonatomic) BOOL scrollViewAllowBounces;
 @property (nonatomic) NSMutableDictionary<NSString *, BrowserWebView *> *webViewsByTabIdentifier;
@@ -47,7 +46,6 @@ static NSTimeInterval const kWebContentProcessCrashQuietInterval = 60.0;
           browserContainerView:(UIView *)browserContainerView
                     rootView:(UIView *)rootView
                   cursorView:(UIImageView *)cursorView
-     manualScrollPanRecognizer:(UIPanGestureRecognizer *)manualScrollPanRecognizer
              webViewDelegate:(id)webViewDelegate
          scrollViewAllowBounces:(BOOL)scrollViewAllowBounces {
     self = [super init];
@@ -60,7 +58,6 @@ static NSTimeInterval const kWebContentProcessCrashQuietInterval = 60.0;
         _browserContainerView = browserContainerView;
         _rootView = rootView;
         _cursorView = cursorView;
-        _manualScrollPanRecognizer = manualScrollPanRecognizer;
         _webViewDelegate = webViewDelegate;
         _scrollViewAllowBounces = scrollViewAllowBounces;
         _webViewsByTabIdentifier = [NSMutableDictionary dictionary];
@@ -302,9 +299,9 @@ static NSTimeInterval const kWebContentProcessCrashQuietInterval = 60.0;
 
     BOOL shouldAllowWebInteraction = ![self.host browserTabCoordinatorIsCursorModeEnabled] &&
         ![self.host browserTabCoordinatorIsTabOverviewVisible];
-    scrollView.scrollEnabled = shouldAllowWebInteraction;
+    // Keep native touchpad panning disabled when switching tabs as well.
+    scrollView.scrollEnabled = NO;
     self.activeWebView.userInteractionEnabled = shouldAllowWebInteraction;
-    self.manualScrollPanRecognizer.enabled = shouldAllowWebInteraction;
 
     [self refreshActiveTabUI];
 }

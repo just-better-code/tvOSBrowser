@@ -26,8 +26,8 @@ static CGFloat const kBrowserMagnifierDiameter = 384.0;
 static NSTimeInterval const kBrowserSelectHoldDelay = 0.65;
 static NSTimeInterval const kBrowserVerticalHoldDelay = 0.38;
 static CGFloat const kBrowserVerticalHoldInitialSpeed = 560.0;
-static CGFloat const kBrowserVerticalHoldMaximumSpeed = 1460.0;
-static CFTimeInterval const kBrowserVerticalHoldAccelerationDuration = 2.4;
+static CGFloat const kBrowserVerticalHoldMaximumSpeed = 1800.0;
+static CFTimeInterval const kBrowserVerticalHoldAccelerationDuration = 1.2;
 
 static NSString *BrowserPressTypeString(UIPressType type) {
     switch (type) {
@@ -58,13 +58,8 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 @property (nonatomic, weak) id<BrowserRemoteInputControllerHost> host;
 @property (nonatomic, weak) UIView *rootView;
 @property (nonatomic, readwrite) UIImageView *cursorView;
-@property (nonatomic, readwrite) UIPanGestureRecognizer *manualScrollPanRecognizer;
 @property (nonatomic, readwrite, getter=isCursorModeEnabled) BOOL cursorModeEnabled;
 @property (nonatomic) CGPoint lastTouchLocation;
-@property (nonatomic) CADisplayLink *manualScrollDisplayLink;
-@property (nonatomic) CGPoint manualScrollVelocity;
-@property (nonatomic) CFTimeInterval manualScrollLastTimestamp;
-@property (nonatomic) CFTimeInterval manualScrollLastMovementTimestamp;
 @property (nonatomic, weak) UIScrollView *animatedScrollView;
 @property (nonatomic) CGFloat animatedScrollTargetY;
 @property (nonatomic) CFTimeInterval lastAnimatedScrollPressTimestamp;
@@ -159,12 +154,6 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
         [_magnifierView addSubview:_magnifierImageView];
         [rootView addSubview:_magnifierView];
         [rootView bringSubviewToFront:_cursorView];
-
-        _manualScrollPanRecognizer = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handleManualScrollPan:)];
-        _manualScrollPanRecognizer.allowedTouchTypes = @[ @(UITouchTypeIndirect) ];
-        _manualScrollPanRecognizer.cancelsTouchesInView = NO;
-        _manualScrollPanRecognizer.enabled = NO;
-        [rootView addGestureRecognizer:_manualScrollPanRecognizer];
     }
     return self;
 }
@@ -237,7 +226,6 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     _cursorModeEnabled = cursorModeEnabled;
     self.hoverGeneration += 1;
     self.lastTouchLocation = CGPointMake(-1, -1);
-    [self stopManualScrollInertia];
     [self refreshInteractionState];
     if (cursorModeEnabled) {
         [self noteCursorActivity];
@@ -331,8 +319,8 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     UIScrollView *scrollView = [self.host browserRemoteInputControllerActiveScrollView];
     BOOL shouldAllowWebInteraction = !self.cursorModeEnabled &&
         ![self.host browserRemoteInputControllerTabOverviewVisible];
-    scrollView.scrollEnabled = shouldAllowWebInteraction;
-    self.manualScrollPanRecognizer.enabled = shouldAllowWebInteraction;
+    // Remote arrows own page scrolling; touchpad movement must not pan the page.
+    scrollView.scrollEnabled = NO;
     [self.host browserRemoteInputControllerSetWebInteractionEnabled:shouldAllowWebInteraction];
     self.cursorView.hidden = !self.cursorModeEnabled ||
         [self.host browserRemoteInputControllerTabOverviewVisible] ||
@@ -359,54 +347,6 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     CGPoint nextOffset = CGPointMake(nextOffsetX, nextOffsetY);
     [scrollView setContentOffset:nextOffset animated:NO];
     return !CGPointEqualToPoint(contentOffset, nextOffset);
-}
-
-- (void)stopManualScrollInertia {
-    [self.manualScrollDisplayLink invalidate];
-    self.manualScrollDisplayLink = nil;
-    self.manualScrollVelocity = CGPointZero;
-    self.manualScrollLastTimestamp = 0;
-    self.manualScrollLastMovementTimestamp = 0;
-}
-
-- (void)startManualScrollInertiaWithVelocity:(CGPoint)velocity {
-    [self stopManualScrollInertia];
-    if (fabs(velocity.x) < 25.0 && fabs(velocity.y) < 25.0) {
-        return;
-    }
-
-    self.manualScrollVelocity = velocity;
-    self.manualScrollLastTimestamp = 0;
-    self.manualScrollDisplayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(handleManualScrollDisplayLink:)];
-    [self.manualScrollDisplayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
-}
-
-- (void)handleManualScrollDisplayLink:(CADisplayLink *)displayLink {
-    if (self.cursorModeEnabled ||
-        [self.host browserRemoteInputControllerTabOverviewVisible]) {
-        [self stopManualScrollInertia];
-        return;
-    }
-
-    if (self.manualScrollLastTimestamp <= 0) {
-        self.manualScrollLastTimestamp = displayLink.timestamp;
-        return;
-    }
-
-    CFTimeInterval deltaTime = displayLink.timestamp - self.manualScrollLastTimestamp;
-    self.manualScrollLastTimestamp = displayLink.timestamp;
-
-    CGPoint step = CGPointMake(self.manualScrollVelocity.x * deltaTime, self.manualScrollVelocity.y * deltaTime);
-    BOOL didMove = [self applyManualScrollDelta:step];
-
-    CGFloat decay = pow(0.92, deltaTime * 60.0);
-    self.manualScrollVelocity = CGPointMake(self.manualScrollVelocity.x * decay, self.manualScrollVelocity.y * decay);
-
-    if (!didMove ||
-        (fabs(self.manualScrollVelocity.x) < 10.0 && fabs(self.manualScrollVelocity.y) < 10.0)) {
-        [self stopManualScrollInertia];
-        [self.host browserRemoteInputControllerPersistSession];
-    }
 }
 
 - (void)handleGlobalSelectPressEndedNotification {
@@ -569,7 +509,6 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
             !strongSelf.verticalPressPending || strongSelf.heldVerticalPressType != pressType) {
             return;
         }
-        [strongSelf stopManualScrollInertia];
         strongSelf.verticalHoldActive = YES;
         strongSelf.verticalHoldDisplayLink = [CADisplayLink displayLinkWithTarget:strongSelf
                                                                         selector:@selector(handleVerticalHoldDisplayLink:)];
@@ -587,7 +526,6 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     UIScrollView *scrollView = [self.host browserRemoteInputControllerActiveScrollView];
     if (scrollView == nil) { return; }
     CGFloat pageStep = MAX(120.0, CGRectGetHeight(scrollView.bounds) * 0.275);
-    [self stopManualScrollInertia];
     CFTimeInterval now = CACurrentMediaTime();
     BOOL continuePreviousScroll = self.animatedScrollView == scrollView &&
         now - self.lastAnimatedScrollPressTimestamp < 0.6;
@@ -599,39 +537,6 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     self.lastAnimatedScrollPressTimestamp = now;
     [scrollView setContentOffset:CGPointMake(scrollView.contentOffset.x, targetY) animated:YES];
     [self.host browserRemoteInputControllerPersistSession];
-}
-
-- (void)handleManualScrollPan:(UIPanGestureRecognizer *)gestureRecognizer {
-    if (self.cursorModeEnabled ||
-        [self.host browserRemoteInputControllerTabOverviewVisible]) {
-        return;
-    }
-
-    if (gestureRecognizer.state == UIGestureRecognizerStateBegan) {
-        [self stopManualScrollInertia];
-    }
-
-    CGPoint translation = [gestureRecognizer translationInView:self.rootView];
-    if (!CGPointEqualToPoint(translation, CGPointZero)) {
-        [self applyManualScrollDelta:CGPointMake(-translation.x, -translation.y)];
-        [gestureRecognizer setTranslation:CGPointZero inView:self.rootView];
-        self.manualScrollLastMovementTimestamp = CACurrentMediaTime();
-    }
-
-    if (gestureRecognizer.state == UIGestureRecognizerStateEnded) {
-        CFTimeInterval timeSinceLastMovement = CACurrentMediaTime() - self.manualScrollLastMovementTimestamp;
-        CGPoint velocity = [gestureRecognizer velocityInView:self.rootView];
-        if (timeSinceLastMovement < 0.08) {
-            [self startManualScrollInertiaWithVelocity:CGPointMake(-velocity.x, -velocity.y)];
-        } else {
-            [self stopManualScrollInertia];
-        }
-        [self.host browserRemoteInputControllerPersistSession];
-    } else if (gestureRecognizer.state == UIGestureRecognizerStateCancelled ||
-               gestureRecognizer.state == UIGestureRecognizerStateFailed) {
-        [self stopManualScrollInertia];
-        [self.host browserRemoteInputControllerPersistSession];
-    }
 }
 
 - (void)handlePressesBegan:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {

@@ -38,7 +38,6 @@ NS_ASSUME_NONNULL_BEGIN
            browserContainerView:(UIView *)browserContainerView
                     rootView:(UIView *)rootView
                   cursorView:(UIImageView *)cursorView
-     manualScrollPanRecognizer:(UIPanGestureRecognizer *)manualScrollPanRecognizer
              webViewDelegate:(id)webViewDelegate
          scrollViewAllowBounces:(BOOL)scrollViewAllowBounces NS_DESIGNATED_INITIALIZER;
 

@@ -1,6 +1,6 @@
 # User Guide — tvOSofaBrowse
 
-Current for **2.17.11**. Button names match the application.
+Current for **2.18.21**. Button names match the application.
 
 ## Quick start
 
@@ -9,7 +9,7 @@ Use a Siri Remote with a touch surface or touch-enabled clickpad. A button-only 
 1. Open the browser. On New Tab, choose a Favorite or history entry, or press Back/Menu to open the main menu.
 2. The domain/address button receives initial menu focus. Press Center to enter an address or search query.
 3. Slide on the touchpad to move the pointer and press Center to click a page control.
-4. Press Up/Down to scroll. Hold a direction for continuous, accelerating scrolling.
+4. Press Up/Down to scroll. Hold a direction for continuous, smoothly accelerating scrolling. Touchpad movement controls the pointer; swiping does not scroll the page.
 
 Open the visual quick guide through **Menu → Tools → User Guide**. **Show this guide at launch** uses the same ON/OFF badge as the browser menu and controls whether it appears at startup.
 
