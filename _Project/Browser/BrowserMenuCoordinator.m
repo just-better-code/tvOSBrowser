@@ -844,6 +844,7 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
 @end
 
 @interface BrowserBadgeToggleControl : UIControl
+@property (nonatomic, strong) UILabel *titleLabel;
 @property (nonatomic, strong) UILabel *stateLabel;
 @end
 
@@ -852,8 +853,18 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
 - (instancetype)initWithFrame:(CGRect)frame {
     self = [super initWithFrame:frame];
     if (self) {
-        self.backgroundColor = UIColor.clearColor;
+        self.backgroundColor = BrowserTVRestingSurfaceColor();
+        self.layer.cornerRadius = 14.0;
+        self.layer.masksToBounds = YES;
         self.accessibilityTraits = UIAccessibilityTraitButton;
+        UILabel *titleLabel = [UILabel new];
+        titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
+        titleLabel.userInteractionEnabled = NO;
+        titleLabel.text = @"Ad Block";
+        titleLabel.font = [UIFont systemFontOfSize:23.0 weight:UIFontWeightMedium];
+        titleLabel.textColor = UIColor.whiteColor;
+        [self addSubview:titleLabel];
+        self.titleLabel = titleLabel;
         UILabel *stateLabel = [UILabel new];
         stateLabel.translatesAutoresizingMaskIntoConstraints = NO;
         stateLabel.userInteractionEnabled = NO;
@@ -861,7 +872,10 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
         [self addSubview:stateLabel];
         self.stateLabel = stateLabel;
         [NSLayoutConstraint activateConstraints:@[
-            [stateLabel.centerXAnchor constraintEqualToAnchor:self.centerXAnchor],
+            [titleLabel.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:16.0],
+            [titleLabel.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
+            [titleLabel.trailingAnchor constraintEqualToAnchor:stateLabel.leadingAnchor constant:-8.0],
+            [stateLabel.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-16.0],
             [stateLabel.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
             [stateLabel.widthAnchor constraintEqualToConstant:42.0],
             [stateLabel.heightAnchor constraintEqualToConstant:22.0],
@@ -888,8 +902,8 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
        withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     [super didUpdateFocusInContext:context withAnimationCoordinator:coordinator];
     [coordinator addCoordinatedAnimations:^{
-        self.stateLabel.transform = self.isFocused ? CGAffineTransformMakeScale(1.15, 1.15)
-                                                   : CGAffineTransformIdentity;
+        self.backgroundColor = self.isFocused ? BrowserTVFocusedSurfaceColor() : BrowserTVRestingSurfaceColor();
+        self.titleLabel.textColor = self.isFocused ? BrowserTVFocusedTextColor() : UIColor.whiteColor;
     } completion:nil];
 }
 
@@ -946,11 +960,6 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
     heading.font = [UIFont systemFontOfSize:40.0 weight:UIFontWeightBold];
     [panel.contentView addSubview:heading];
 
-    UILabel *protectionLabel = [UILabel new];
-    protectionLabel.text = @"Ad Block";
-    protectionLabel.textColor = UIColor.whiteColor;
-    protectionLabel.font = [UIFont systemFontOfSize:23.0 weight:UIFontWeightMedium];
-
     BrowserBadgeToggleControl *protectionToggleButton = [[BrowserBadgeToggleControl alloc] initWithFrame:CGRectZero];
     protectionToggleButton.translatesAutoresizingMaskIntoConstraints = NO;
     protectionToggleButton.accessibilityLabel = @"Ad Block";
@@ -958,12 +967,7 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
                forControlEvents:UIControlEventPrimaryActionTriggered];
     self.protectionToggleButton = protectionToggleButton;
 
-    UIStackView *headerControls = [[UIStackView alloc] initWithArrangedSubviews:@[protectionLabel, protectionToggleButton]];
-    headerControls.translatesAutoresizingMaskIntoConstraints = NO;
-    headerControls.axis = UILayoutConstraintAxisHorizontal;
-    headerControls.alignment = UIStackViewAlignmentCenter;
-    headerControls.spacing = 12.0;
-    [panel.contentView addSubview:headerControls];
+    [panel.contentView addSubview:protectionToggleButton];
     [self refreshProtectionToggle];
 
     UITableView *table = [[UITableView alloc] initWithFrame:CGRectZero style:UITableViewStylePlain];
@@ -1013,11 +1017,10 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
         preferredHeight,
         [panel.heightAnchor constraintLessThanOrEqualToAnchor:self.view.safeAreaLayoutGuide.heightAnchor constant:-50.0],
         [heading.leadingAnchor constraintEqualToAnchor:panel.contentView.leadingAnchor constant:24.0],
-        [heading.trailingAnchor constraintLessThanOrEqualToAnchor:headerControls.leadingAnchor constant:-16.0],
+        [heading.trailingAnchor constraintLessThanOrEqualToAnchor:protectionToggleButton.leadingAnchor constant:-16.0],
         [heading.topAnchor constraintEqualToAnchor:panel.contentView.topAnchor constant:28.0],
-        [headerControls.centerYAnchor constraintEqualToAnchor:heading.centerYAnchor],
-        [headerControls.trailingAnchor constraintEqualToAnchor:panel.contentView.trailingAnchor constant:-24.0],
-        [protectionToggleButton.widthAnchor constraintEqualToConstant:70.0],
+        [protectionToggleButton.centerYAnchor constraintEqualToAnchor:heading.centerYAnchor],
+        [protectionToggleButton.trailingAnchor constraintEqualToAnchor:panel.contentView.trailingAnchor constant:-24.0],
         [protectionToggleButton.heightAnchor constraintEqualToConstant:44.0],
         [table.leadingAnchor constraintEqualToAnchor:panel.contentView.leadingAnchor constant:20.0],
         [table.trailingAnchor constraintEqualToAnchor:panel.contentView.trailingAnchor constant:-20.0],
