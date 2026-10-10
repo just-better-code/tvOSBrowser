@@ -31,7 +31,6 @@
 		ADBB00000000000000000005 /* ContentBlockerConverter in Frameworks */ = {isa = PBXBuildFile; productRef = ADBB00000000000000000006 /* ContentBlockerConverter */; };
 		A1B49A682D6AD500001D58A1 /* UIApplication+BrowserSelectPressForwarding.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A672D6AD500001D58A1 /* UIApplication+BrowserSelectPressForwarding.m */; };
 		A1B49A6C2D6B1000001D58A1 /* BrowserNativeVideoPlayerViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A6B2D6B1000001D58A1 /* BrowserNativeVideoPlayerViewController.m */; };
-		A1B49A722D6B7000001D58A1 /* BrowserYouTubeExtractor.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A712D6B7000001D58A1 /* BrowserYouTubeExtractor.m */; };
 		A1B49A742D6C1000001D58A1 /* BrowserNativeVideoAssetLoader.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A732D6C1000001D58A1 /* BrowserNativeVideoAssetLoader.m */; };
 		A1B49A842D6D2000001D58A1 /* BrowserDOMInteractionService.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A832D6D2000001D58A1 /* BrowserDOMInteractionService.m */; };
 		A1B49A872D6D2000001D58A1 /* BrowserVideoPlaybackCoordinator.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A862D6D2000001D58A1 /* BrowserVideoPlaybackCoordinator.m */; };
@@ -106,8 +105,6 @@
 		A1B49A672D6AD500001D58A1 /* UIApplication+BrowserSelectPressForwarding.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "UIApplication+BrowserSelectPressForwarding.m"; sourceTree = "<group>"; };
 		A1B49A692D6B1000001D58A1 /* BrowserNativeVideoPlayerViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserNativeVideoPlayerViewController.h; sourceTree = "<group>"; };
 		A1B49A6B2D6B1000001D58A1 /* BrowserNativeVideoPlayerViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserNativeVideoPlayerViewController.m; sourceTree = "<group>"; };
-		A1B49A702D6B7000001D58A1 /* BrowserYouTubeExtractor.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserYouTubeExtractor.h; sourceTree = "<group>"; };
-		A1B49A712D6B7000001D58A1 /* BrowserYouTubeExtractor.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserYouTubeExtractor.m; sourceTree = "<group>"; };
 		A1B49A732D6C1000001D58A1 /* BrowserNativeVideoAssetLoader.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserNativeVideoAssetLoader.m; sourceTree = "<group>"; };
 		A1B49A752D6C1000001D58A1 /* BrowserNativeVideoAssetLoader.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserNativeVideoAssetLoader.h; sourceTree = "<group>"; };
 		A1B49A822D6D2000001D58A1 /* BrowserDOMInteractionService.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserDOMInteractionService.h; sourceTree = "<group>"; };
@@ -316,8 +313,6 @@
 			children = (
 				A1B49A752D6C1000001D58A1 /* BrowserNativeVideoAssetLoader.h */,
 				A1B49A732D6C1000001D58A1 /* BrowserNativeVideoAssetLoader.m */,
-				A1B49A702D6B7000001D58A1 /* BrowserYouTubeExtractor.h */,
-				A1B49A712D6B7000001D58A1 /* BrowserYouTubeExtractor.m */,
 			);
 			name = Video;
 			sourceTree = "<group>";
@@ -519,7 +514,6 @@
 				A1B49A892D700000001D58A1 /* BrowserPreferencesStore.m in Sources */,
 				A1B49A582D6828D4001D58A1 /* BrowserSessionStore.m in Sources */,
 				A1B49A6C2D6B1000001D58A1 /* BrowserNativeVideoPlayerViewController.m in Sources */,
-				A1B49A722D6B7000001D58A1 /* BrowserYouTubeExtractor.m in Sources */,
 				A1B49A742D6C1000001D58A1 /* BrowserNativeVideoAssetLoader.m in Sources */,
 				A1B49A682D6AD500001D58A1 /* UIApplication+BrowserSelectPressForwarding.m in Sources */,
 				A1B49A632D6A3800001D58A1 /* BrowserWebView.m in Sources */,
@@ -676,7 +670,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.18.21;
+				MARKETING_VERSION = 2.18.23;
 			PRODUCT_NAME = "$(TARGET_NAME)";
 			SCAN_ALL_SOURCE_FILES_FOR_INCLUDES = NO;
 			SWIFT_VERSION = 5.0;
@@ -707,7 +701,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.18.21;
+				MARKETING_VERSION = 2.18.23;
 			PRODUCT_NAME = "$(TARGET_NAME)";
 			SCAN_ALL_SOURCE_FILES_FOR_INCLUDES = NO;
 			SWIFT_VERSION = 5.0;

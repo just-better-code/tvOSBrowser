@@ -1520,24 +1520,6 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
            "})()";
 }
 
-- (NSDictionary *)mediaDiagnosticsDictionary {
-    NSString *resultString = [[self.host browserWebView] stringByEvaluatingJavaScriptFromString:[self mediaDiagnosticsJavaScript]];
-    if (![self stringHasVisibleContent:resultString]) {
-        return nil;
-    }
-
-    NSData *resultData = [resultString dataUsingEncoding:NSUTF8StringEncoding];
-    if (resultData == nil) {
-        return nil;
-    }
-
-    id object = [NSJSONSerialization JSONObjectWithData:resultData options:0 error:nil];
-    if (![object isKindOfClass:[NSDictionary class]]) {
-        return nil;
-    }
-    return object;
-}
-
 - (NSString *)stringValueForDiagnosticsKey:(NSString *)key dictionary:(NSDictionary *)dictionary fallback:(NSString *)fallback {
     id value = dictionary[key];
     if ([value isKindOfClass:[NSString class]] && [self stringHasVisibleContent:value]) {
@@ -1553,72 +1535,90 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
 }
 
 - (void)presentMediaDiagnostics {
-    NSDictionary *diagnostics = [self mediaDiagnosticsDictionary];
-    if (diagnostics == nil) {
-        UIAlertController *alertController = [self browserAlertControllerWithTitle:@"Media Diagnostics"
-                                                                           message:@"The page did not return diagnostics data."];
-        [alertController addAction:[self browserCancelAction]];
-        [self.host browserPresentViewController:alertController];
+    BrowserWebView *webView = [self.host browserWebView];
+    if (webView == nil) {
+        UIAlertController *alert = [self browserAlertControllerWithTitle:@"Media Diagnostics"
+                                                                message:@"The page did not return diagnostics data."];
+        [alert addAction:[self browserCancelAction]];
+        [self.host browserPresentViewController:alert];
         return;
     }
+    NSUInteger generation = webView.documentGeneration;
+    NSURL *URL = webView.request.URL;
+    [webView evaluateJavaScript:[self mediaDiagnosticsJavaScript] completionHandler:^(NSString *resultString, NSError *error) {
+        NSURL *currentURL = webView.request.URL;
+        if ([self.host browserWebView] != webView || webView.documentGeneration != generation ||
+            !(URL == currentURL || [URL isEqual:currentURL])) { return; }
+        if ([error.domain isEqualToString:NSURLErrorDomain] && error.code == NSURLErrorCancelled) { return; }
+        NSData *data = [resultString dataUsingEncoding:NSUTF8StringEncoding];
+        id object = data != nil && error == nil ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
+        NSDictionary *diagnostics = [object isKindOfClass:[NSDictionary class]] ? object : nil;
+        if (diagnostics == nil) {
+            UIAlertController *alertController = [self browserAlertControllerWithTitle:@"Media Diagnostics"
+                                                                               message:@"The page did not return diagnostics data."];
+            [alertController addAction:[self browserCancelAction]];
+            [self.host browserPresentViewController:alertController];
+            return;
+        }
 
-    BOOL mobileModeEnabled = self.preferencesStore.mobileModeEnabled;
-    NSString *message = [NSString stringWithFormat:
-                         @"Mode: %@\n"
-                          "URL: %@\n"
-                          "UA: %@\n\n"
-                          "MediaSource: %@\n"
-                          "ManagedMediaSource: %@\n"
-                          "MediaCapabilities: %@\n"
-                          "Video Element: %@\n"
-                          "Video Src: %@\n\n"
-                          "Global MediaSource: %@\n"
-                          "Global ManagedMediaSource: %@\n"
-                          "Global WebKitMediaSource: %@\n"
-                          "Global SourceBuffer: %@\n"
-                          "Global ManagedSourceBuffer: %@\n"
-                          "Global WebKitSourceBuffer: %@\n\n"
-                          "canPlay HLS: %@\n"
-                          "canPlay MP4 H.264: %@\n"
-                          "canPlay MP4 HEVC: %@\n"
-                          "canPlay WebM VP9: %@\n"
-                          "canPlay MP4 AV1: %@\n"
-                          "canPlay WebM AV1: %@\n\n"
-                          "MSE MP4 H.264: %@\n"
-                          "MSE WebM VP9: %@\n"
-                          "MSE MP4 AV1: %@\n"
-                          "MSE WebM AV1: %@",
-                         mobileModeEnabled ? @"Mobile" : @"Desktop",
-                         [self stringValueForDiagnosticsKey:@"href" dictionary:diagnostics fallback:@"Unavailable"],
-                         [self stringValueForDiagnosticsKey:@"userAgent" dictionary:diagnostics fallback:@"Unavailable"],
-                         [self stringValueForDiagnosticsKey:@"mediaSource" dictionary:diagnostics fallback:@"n/a"],
-                         [self stringValueForDiagnosticsKey:@"managedMediaSource" dictionary:diagnostics fallback:@"n/a"],
-                         [self stringValueForDiagnosticsKey:@"mediaCapabilities" dictionary:diagnostics fallback:@"n/a"],
-                         [self stringValueForDiagnosticsKey:@"videoElement" dictionary:diagnostics fallback:@"n/a"],
-                         [self stringValueForDiagnosticsKey:@"videoSrc" dictionary:diagnostics fallback:@"Unavailable"],
-                         [self stringValueForDiagnosticsKey:@"globalMediaSource" dictionary:diagnostics fallback:@"n/a"],
-                         [self stringValueForDiagnosticsKey:@"globalManagedMediaSource" dictionary:diagnostics fallback:@"n/a"],
-                         [self stringValueForDiagnosticsKey:@"globalWebKitMediaSource" dictionary:diagnostics fallback:@"n/a"],
-                         [self stringValueForDiagnosticsKey:@"globalSourceBuffer" dictionary:diagnostics fallback:@"n/a"],
-                         [self stringValueForDiagnosticsKey:@"globalManagedSourceBuffer" dictionary:diagnostics fallback:@"n/a"],
-                         [self stringValueForDiagnosticsKey:@"globalWebKitSourceBuffer" dictionary:diagnostics fallback:@"n/a"],
-                         [self stringValueForDiagnosticsKey:@"hls" dictionary:diagnostics fallback:@"n/a"],
-                         [self stringValueForDiagnosticsKey:@"mp4H264" dictionary:diagnostics fallback:@"n/a"],
-                         [self stringValueForDiagnosticsKey:@"mp4Hevc" dictionary:diagnostics fallback:@"n/a"],
-                         [self stringValueForDiagnosticsKey:@"webmVp9" dictionary:diagnostics fallback:@"n/a"],
-                         [self stringValueForDiagnosticsKey:@"mp4Av1" dictionary:diagnostics fallback:@"n/a"],
-                         [self stringValueForDiagnosticsKey:@"webmAv1" dictionary:diagnostics fallback:@"n/a"],
-                         [self stringValueForDiagnosticsKey:@"mseMp4H264" dictionary:diagnostics fallback:@"n/a"],
-                         [self stringValueForDiagnosticsKey:@"mseWebmVp9" dictionary:diagnostics fallback:@"n/a"],
-                         [self stringValueForDiagnosticsKey:@"mseMp4Av1" dictionary:diagnostics fallback:@"n/a"],
-                         [self stringValueForDiagnosticsKey:@"mseWebmAv1" dictionary:diagnostics fallback:@"n/a"]];
+        BOOL mobileModeEnabled = self.preferencesStore.mobileModeEnabled;
+        NSString *message = [NSString stringWithFormat:
+                             @"Mode: %@\n"
+                              "URL: %@\n"
+                              "UA: %@\n\n"
+                              "MediaSource: %@\n"
+                              "ManagedMediaSource: %@\n"
+                              "MediaCapabilities: %@\n"
+                              "Video Element: %@\n"
+                              "Video Src: %@\n\n"
+                              "Global MediaSource: %@\n"
+                              "Global ManagedMediaSource: %@\n"
+                              "Global WebKitMediaSource: %@\n"
+                              "Global SourceBuffer: %@\n"
+                              "Global ManagedSourceBuffer: %@\n"
+                              "Global WebKitSourceBuffer: %@\n\n"
+                              "canPlay HLS: %@\n"
+                              "canPlay MP4 H.264: %@\n"
+                              "canPlay MP4 HEVC: %@\n"
+                              "canPlay WebM VP9: %@\n"
+                              "canPlay MP4 AV1: %@\n"
+                              "canPlay WebM AV1: %@\n\n"
+                              "MSE MP4 H.264: %@\n"
+                              "MSE WebM VP9: %@\n"
+                              "MSE MP4 AV1: %@\n"
+                              "MSE WebM AV1: %@",
+                             mobileModeEnabled ? @"Mobile" : @"Desktop",
+                             [self stringValueForDiagnosticsKey:@"href" dictionary:diagnostics fallback:@"Unavailable"],
+                             [self stringValueForDiagnosticsKey:@"userAgent" dictionary:diagnostics fallback:@"Unavailable"],
+                             [self stringValueForDiagnosticsKey:@"mediaSource" dictionary:diagnostics fallback:@"n/a"],
+                             [self stringValueForDiagnosticsKey:@"managedMediaSource" dictionary:diagnostics fallback:@"n/a"],
+                             [self stringValueForDiagnosticsKey:@"mediaCapabilities" dictionary:diagnostics fallback:@"n/a"],
+                             [self stringValueForDiagnosticsKey:@"videoElement" dictionary:diagnostics fallback:@"n/a"],
+                             [self stringValueForDiagnosticsKey:@"videoSrc" dictionary:diagnostics fallback:@"Unavailable"],
+                             [self stringValueForDiagnosticsKey:@"globalMediaSource" dictionary:diagnostics fallback:@"n/a"],
+                             [self stringValueForDiagnosticsKey:@"globalManagedMediaSource" dictionary:diagnostics fallback:@"n/a"],
+                             [self stringValueForDiagnosticsKey:@"globalWebKitMediaSource" dictionary:diagnostics fallback:@"n/a"],
+                             [self stringValueForDiagnosticsKey:@"globalSourceBuffer" dictionary:diagnostics fallback:@"n/a"],
+                             [self stringValueForDiagnosticsKey:@"globalManagedSourceBuffer" dictionary:diagnostics fallback:@"n/a"],
+                             [self stringValueForDiagnosticsKey:@"globalWebKitSourceBuffer" dictionary:diagnostics fallback:@"n/a"],
+                             [self stringValueForDiagnosticsKey:@"hls" dictionary:diagnostics fallback:@"n/a"],
+                             [self stringValueForDiagnosticsKey:@"mp4H264" dictionary:diagnostics fallback:@"n/a"],
+                             [self stringValueForDiagnosticsKey:@"mp4Hevc" dictionary:diagnostics fallback:@"n/a"],
+                             [self stringValueForDiagnosticsKey:@"webmVp9" dictionary:diagnostics fallback:@"n/a"],
+                             [self stringValueForDiagnosticsKey:@"mp4Av1" dictionary:diagnostics fallback:@"n/a"],
+                             [self stringValueForDiagnosticsKey:@"webmAv1" dictionary:diagnostics fallback:@"n/a"],
+                             [self stringValueForDiagnosticsKey:@"mseMp4H264" dictionary:diagnostics fallback:@"n/a"],
+                             [self stringValueForDiagnosticsKey:@"mseWebmVp9" dictionary:diagnostics fallback:@"n/a"],
+                             [self stringValueForDiagnosticsKey:@"mseMp4Av1" dictionary:diagnostics fallback:@"n/a"],
+                             [self stringValueForDiagnosticsKey:@"mseWebmAv1" dictionary:diagnostics fallback:@"n/a"]];
 
-    BrowserLog(@"%@ %@", kBrowserMediaDiagnosticsLogPrefix, message);
+        BrowserLog(@"%@ %@", kBrowserMediaDiagnosticsLogPrefix, message);
 
-    UIAlertController *alertController = [self browserAlertControllerWithTitle:@"Media Diagnostics"
-                                                                       message:message];
-    [alertController addAction:[self browserCancelAction]];
-    [self.host browserPresentViewController:alertController];
+        UIAlertController *alertController = [self browserAlertControllerWithTitle:@"Media Diagnostics"
+                                                                           message:message];
+        [alertController addAction:[self browserCancelAction]];
+        [self.host browserPresentViewController:alertController];
+    }];
 }
 
 - (void)presentWebKitRuntimeMediaPreferences {

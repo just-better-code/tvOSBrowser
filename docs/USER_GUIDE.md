@@ -1,6 +1,6 @@
 # User Guide — tvOSofaBrowse
 
-Current for **2.18.21**. Button names match the application.
+Current for **2.18.23**. Button names match the application.
 
 ## Quick start
 

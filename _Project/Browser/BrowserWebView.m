@@ -324,156 +324,6 @@ static void BrowserConfigurePrivateMediaPreferences(id configuration) {
     BrowserSetBooleanSelectorIfAvailable(preferences, @"_setVideoQualityIncludesDisplayCompositingEnabled:", YES);
 }
 
-static NSString *BrowserYouTubeRequestCaptureScript(void) {
-    return
-    @"(function(){"
-        "if (window.__browserYouTubeHookInstalled) { return; }"
-        "window.__browserYouTubeHookInstalled = true;"
-        "window.__browserYouTubeIntegrity = window.__browserYouTubeIntegrity || {};"
-        "function assignIfPresent(key, value) {"
-            "if (value === undefined || value === null) { return; }"
-            "var stringValue = String(value || '');"
-            "if (!stringValue) { return; }"
-            "window.__browserYouTubeIntegrity[key] = stringValue;"
-        "}"
-        "function capturePayload(payload) {"
-            "try {"
-                "if (!payload || typeof payload !== 'object') { return; }"
-                "if (payload.serviceIntegrityDimensions) {"
-                    "assignIfPresent('poToken', payload.serviceIntegrityDimensions.poToken || payload.serviceIntegrityDimensions.po_token);"
-                "}"
-                "if (payload.context && payload.context.serviceIntegrityDimensions) {"
-                    "assignIfPresent('poToken', payload.context.serviceIntegrityDimensions.poToken || payload.context.serviceIntegrityDimensions.po_token);"
-                "}"
-                "if (payload.context && payload.context.client) {"
-                    "assignIfPresent('requestClientName', payload.context.client.clientName);"
-                    "assignIfPresent('requestClientVersion', payload.context.client.clientVersion);"
-                "}"
-            "} catch (error) {}"
-        "}"
-        "function toHeaderObject(headers) {"
-            "var result = {};"
-            "try {"
-                "if (!headers) { return result; }"
-                "if (typeof Headers !== 'undefined' && headers instanceof Headers) {"
-                    "headers.forEach(function(value, key) { result[String(key)] = String(value); });"
-                    "return result;"
-                "}"
-                "if (Array.isArray(headers)) {"
-                    "headers.forEach(function(entry) {"
-                        "if (Array.isArray(entry) && entry.length >= 2) { result[String(entry[0])] = String(entry[1]); }"
-                    "});"
-                    "return result;"
-                "}"
-                "if (typeof headers === 'object') {"
-                    "Object.keys(headers).forEach(function(key) { result[String(key)] = String(headers[key]); });"
-                "}"
-            "} catch (error) {}"
-            "return result;"
-        "}"
-        "function rememberRequest(url, body, headers, transport) {"
-            "try {"
-                "var integrity = window.__browserYouTubeIntegrity;"
-                "integrity.lastPlayerRequestURL = String(url || '');"
-                "integrity.lastPlayerRequestBody = String(body || '');"
-                "integrity.lastPlayerRequestHeaders = JSON.stringify(headers || {});"
-                "integrity.lastPlayerRequestTransport = String(transport || '');"
-                "if (!integrity.firstPlayerRequestURL) {"
-                    "integrity.firstPlayerRequestURL = integrity.lastPlayerRequestURL;"
-                    "integrity.firstPlayerRequestBody = integrity.lastPlayerRequestBody;"
-                    "integrity.firstPlayerRequestHeaders = integrity.lastPlayerRequestHeaders;"
-                    "integrity.firstPlayerRequestTransport = integrity.lastPlayerRequestTransport;"
-                "}"
-            "} catch (error) {}"
-        "}"
-        "function captureBodyStringAsync(source, bodyString, headers, transport) {"
-            "try {"
-                "if (bodyString && bodyString !== '[object ReadableStream]') {"
-                    "rememberRequest(source.url || '', bodyString, headers || {}, transport || '');"
-                    "try { capturePayload(JSON.parse(bodyString)); } catch (error) {}"
-                    "return;"
-                "}"
-                "if (source && typeof source.clone === 'function' && typeof source.text === 'function') {"
-                    "source.clone().text().then(function(text) {"
-                        "rememberRequest(source.url || '', text || '', headers || {}, transport || '');"
-                        "try { capturePayload(JSON.parse(text || '')); } catch (error) {}"
-                    "}).catch(function(){});"
-                "}"
-            "} catch (error) {}"
-        "}"
-        "function captureRequest(input, init) {"
-            "try {"
-                "var url = '';"
-                "if (typeof input === 'string') { url = input; }"
-                "else if (input && typeof input.url === 'string') { url = input.url; }"
-                "if (url.indexOf('/youtubei/v1/player') === -1) { return; }"
-                "var body = (init && init.body) || (input && input.body) || null;"
-                "var bodyString = '';"
-                "if (typeof body === 'string') { bodyString = body; }"
-                "else if (body && typeof body === 'object' && typeof body.toString === 'function') { bodyString = String(body); }"
-                "var headers = toHeaderObject((init && init.headers) || (input && input.headers) || null);"
-                "rememberRequest(url, bodyString, headers, 'fetch');"
-                "captureBodyStringAsync((input && typeof input.clone === 'function') ? input : null, bodyString, headers, 'fetch');"
-                "if (typeof bodyString !== 'string' || !bodyString || bodyString === '[object ReadableStream]') { return; }"
-                "try { capturePayload(JSON.parse(bodyString)); } catch (error) {}"
-            "} catch (error) {}"
-        "}"
-        "function captureXHRRequest(xhr, body) {"
-            "try {"
-                "var url = String((xhr && xhr.__browserYouTubeURL) || '');"
-                "if (url.indexOf('/youtubei/v1/player') === -1) { return; }"
-                "var bodyString = '';"
-                "if (typeof body === 'string') { bodyString = body; }"
-                "else if (body && typeof body === 'object' && typeof body.toString === 'function') { bodyString = String(body); }"
-                "var headers = xhr && xhr.__browserYouTubeHeaders ? xhr.__browserYouTubeHeaders : {};"
-                "rememberRequest(url, bodyString, headers, 'xhr');"
-                "if (typeof bodyString !== 'string' || !bodyString) { return; }"
-                "try { capturePayload(JSON.parse(bodyString)); } catch (error) {}"
-            "try { capturePayload(JSON.parse(body)); } catch (error) {}"
-            "} catch (error) {}"
-        "}"
-        "var cfg = (window.ytcfg && window.ytcfg.data_) || {};"
-        "assignIfPresent('poToken', cfg.PO_TOKEN || cfg.po_token || cfg.POTOKEN);"
-        "if (cfg.SERVICE_INTEGRITY_DIMENSIONS) {"
-            "assignIfPresent('poToken', cfg.SERVICE_INTEGRITY_DIMENSIONS.poToken || cfg.SERVICE_INTEGRITY_DIMENSIONS.po_token);"
-        "}"
-        "if (cfg.WEB_PLAYER_CONTEXT_CONFIGS) {"
-            "var watchConfig = cfg.WEB_PLAYER_CONTEXT_CONFIGS.WEB_PLAYER_CONTEXT_CONFIG_ID_KEVLAR_WATCH || {};"
-            "if (watchConfig.serviceIntegrityDimensions) {"
-                "assignIfPresent('poToken', watchConfig.serviceIntegrityDimensions.poToken || watchConfig.serviceIntegrityDimensions.po_token);"
-            "}"
-        "}"
-        "if (window.fetch) {"
-            "var originalFetch = window.fetch;"
-            "window.fetch = function(input, init) {"
-                "captureRequest(input, init);"
-                "return originalFetch.apply(this, arguments);"
-            "};"
-        "}"
-        "if (window.XMLHttpRequest && window.XMLHttpRequest.prototype) {"
-            "var originalOpen = window.XMLHttpRequest.prototype.open;"
-            "var originalSend = window.XMLHttpRequest.prototype.send;"
-            "var originalSetRequestHeader = window.XMLHttpRequest.prototype.setRequestHeader;"
-            "window.XMLHttpRequest.prototype.open = function(method, url) {"
-                "this.__browserYouTubeURL = String(url || '');"
-                "this.__browserYouTubeHeaders = {};"
-                "return originalOpen.apply(this, arguments);"
-            "};"
-            "window.XMLHttpRequest.prototype.setRequestHeader = function(key, value) {"
-                "try {"
-                    "if (!this.__browserYouTubeHeaders) { this.__browserYouTubeHeaders = {}; }"
-                    "this.__browserYouTubeHeaders[String(key)] = String(value);"
-                "} catch (error) {}"
-                "return originalSetRequestHeader.apply(this, arguments);"
-            "};"
-            "window.XMLHttpRequest.prototype.send = function(body) {"
-                "captureXHRRequest(this, body);"
-                "return originalSend.apply(this, arguments);"
-            "};"
-        "}"
-    "})();";
-}
-
 static NSString *BrowserFrameClickBridgeScript(NSString *secret) {
     return [NSString stringWithFormat:
             @"(function(){"
@@ -876,12 +726,6 @@ static void BrowserInstallUserScripts(id configuration) {
         id diagnosticScript = ((id (*)(id, SEL))objc_msgSend)((id)userScriptClass, @selector(alloc));
         diagnosticScript = ((id (*)(id, SEL, id, NSInteger, BOOL))objc_msgSend)(diagnosticScript, userScriptInitializer, BrowserWebsiteDiagnosticsScript(), 0, NO);
         if (diagnosticScript) ((void (*)(id, SEL, id))objc_msgSend)(userContentController, addUserScriptSelector, diagnosticScript);
-    }
-
-    id userScript = ((id (*)(id, SEL))objc_msgSend)((id)userScriptClass, @selector(alloc));
-    userScript = ((id (*)(id, SEL, id, NSInteger, BOOL))objc_msgSend)(userScript, userScriptInitializer, BrowserYouTubeRequestCaptureScript(), 0, NO);
-    if (userScript != nil) {
-        ((void (*)(id, SEL, id))objc_msgSend)(userContentController, addUserScriptSelector, userScript);
     }
 
     NSString *frameClickSecret = [NSUUID UUID].UUIDString;
@@ -1344,6 +1188,7 @@ static NSString *BrowserAdBlockSourceRevision(NSURL *url) {
 @interface BrowserWebView ()
 
 @property (nullable, nonatomic, strong) id runtimeWebView;
+@property (nonatomic, readwrite) NSUInteger documentGeneration;
 @property (nullable, nonatomic, strong) NSURLRequest *lastRequest;
 @property (nullable, nonatomic, copy) NSString *lastTitle;
 @property (nonatomic, copy) NSString *userAgent;
@@ -1715,6 +1560,7 @@ static NSString *BrowserAdBlockSourceRevision(NSURL *url) {
 }
 
 - (void)loadRequest:(NSURLRequest *)request {
+    self.documentGeneration += 1;
     if (request == nil || self.runtimeWebView == nil) {
         return;
     }
@@ -1727,6 +1573,7 @@ static NSString *BrowserAdBlockSourceRevision(NSURL *url) {
 }
 
 - (void)loadHTMLString:(NSString *)HTMLString {
+    self.documentGeneration += 1;
     if (self.runtimeWebView == nil || HTMLString.length == 0) {
         return;
     }
@@ -1738,6 +1585,7 @@ static NSString *BrowserAdBlockSourceRevision(NSURL *url) {
 }
 
 - (void)reload {
+    self.documentGeneration += 1;
     SEL selector = NSSelectorFromString(@"reload");
     if (self.runtimeWebView != nil && [self.runtimeWebView respondsToSelector:selector]) {
         ((void (*)(id, SEL))objc_msgSend)(self.runtimeWebView, selector);
@@ -1745,6 +1593,7 @@ static NSString *BrowserAdBlockSourceRevision(NSURL *url) {
 }
 
 - (void)goBack {
+    self.documentGeneration += 1;
     SEL selector = NSSelectorFromString(@"goBack");
     if (self.runtimeWebView != nil && [self.runtimeWebView respondsToSelector:selector]) {
         ((id (*)(id, SEL))objc_msgSend)(self.runtimeWebView, selector);
@@ -1752,6 +1601,7 @@ static NSString *BrowserAdBlockSourceRevision(NSURL *url) {
 }
 
 - (void)goForward {
+    self.documentGeneration += 1;
     SEL selector = NSSelectorFromString(@"goForward");
     if (self.runtimeWebView != nil && [self.runtimeWebView respondsToSelector:selector]) {
         ((id (*)(id, SEL))objc_msgSend)(self.runtimeWebView, selector);
@@ -1799,6 +1649,49 @@ static NSString *BrowserAdBlockSourceRevision(NSURL *url) {
         if (completion != nil) {
             completion(error == nil ? BrowserStringFromJavaScriptResult(result) : nil);
         }
+    });
+}
+
+- (void)evaluateJavaScript:(NSString *)script
+        completionHandler:(void (^)(NSString *result, NSError *error))completion {
+    if (![NSThread isMainThread]) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self evaluateJavaScript:script completionHandler:completion];
+        });
+        return;
+    }
+    id runtime = self.runtimeWebView;
+    NSUInteger generation = self.documentGeneration;
+    NSURL *URL = [self request].URL;
+    __weak typeof(self) weakSelf = self;
+    __block BOOL finished = NO;
+    __block void (^callback)(NSString *, NSError *) = [completion copy];
+    void (^finish)(id, NSError *) = ^(id result, NSError *error) {
+        if (finished) { return; }
+        finished = YES;
+        BrowserWebView *webView = weakSelf;
+        NSURL *currentURL = [webView request].URL;
+        BOOL sameURL = URL == currentURL || [URL isEqual:currentURL];
+        if (webView == nil || webView.runtimeWebView != runtime ||
+            webView.documentGeneration != generation || !sameURL) {
+            error = [NSError errorWithDomain:NSURLErrorDomain code:NSURLErrorCancelled userInfo:nil];
+        }
+        void (^reply)(NSString *, NSError *) = callback;
+        callback = nil;
+        if (reply != nil) { reply(error == nil ? BrowserStringFromJavaScriptResult(result) : nil, error); }
+    };
+    SEL selector = NSSelectorFromString(@"evaluateJavaScript:completionHandler:");
+    if (script.length == 0 || runtime == nil || ![runtime respondsToSelector:selector]) {
+        finish(nil, [NSError errorWithDomain:@"BrowserJavaScript" code:1 userInfo:nil]);
+        return;
+    }
+    ((void (*)(id, SEL, id, id))objc_msgSend)(runtime, selector, script, ^(id result, NSError *error) {
+        dispatch_async(dispatch_get_main_queue(), ^{ finish(result, error); });
+    });
+    // Bound the reply without pumping a nested run loop or blocking the caller.
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        finish(nil, [NSError errorWithDomain:NSURLErrorDomain code:NSURLErrorTimedOut userInfo:nil]);
     });
 }
 
@@ -1851,7 +1744,7 @@ static NSString *BrowserAdBlockSourceRevision(NSURL *url) {
                 "});"
             "}"
         "})();";
-    [self stringByEvaluatingJavaScriptFromString:pauseScript];
+    [self evaluateJavaScript:pauseScript completionHandler:^(__unused NSString *result, __unused NSError *error) {}];
 }
 
 - (NSString *)runtimeMediaPreferenceReport {
@@ -1962,9 +1855,7 @@ static NSString *BrowserAdBlockSourceRevision(NSURL *url) {
     return BrowserPreviewString(report, 24000);
 }
 
-- (void)installYouTubeRequestCaptureHook {
-    [self evaluateJavaScript:BrowserYouTubeRequestCaptureScript() completion:^(__unused NSString *result) {}];
-}
+
 
 - (void)setUserAgent:(NSString *)userAgent {
     _userAgent = [userAgent copy];
@@ -2095,6 +1986,7 @@ static NSString *BrowserAdBlockSourceRevision(NSURL *url) {
 }
 
 - (void)webView:(id)webView didStartProvisionalNavigation:(id)navigation {
+    self.documentGeneration += 1;
     self.loading = YES;
     if ([self.delegate respondsToSelector:@selector(webViewDidStartLoad:)]) {
         [self.delegate webViewDidStartLoad:self];
@@ -2102,6 +1994,7 @@ static NSString *BrowserAdBlockSourceRevision(NSURL *url) {
 }
 
 - (void)webView:(id)webView didCommitNavigation:(id)navigation {
+    self.documentGeneration += 1;
     [self applyDomainZoomForURL:[self request].URL];
 }
 
@@ -2113,7 +2006,6 @@ static NSString *BrowserAdBlockSourceRevision(NSURL *url) {
     self.lastTitle = [self title];
     self.lastRequest = [self request];
     [self applyDomainZoomForURL:self.lastRequest.URL];
-    [self installYouTubeRequestCaptureHook];
     self.lastAppliedPageZoom = 0.0;
     self.lastAppliedTextZoom = 0.0;
     [self applyPageScalingIfNeeded];
@@ -2138,6 +2030,7 @@ static NSString *BrowserAdBlockSourceRevision(NSURL *url) {
 }
 
 - (void)webViewWebContentProcessDidTerminate:(id)webView {
+    self.documentGeneration += 1;
     self.loading = NO;
     if ([self.delegate respondsToSelector:@selector(webViewWebContentProcessDidTerminate:)]) {
         [self.delegate webViewWebContentProcessDidTerminate:self];

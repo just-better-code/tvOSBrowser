@@ -46,6 +46,10 @@ FOUNDATION_EXPORT NSString * const BrowserAdBlockSourceStatusDidChangeNotificati
 - (nullable NSString *)stringByEvaluatingJavaScriptFromString:(NSString * _Nonnull)script;
 - (void)evaluateJavaScript:(NSString * _Nonnull)script
                completion:(void (^ _Nonnull)(NSString * _Nullable result))completion;
+// Completion runs on the main queue; navigation invalidates pending results.
+@property (nonatomic, readonly) NSUInteger documentGeneration;
+- (void)evaluateJavaScript:(NSString *)script
+        completionHandler:(void (^)(NSString * _Nullable result, NSError * _Nullable error))completion;
 - (NSString * _Nonnull)runtimeMediaPreferenceReport;
 - (void)setUserAgent:(NSString * _Nullable)userAgent;
 - (void)pauseAllMediaPlayback;
