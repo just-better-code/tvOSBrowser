@@ -1366,11 +1366,16 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
     [self.host browserBringCursorToFront];
 }
 
+- (NSUInteger)currentPageZoomPercent {
+    return [self.preferencesStore pageZoomPercentForURL:self.host.browserWebView.request.URL];
+}
+
 - (void)setPageZoomPercent:(NSUInteger)percent {
     BrowserWebView *webView = self.host.browserWebView;
     UIScrollView *scrollView = webView.scrollView;
-    self.preferencesStore.pageZoomPercent = percent;
-    webView.pageZoomFactor = self.preferencesStore.pageZoomPercent / 100.0;
+    NSURL *pageURL = webView.request.URL;
+    [self.preferencesStore setPageZoomPercent:percent forURL:pageURL];
+    webView.pageZoomFactor = [self.preferencesStore pageZoomPercentForURL:pageURL] / 100.0;
     // Page zoom scales text and layout together. Anchor reading at the left edge.
     [scrollView setContentOffset:CGPointMake(0.0, scrollView.contentOffset.y) animated:NO];
     __weak typeof(self) weakSelf = self;
@@ -1378,7 +1383,8 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
     dispatch_async(dispatch_get_main_queue(), ^{
         BrowserWebView *currentWebView = weakWebView;
         if (currentWebView == nil || weakSelf.host.browserWebView != currentWebView ||
-            weakSelf.preferencesStore.pageZoomPercent != percent) {
+            ![currentWebView.request.URL isEqual:pageURL] ||
+            [weakSelf.preferencesStore pageZoomPercentForURL:pageURL] != percent) {
             return;
         }
         UIScrollView *currentScrollView = currentWebView.scrollView;
@@ -1828,7 +1834,7 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
     BrowserAdvancedMenuItem *zoomOutItem = [self advancedMenuItemWithTitle:@"Zoom Out"
                                                                     style:UIAlertActionStyleDefault
                                                                   handler:^{
-        [self setPageZoomPercent:MAX((NSUInteger)50, self.preferencesStore.pageZoomPercent - 10)];
+        [self setPageZoomPercent:MAX((NSUInteger)50, [self currentPageZoomPercent] - 10)];
     }];
     BrowserAdvancedMenuItem *zoomResetItem = [self advancedMenuItemWithTitle:@"Reset Zoom"
                                                                       style:UIAlertActionStyleDefault
@@ -1838,13 +1844,13 @@ typedef NSString * (^BrowserAdvancedMenuTitleProvider)(void);
     BrowserAdvancedMenuItem *zoomInItem = [self advancedMenuItemWithTitle:@"Zoom In"
                                                                    style:UIAlertActionStyleDefault
                                                                  handler:^{
-        [self setPageZoomPercent:MIN((NSUInteger)200, self.preferencesStore.pageZoomPercent + 10)];
+        [self setPageZoomPercent:MIN((NSUInteger)200, [self currentPageZoomPercent] + 10)];
     }];
     zoomOutItem.keepsMenuOpen = YES;
     zoomResetItem.keepsMenuOpen = YES;
     zoomInItem.keepsMenuOpen = YES;
     zoomResetItem.tileTitleProvider = ^NSString *{
-        return [NSString stringWithFormat:@"Reset Zoom\n%lu%%", (unsigned long)self.preferencesStore.pageZoomPercent];
+        return [NSString stringWithFormat:@"Reset Zoom\n%lu%%", (unsigned long)[self currentPageZoomPercent]];
     };
     BrowserAdvancedMenuItem *debugItem = [self advancedMenuItemWithTitle:@"Debug"
                                                                    style:UIAlertActionStyleDefault

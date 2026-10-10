@@ -184,7 +184,7 @@ static NSString * const kBrowserNewTabURL = @"about:blank";
     [scrollView.panGestureRecognizer addTarget:self action:@selector(handleWebViewPanGesture:)];
     scrollView.scrollEnabled = NO;
 
-    webView.pageZoomFactor = self.preferencesStore.pageZoomPercent / 100.0;
+    webView.pageZoomFactor = 1.0;
     webView.contentMode = UIViewContentModeScaleToFill;
     webView.userInteractionEnabled = NO;
     return webView;
@@ -196,7 +196,8 @@ static NSString * const kBrowserNewTabURL = @"about:blank";
         return;
     }
 
-    self.activeWebView.pageZoomFactor = self.preferencesStore.pageZoomPercent / 100.0;
+    NSURL *pageURL = self.activeWebView.request.URL ?: [NSURL URLWithString:tab.URLString];
+    self.activeWebView.pageZoomFactor = [self.preferencesStore pageZoomPercentForURL:pageURL] / 100.0;
     if (![tab.URLString isEqualToString:kBrowserNewTabURL]) {
         [self.host browserTabCoordinatorHideNativeStartPage];
     }

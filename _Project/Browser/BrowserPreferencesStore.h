@@ -12,7 +12,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, copy) NSString *userAgent;
 @property (nonatomic) BOOL mobileModeEnabled;
 @property (nonatomic) NSUInteger textFontSize;
-@property (nonatomic) NSUInteger pageZoomPercent;
+// Page zoom belongs to the top-level HTTP(S) host, shared across its tabs.
+- (NSUInteger)pageZoomPercentForURL:(nullable NSURL *)URL;
+- (void)setPageZoomPercent:(NSUInteger)percent forURL:(nullable NSURL *)URL;
 @property (nonatomic) BOOL fullscreenVideoPlaybackEnabled;
 @property (nonatomic) BOOL adBlockEnabled;
 @property (nonatomic) BOOL cursorMagnifierEnabled;

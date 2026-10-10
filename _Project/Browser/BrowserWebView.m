@@ -1649,6 +1649,7 @@ static NSString *BrowserAdBlockSourceRevision(NSURL *url) {
         if (webView == nil || webView.loading ||
             ([webView.runtimeWebView respondsToSelector:loadingSelector] &&
              ((BOOL (*)(id, SEL))objc_msgSend)(webView.runtimeWebView, loadingSelector))) return;
+        [webView applyDomainZoomForURL:[webView request].URL];
         if ([webView.delegate respondsToSelector:@selector(webViewDidChangeNavigationHistory:)]) {
             [webView.delegate webViewDidChangeNavigationHistory:webView];
         }
@@ -1718,6 +1719,7 @@ static NSString *BrowserAdBlockSourceRevision(NSURL *url) {
         return;
     }
     self.lastRequest = request;
+    [self applyDomainZoomForURL:request.URL];
     SEL selector = NSSelectorFromString(@"loadRequest:");
     if ([self.runtimeWebView respondsToSelector:selector]) {
         ((id (*)(id, SEL, id))objc_msgSend)(self.runtimeWebView, selector, request);
@@ -1972,6 +1974,10 @@ static NSString *BrowserAdBlockSourceRevision(NSURL *url) {
     }
 }
 
+- (void)applyDomainZoomForURL:(NSURL *)URL {
+    self.pageZoomFactor = [[BrowserPreferencesStore new] pageZoomPercentForURL:URL] / 100.0;
+}
+
 - (void)setPageZoomFactor:(CGFloat)pageZoomFactor {
     CGFloat nextFactor = MIN(2.0, MAX(0.5, pageZoomFactor));
     if (fabs(_pageZoomFactor - nextFactor) < 0.001) {
@@ -2095,6 +2101,10 @@ static NSString *BrowserAdBlockSourceRevision(NSURL *url) {
     }
 }
 
+- (void)webView:(id)webView didCommitNavigation:(id)navigation {
+    [self applyDomainZoomForURL:[self request].URL];
+}
+
 - (void)webView:(id)webView didFinishNavigation:(id)navigation {
     self.loading = NO;
     if (self.adBlockEnabled && [self.adBlockStatus isEqualToString:@"on"]) {
@@ -2102,6 +2112,7 @@ static NSString *BrowserAdBlockSourceRevision(NSURL *url) {
     }
     self.lastTitle = [self title];
     self.lastRequest = [self request];
+    [self applyDomainZoomForURL:self.lastRequest.URL];
     [self installYouTubeRequestCaptureHook];
     self.lastAppliedPageZoom = 0.0;
     self.lastAppliedTextZoom = 0.0;
